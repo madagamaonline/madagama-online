@@ -1,36 +1,60 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Madagama Pvt Ltd — Retail & Credit Management System
 
-## Getting Started
+A web app for a Sri Lankan retail business (agricultural tools/spares + electronics/parts)
+with inventory, VAT invoicing, flexible-installment credit sales with interest, supplier-credit
+purchasing, SMS reminders, payroll, expenses, and KPI reports.
 
-First, run the development server:
+**Stack:** Next.js 16 (App Router) · TypeScript · Prisma 6 · PostgreSQL (Neon) · Tailwind v4 ·
+JWT cookie auth (jose) · text.lk SMS · recharts.
+
+## Features
+
+- **Catalog** — categories/subcategories with auto-generated codes (`AGR-TOOL-0001`), stock & low-stock alerts.
+- **Cash sales** — fast POS billing, VAT-inclusive 18% (configurable), printable tax invoices, auto stock decrement.
+- **Credit sales** — guarantor + NIC uploads, 4-month interest-free then 2%/month on the remaining balance (non-compounding), flexible payments, live balances, overdue tracking.
+- **Suppliers & purchases** — stock-in (GRN), supplier credit with due dates and payments.
+- **SMS reminders** — text.lk, sent by a daily Vercel cron (customer dues + interest warnings, supplier credit alerts).
+- **Payroll** — daily attendance, ad-hoc commissions, monthly salary sheets.
+- **Finance** — expenses, profit report, daily/monthly sales-trend charts.
+- **Settings** — business details, VAT %, interest rate & grace period, SMS config.
+
+## Local development
 
 ```bash
+npm install
+cp .env.example .env        # fill in DATABASE_URL / DIRECT_URL (and AUTH_SECRET, CRON_SECRET)
+npm run db:migrate          # apply schema
+npm run db:seed             # admin user + sample data
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 — sign in with **admin@madagama.lk / admin123** (change this in production).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Run unit tests (interest engine + code generator): `npm test`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment variables
 
-## Learn More
+| Var | Purpose |
+|-----|---------|
+| `DATABASE_URL` | Pooled Postgres URL (app runtime) |
+| `DIRECT_URL` | Direct Postgres URL (Prisma migrations) |
+| `AUTH_SECRET` | JWT signing secret (`openssl rand -base64 32`) |
+| `CRON_SECRET` | Protects `/api/cron/reminders` (`openssl rand -hex 24`) |
+| `STORAGE_DRIVER` | `local` (dev) or `s3` (production) |
+| `S3_REGION`/`S3_BUCKET`/`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` | NIC image storage when `STORAGE_DRIVER=s3` |
+| `TEXTLK_API_TOKEN` | text.lk API token (SMS). When empty, reminders are logged but not sent. |
+| `TEXTLK_SENDER_ID` | Approved sender ID |
 
-To learn more about Next.js, take a look at the following resources:
+## Deploy to Vercel
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Push this repo to GitHub and import it in Vercel.
+2. Set all environment variables above in the Vercel project.
+   - **Important:** set `STORAGE_DRIVER=s3` and the `S3_*` vars — Vercel's filesystem is ephemeral, so the `local` driver would lose uploaded NIC images.
+   - Set `CRON_SECRET`; Vercel automatically sends it as a Bearer token to the cron route.
+3. The build runs `prisma generate && next build`. To apply migrations on deploy, run `npm run db:deploy` (or set the build command to `prisma migrate deploy && prisma generate && next build`).
+4. The daily reminder cron is configured in `vercel.json` (`/api/cron/reminders`, 03:00 UTC).
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Notes / follow-ups
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next 16 deprecates the `middleware` filename in favour of `proxy`; the current `src/middleware.ts` still works — rename when convenient.
+- Net profit in Reports is approximate (uses current product cost for COGS; excludes credit interest income).

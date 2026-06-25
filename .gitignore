@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# uploaded files (local storage driver; sensitive NIC images)
+/uploads
+
 # debug
 npm-debug.log*
 yarn-debug.log*

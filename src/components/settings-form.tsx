@@ -20,6 +20,7 @@ export type SettingsInitial = {
   textlkApiToken: string;
   reminderDayOfMonth: number;
   nonTaxableEnabled: boolean;
+  defaultTargetMarginPct: number;
 };
 
 export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsInitial; isAdmin?: boolean }) {
@@ -131,6 +132,32 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
               report figure and filter — it behaves as if only taxable stock exists, and new
               non-taxable items can&apos;t be created. Nothing is deleted: turning it back on makes
               everything reappear exactly as before. Admins only.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Pricing</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="max-w-xs">
+              <Label htmlFor="defaultTargetMarginPct">Default target margin (%)</Label>
+              <Input
+                id="defaultTargetMarginPct"
+                name="defaultTargetMarginPct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="99"
+                defaultValue={initial.defaultTargetMarginPct}
+              />
+            </div>
+            <p className="text-xs text-muted">
+              Used by the product pricing helper and the bulk re-pricer when a product has no target
+              margin of its own. Margin is measured on the selling price. Admins only.
             </p>
           </CardContent>
         </Card>

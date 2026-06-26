@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
+import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { getSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +25,7 @@ const typeTone = {
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, movements, ntEnabled] = await Promise.all([
+  const [product, movements, ntEnabled, settings] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { category: true, subcategory: true, primarySupplier: { select: { name: true } } },
@@ -35,6 +37,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       take: 100,
     }),
     nonTaxableEnabled(),
+    getSettings(),
   ]);
   // When non-taxable is off, a non-taxable product effectively doesn't exist —
   // no direct-URL traces.
@@ -43,7 +46,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const cost = toNum(product.costPrice);
   const price = toNum(product.sellingPrice);
   const margin = price - cost;
-  const marginPct = price > 0 ? (margin / price) * 100 : 0;
+  const marginPct = grossMarginPct(cost, price);
+  const target =
+    product.targetMarginPct == null
+      ? toNum(settings?.defaultTargetMarginPct ?? 20)
+      : toNum(product.targetMarginPct);
+  const usingDefaultTarget = product.targetMarginPct == null;
+  const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
   const low = product.reorderLevel > 0 && product.quantityInStock <= product.reorderLevel;
 
   return (
@@ -72,6 +81,17 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <Row label="Margin">
               {formatLKR(margin)} <span className="text-muted">({marginPct.toFixed(1)}%)</span>
             </Row>
+            <Row label="Target margin">
+              {target.toFixed(1)}%{usingDefaultTarget && <span className="text-muted"> (default)</span>}
+            </Row>
+            {belowTarget && (
+              <div className="flex items-center justify-between gap-3">
+                <Badge tone="amber">Below target</Badge>
+                <Link href={`/products/${product.id}/edit`} className="text-xs text-primary hover:underline">
+                  Re-price to target →
+                </Link>
+              </div>
+            )}
             <Row label="Stock">
               {low ? <Badge tone="red">{product.quantityInStock} low</Badge> : product.quantityInStock}
             </Row>

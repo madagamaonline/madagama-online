@@ -38,6 +38,7 @@ model User {
   shiftReports     ShiftReport[]
   serviceJobs      ServiceJob[]
   serviceJobEvents ServiceJobEvent[]
+  priceChanges     PriceChange[]
 }
 
 // Single-row global configuration (id = 1).
@@ -59,6 +60,9 @@ model Setting {
   // behaves as if only taxable stock exists. Nothing is deleted; flipping it
   // back to true restores everything. Default true preserves existing behavior.
   nonTaxableEnabled    Boolean  @default(true)
+  // Default target gross margin (%) used by the pricing helper / bulk re-pricer
+  // when a product has no per-item targetMarginPct of its own.
+  defaultTargetMarginPct Decimal @default("20") @db.Decimal(5, 2)
   updatedAt            DateTime @updatedAt
 }
 
@@ -100,6 +104,9 @@ model Product {
   subcategoryId     String
   costPrice         Decimal     @default("0") @db.Decimal(12, 2)
   sellingPrice      Decimal     @default("0") @db.Decimal(12, 2)
+  // Target gross margin (on selling price) for this product. Null = fall back
+  // to Setting.defaultTargetMarginPct. Drives the pricing helper + bulk re-pricer.
+  targetMarginPct   Decimal?    @db.Decimal(5, 2)
   quantityInStock   Int         @default(0)
   reorderLevel      Int         @default(0)
   taxable           Boolean     @default(true)
@@ -114,6 +121,7 @@ model Product {
   purchaseItems  PurchaseItem[]
   stockMovements StockMovement[]
   returnItems    SalesReturnItem[]
+  priceChanges   PriceChange[]
 
   @@index([categoryId])
   @@index([subcategoryId])
@@ -270,6 +278,10 @@ model InvoiceItem {
   qty          Int
   unitPrice    Decimal  @db.Decimal(12, 2)
   lineTotal    Decimal  @db.Decimal(12, 2)
+  // Product cost at the moment of sale, captured so profit reports stay correct
+  // even after the product's cost later changes (WAC / bulk re-pricing). Null on
+  // rows created before this field existed — reports fall back to current cost.
+  costSnapshot Decimal? @db.Decimal(12, 2)
 
   @@index([invoiceId])
   @@index([productId])
@@ -519,6 +531,31 @@ model StockMovement {
   balanceAfter    Int // stock level immediately after this movement
   reason          String?
   refId           String? // invoice / purchase / return id
+  createdBy       User?             @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+
+  @@index([productId])
+  @@index([createdAt])
+}
+
+enum PriceChangeReason {
+  PURCHASE_WAC // cost recalculated as weighted-average on a stock purchase
+  MANUAL // cost/price edited directly on the product form
+  BULK // changed by the bulk price adjuster
+}
+
+// Audit trail for cost/selling-price changes — answers "why did this price move?".
+model PriceChange {
+  id              String            @id @default(cuid())
+  product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId       String
+  reason          PriceChangeReason
+  oldCostPrice    Decimal           @db.Decimal(12, 2)
+  newCostPrice    Decimal           @db.Decimal(12, 2)
+  oldSellingPrice Decimal           @db.Decimal(12, 2)
+  newSellingPrice Decimal           @db.Decimal(12, 2)
+  note            String?
   createdBy       User?             @relation(fields: [createdByUserId], references: [id])
   createdByUserId String?
   createdAt       DateTime          @default(now())

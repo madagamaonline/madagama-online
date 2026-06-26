@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { getSettings } from "@/lib/settings";
 import { updateProduct } from "../../actions";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +15,7 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [product, categories, suppliers, ntEnabled] = await Promise.all([
+  const [product, categories, suppliers, ntEnabled, settings] = await Promise.all([
     prisma.product.findUnique({ where: { id } }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -22,10 +23,12 @@ export default async function EditProductPage({
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     nonTaxableEnabled(),
+    getSettings(),
   ]);
 
   // When non-taxable is off, a non-taxable product effectively doesn't exist.
   if (!product || (!ntEnabled && !product.taxable)) notFound();
+  const defaultTargetMarginPct = toNum(settings?.defaultTargetMarginPct ?? 20);
 
   const updateAction = updateProduct.bind(null, id);
 
@@ -39,6 +42,7 @@ export default async function EditProductPage({
         submitLabel="Save Changes"
         isEdit
         nonTaxableEnabled={ntEnabled}
+        defaultTargetMarginPct={defaultTargetMarginPct}
         initial={{
           code: product.code,
           name: product.name,
@@ -46,6 +50,7 @@ export default async function EditProductPage({
           subcategoryId: product.subcategoryId,
           costPrice: toNum(product.costPrice),
           sellingPrice: toNum(product.sellingPrice),
+          targetMarginPct: product.targetMarginPct == null ? null : toNum(product.targetMarginPct),
           quantityInStock: product.quantityInStock,
           reorderLevel: product.reorderLevel,
           taxable: product.taxable,

@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
+import { logPriceChange } from "@/lib/price-change";
+import { weightedAvgCost } from "@/lib/pricing";
 import { round2, toNum } from "@/lib/utils";
 
 const lineSchema = z.object({
@@ -72,11 +74,20 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
             },
           },
         });
-        // Increase stock and update each product's latest cost price.
+        // Increase stock and re-derive each product's cost as the weighted
+        // average of existing stock and the newly-purchased units.
         for (const l of d.lines) {
+          const before = await tx.product.findUnique({
+            where: { id: l.productId },
+            select: { quantityInStock: true, costPrice: true, sellingPrice: true },
+          });
+          if (!before) throw new Error("Product not found");
+          const oldCost = toNum(before.costPrice);
+          const newCost = weightedAvgCost(before.quantityInStock, oldCost, l.qty, l.costPrice);
+
           const updated = await tx.product.update({
             where: { id: l.productId },
-            data: { quantityInStock: { increment: l.qty }, costPrice: l.costPrice },
+            data: { quantityInStock: { increment: l.qty }, costPrice: newCost },
           });
           await logStockMovement(tx, {
             productId: l.productId,
@@ -86,6 +97,20 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
             refId: created.id,
             userId: session?.id ?? null,
           });
+          if (newCost !== oldCost) {
+            await logPriceChange(tx, {
+              productId: l.productId,
+              reason: "PURCHASE_WAC",
+              oldCostPrice: oldCost,
+              newCostPrice: newCost,
+              // Selling price is left untouched — the system suggests a re-price
+              // (below-target badge) rather than silently changing it.
+              oldSellingPrice: toNum(before.sellingPrice),
+              newSellingPrice: toNum(before.sellingPrice),
+              note: `Purchase at ${l.costPrice} × ${l.qty}`,
+              userId: session?.id ?? null,
+            });
+          }
         }
         return created;
       },

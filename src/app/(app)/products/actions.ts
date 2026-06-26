@@ -6,8 +6,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
+import { logPriceChange } from "@/lib/price-change";
 import { nextProductCode } from "@/lib/product-code";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { toNum } from "@/lib/utils";
 
 export type ProductFormState = { error?: string };
 
@@ -23,6 +25,7 @@ const schema = z.object({
   subcategoryId: z.string().min(1, "Subcategory is required"),
   costPrice: z.coerce.number().min(0),
   sellingPrice: z.coerce.number().min(0),
+  targetMarginPct: z.coerce.number().min(0).max(99).optional(),
   quantityInStock: z.coerce.number().int().min(0),
   reorderLevel: z.coerce.number().int().min(0),
   barcode: z.string().optional(),
@@ -36,6 +39,8 @@ function parse(formData: FormData) {
     subcategoryId: formData.get("subcategoryId"),
     costPrice: formData.get("costPrice") || 0,
     sellingPrice: formData.get("sellingPrice") || 0,
+    // Empty ⇒ undefined ⇒ stored as null (falls back to the global default).
+    targetMarginPct: formData.get("targetMarginPct") || undefined,
     quantityInStock: formData.get("quantityInStock") || 0,
     reorderLevel: formData.get("reorderLevel") || 0,
     barcode: formData.get("barcode") || undefined,
@@ -73,6 +78,7 @@ export async function createProduct(
           subcategoryId: d.subcategoryId,
           costPrice: d.costPrice,
           sellingPrice: d.sellingPrice,
+          targetMarginPct: d.targetMarginPct ?? null,
           quantityInStock: d.quantityInStock,
           reorderLevel: d.reorderLevel,
           taxable,
@@ -114,23 +120,48 @@ export async function updateProduct(
 
   const sub = await prisma.subcategory.findUnique({ where: { id: d.subcategoryId } });
   if (!sub) return { error: "Invalid subcategory" };
+  const session = await getSession();
 
-  await prisma.product.update({
-    where: { id },
-    data: {
-      name: d.name.trim(),
-      description: d.description?.trim() || null,
-      categoryId: sub.categoryId,
-      subcategoryId: d.subcategoryId,
-      costPrice: d.costPrice,
-      sellingPrice: d.sellingPrice,
-      // quantityInStock is intentionally not updated here — stock changes only
-      // through Purchases (stock-in) and Sales (stock-out).
-      reorderLevel: d.reorderLevel,
-      taxable,
-      barcode: d.barcode?.trim() || null,
-      primarySupplierId: d.primarySupplierId || null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const before = await tx.product.findUnique({
+      where: { id },
+      select: { costPrice: true, sellingPrice: true },
+    });
+    if (!before) throw new Error("Product not found");
+
+    await tx.product.update({
+      where: { id },
+      data: {
+        name: d.name.trim(),
+        description: d.description?.trim() || null,
+        categoryId: sub.categoryId,
+        subcategoryId: d.subcategoryId,
+        costPrice: d.costPrice,
+        sellingPrice: d.sellingPrice,
+        targetMarginPct: d.targetMarginPct ?? null,
+        // quantityInStock is intentionally not updated here — stock changes only
+        // through Purchases (stock-in) and Sales (stock-out).
+        reorderLevel: d.reorderLevel,
+        taxable,
+        barcode: d.barcode?.trim() || null,
+        primarySupplierId: d.primarySupplierId || null,
+      },
+    });
+
+    // Keep the price-change audit complete for manual edits.
+    const oldCost = toNum(before.costPrice);
+    const oldPrice = toNum(before.sellingPrice);
+    if (oldCost !== d.costPrice || oldPrice !== d.sellingPrice) {
+      await logPriceChange(tx, {
+        productId: id,
+        reason: "MANUAL",
+        oldCostPrice: oldCost,
+        newCostPrice: d.costPrice,
+        oldSellingPrice: oldPrice,
+        newSellingPrice: d.sellingPrice,
+        userId: session?.id ?? null,
+      });
+    }
   });
 
   revalidatePath("/products");

@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { PricingHelper } from "@/components/pricing-helper";
 
 type Sub = { id: string; name: string; code: string; categoryId: string };
 type Category = { id: string; name: string; code: string; subcategories: Sub[] };
@@ -21,6 +22,7 @@ export type ProductInitial = {
   subcategoryId: string;
   costPrice: number;
   sellingPrice: number;
+  targetMarginPct: number | null;
   quantityInStock: number;
   reorderLevel: number;
   taxable: boolean;
@@ -35,6 +37,7 @@ const empty: ProductInitial = {
   subcategoryId: "",
   costPrice: 0,
   sellingPrice: 0,
+  targetMarginPct: null,
   quantityInStock: 0,
   reorderLevel: 0,
   taxable: true,
@@ -51,6 +54,7 @@ export function ProductForm({
   submitLabel = "Save Product",
   isEdit = false,
   nonTaxableEnabled = true,
+  defaultTargetMarginPct = 20,
 }: {
   categories: Category[];
   suppliers: Supplier[];
@@ -59,10 +63,19 @@ export function ProductForm({
   submitLabel?: string;
   isEdit?: boolean;
   nonTaxableEnabled?: boolean;
+  defaultTargetMarginPct?: number;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
   const [categoryId, setCategoryId] = useState(initial.categoryId);
+
+  // Controlled so the live pricing helper can react to edits and write back the
+  // suggested selling price. Kept as strings to allow an empty target margin.
+  const [costPrice, setCostPrice] = useState(String(initial.costPrice ?? ""));
+  const [sellingPrice, setSellingPrice] = useState(String(initial.sellingPrice ?? ""));
+  const [targetMargin, setTargetMargin] = useState(
+    initial.targetMarginPct == null ? "" : String(initial.targetMarginPct),
+  );
 
   const subs = categories.find((c) => c.id === categoryId)?.subcategories ?? [];
 
@@ -122,16 +135,55 @@ export function ProductForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <Label htmlFor="costPrice">Cost price (LKR)</Label>
-              <Input id="costPrice" name="costPrice" type="number" step="0.01" min="0" defaultValue={initial.costPrice} />
+              <Input
+                id="costPrice"
+                name="costPrice"
+                type="number"
+                step="0.01"
+                min="0"
+                value={costPrice}
+                onChange={(e) => setCostPrice(e.target.value)}
+              />
             </div>
             <div>
               <Label htmlFor="sellingPrice">Selling price (LKR)</Label>
-              <Input id="sellingPrice" name="sellingPrice" type="number" step="0.01" min="0" defaultValue={initial.sellingPrice} required />
+              <Input
+                id="sellingPrice"
+                name="sellingPrice"
+                type="number"
+                step="0.01"
+                min="0"
+                value={sellingPrice}
+                onChange={(e) => setSellingPrice(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="targetMarginPct">Target margin %</Label>
+              <Input
+                id="targetMarginPct"
+                name="targetMarginPct"
+                type="number"
+                step="0.1"
+                min="0"
+                max="99"
+                placeholder={`${defaultTargetMarginPct} (default)`}
+                value={targetMargin}
+                onChange={(e) => setTargetMargin(e.target.value)}
+              />
             </div>
           </div>
+
+          <PricingHelper
+            cost={Number(costPrice) || 0}
+            price={Number(sellingPrice) || 0}
+            targetMarginPct={Number(targetMargin) || 0}
+            defaultTargetMarginPct={defaultTargetMarginPct}
+            onApplyPrice={(p) => setSellingPrice(String(p))}
+          />
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

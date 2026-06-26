@@ -18,6 +18,7 @@ const schema = z.object({
   smsEnabled: z.boolean(),
   textlkApiToken: z.string().optional(),
   reminderDayOfMonth: z.coerce.number().int().min(1).max(28),
+  defaultTargetMarginPct: z.coerce.number().min(0).max(99),
 });
 
 export async function updateSettings(
@@ -35,6 +36,7 @@ export async function updateSettings(
     smsEnabled: formData.get("smsEnabled") === "on",
     textlkApiToken: formData.get("textlkApiToken") ?? undefined,
     reminderDayOfMonth: formData.get("reminderDayOfMonth"),
+    defaultTargetMarginPct: formData.get("defaultTargetMarginPct") || 20,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -56,6 +58,7 @@ export async function updateSettings(
         interestFreeMonths: d.interestFreeMonths,
         textlkApiToken: d.textlkApiToken?.trim() || null,
         nonTaxableEnabled,
+        defaultTargetMarginPct: d.defaultTargetMarginPct,
       }
     : {};
 

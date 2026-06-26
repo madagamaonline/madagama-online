@@ -61,7 +61,7 @@ export default async function ReportsPage() {
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart }, ...taxF } }),
     prisma.invoiceItem.findMany({
       where: { invoice: { createdAt: { gte: monthStart }, ...taxF } },
-      select: { qty: true, lineTotal: true, nameSnapshot: true, product: { select: { costPrice: true } } },
+      select: { qty: true, lineTotal: true, nameSnapshot: true, costSnapshot: true, product: { select: { costPrice: true } } },
     }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: monthStart } } }),
     computePayroll(monthStr),
@@ -143,7 +143,14 @@ export default async function ReportsPage() {
 
   // Profit (this month, approximate)
   const revenue = toNum(monthRevenueAgg._sum.grandTotal ?? 0);
-  const cogs = round2(monthItems.reduce((s, it) => s + it.qty * toNum(it.product?.costPrice ?? 0), 0));
+  // Prefer the cost captured at sale time; fall back to the product's current
+  // cost for rows created before cost snapshots existed.
+  const cogs = round2(
+    monthItems.reduce(
+      (s, it) => s + it.qty * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0),
+      0,
+    ),
+  );
   const expenses = toNum(expenseAgg._sum.amount ?? 0);
   const payroll = round2(payrollLines.reduce((s, l) => s + l.netPay, 0));
   const grossProfit = round2(revenue - cogs);
@@ -334,7 +341,7 @@ export default async function ReportsPage() {
       </Card>
 
       <p className="mt-4 text-xs text-muted">
-        Net profit is approximate: revenue − cost of goods (at current cost) − expenses − payroll for the month. Credit-sale interest income is not included.
+        Net profit is approximate: revenue − cost of goods (captured at the time of sale) − expenses − payroll for the month. Credit-sale interest income is not included.
       </p>
     </div>
   );

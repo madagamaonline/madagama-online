@@ -8,7 +8,7 @@ import { getSession } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
 import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
-import { round2 } from "@/lib/utils";
+import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 
 const lineSchema = z.object({
@@ -36,7 +36,14 @@ export type CreateInvoiceResult =
   | { ok: true; invoices: CreatedInvoice[] }
   | { ok: false; error: string };
 
-type Computed = { productId: string; code: string; name: string; qty: number; unitPrice: number };
+type Computed = {
+  productId: string;
+  code: string;
+  name: string;
+  qty: number;
+  unitPrice: number;
+  costSnapshot: number;
+};
 
 export async function createCashInvoice(
   input: CreateInvoiceInput,
@@ -50,7 +57,7 @@ export async function createCashInvoice(
 
   const products = await prisma.product.findMany({
     where: { id: { in: data.lines.map((l) => l.productId) } },
-    select: { id: true, code: true, name: true, taxable: true, quantityInStock: true },
+    select: { id: true, code: true, name: true, taxable: true, quantityInStock: true, costPrice: true },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -76,7 +83,14 @@ export async function createCashInvoice(
   const nonTaxable: Computed[] = [];
   for (const line of data.lines) {
     const p = byId.get(line.productId)!;
-    const entry: Computed = { productId: p.id, code: p.code, name: p.name, qty: line.qty, unitPrice: line.unitPrice };
+    const entry: Computed = {
+      productId: p.id,
+      code: p.code,
+      name: p.name,
+      qty: line.qty,
+      unitPrice: line.unitPrice,
+      costSnapshot: toNum(p.costPrice),
+    };
     (p.taxable ? taxable : nonTaxable).push(entry);
   }
 
@@ -132,6 +146,7 @@ export async function createCashInvoice(
                     qty: it.qty,
                     unitPrice: it.unitPrice,
                     lineTotal: round2(it.qty * it.unitPrice),
+                    costSnapshot: it.costSnapshot,
                   })),
                 },
               },

@@ -46,6 +46,7 @@ export default async function SettingsPage() {
           textlkApiToken: s?.textlkApiToken ?? "",
           reminderDayOfMonth: s?.reminderDayOfMonth ?? 1,
           nonTaxableEnabled: s?.nonTaxableEnabled ?? true,
+          defaultTargetMarginPct: toNum(s?.defaultTargetMarginPct ?? 20),
         }}
       />
       {isAdmin && session && <UsersManager users={userRows} currentUserId={session.id} />}

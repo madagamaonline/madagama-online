@@ -4,19 +4,23 @@ import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { Button } from "@/components/ui/button";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { getSettings } from "@/lib/settings";
+import { toNum } from "@/lib/utils";
 import { createProduct } from "../actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  const [categories, suppliers, ntEnabled] = await Promise.all([
+  const [categories, suppliers, ntEnabled, settings] = await Promise.all([
     prisma.category.findMany({
       orderBy: { name: "asc" },
       include: { subcategories: { orderBy: { name: "asc" } } },
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     nonTaxableEnabled(),
+    getSettings(),
   ]);
+  const defaultTargetMarginPct = toNum(settings?.defaultTargetMarginPct ?? 20);
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -37,6 +41,7 @@ export default async function NewProductPage() {
           action={createProduct}
           submitLabel="Create Product"
           nonTaxableEnabled={ntEnabled}
+          defaultTargetMarginPct={defaultTargetMarginPct}
         />
       )}
     </div>

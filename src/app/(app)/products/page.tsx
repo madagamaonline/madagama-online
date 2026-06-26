@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Plus, Search, Tags, Pencil, Download } from "lucide-react";
+import { Plus, Search, Tags, Pencil, Download, Percent } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -9,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
+import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
+import { getSettings } from "@/lib/settings";
 import { toggleProductActive } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -36,12 +39,18 @@ export default async function ProductsPage({
       : {}),
   };
 
-  const products = await prisma.product.findMany({
-    where,
-    orderBy: { code: "asc" },
-    include: { category: true, subcategory: true },
-    take: 200,
-  });
+  const [products, settings, session] = await Promise.all([
+    prisma.product.findMany({
+      where,
+      orderBy: { code: "asc" },
+      include: { category: true, subcategory: true },
+      take: 200,
+    }),
+    getSettings(),
+    getSession(),
+  ]);
+  const defaultTarget = toNum(settings?.defaultTargetMarginPct ?? 20);
+  const isAdmin = session?.role === "ADMIN";
 
   return (
     <div>
@@ -53,6 +62,13 @@ export default async function ProductsPage({
             <a href="/api/export/stock" className={buttonVariants({ variant: "outline" })}>
               <Download className="h-4 w-4" /> Export
             </a>
+            {isAdmin && (
+              <Link href="/products/pricing">
+                <Button variant="outline">
+                  <Percent className="h-4 w-4" /> Bulk pricing
+                </Button>
+              </Link>
+            )}
             <Link href="/products/categories">
               <Button variant="outline">
                 <Tags className="h-4 w-4" /> Categories
@@ -103,7 +119,10 @@ export default async function ProductsPage({
                 {products.map((p) => {
                   const low = p.reorderLevel > 0 && p.quantityInStock <= p.reorderLevel;
                   const price = toNum(p.sellingPrice);
-                  const marginPct = price > 0 ? ((price - toNum(p.costPrice)) / price) * 100 : 0;
+                  const cost = toNum(p.costPrice);
+                  const marginPct = grossMarginPct(cost, price);
+                  const target = p.targetMarginPct == null ? defaultTarget : toNum(p.targetMarginPct);
+                  const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
                   return (
                     <TR key={p.id} className={p.active ? "" : "opacity-50"}>
                       <TD className="font-mono text-xs font-semibold">
@@ -120,8 +139,15 @@ export default async function ProductsPage({
                         {p.category.name} / {p.subcategory.name}
                       </TD>
                       <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>
-                      <TD className={`text-right ${marginPct < 0 ? "text-danger" : "text-muted"}`}>
-                        {marginPct.toFixed(0)}%
+                      <TD className="text-right">
+                        <span className={marginPct < 0 ? "text-danger" : "text-muted"}>
+                          {marginPct.toFixed(0)}%
+                        </span>
+                        {belowTarget && (
+                          <Link href={`/products/${p.id}/edit`} title={`Below ${target.toFixed(0)}% target`}>
+                            <Badge tone="amber" className="ml-2">↓ target</Badge>
+                          </Link>
+                        )}
                       </TD>
                       <TD className="text-right">
                         {low ? (

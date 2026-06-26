@@ -23,9 +23,15 @@ const typeTone = {
   ADJUSTMENT: "amber",
 } as const;
 
+const reasonMeta = {
+  PURCHASE_WAC: { label: "Purchase (avg cost)", tone: "green" },
+  MANUAL: { label: "Manual edit", tone: "gray" },
+  BULK: { label: "Bulk re-price", tone: "blue" },
+} as const;
+
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, movements, ntEnabled, settings] = await Promise.all([
+  const [product, movements, ntEnabled, settings, priceChanges] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { category: true, subcategory: true, primarySupplier: { select: { name: true } } },
@@ -38,6 +44,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     }),
     nonTaxableEnabled(),
     getSettings(),
+    prisma.priceChange.findMany({
+      where: { productId: id },
+      orderBy: { createdAt: "desc" },
+      include: { createdBy: { select: { name: true } } },
+      take: 50,
+    }),
   ]);
   // When non-taxable is off, a non-taxable product effectively doesn't exist —
   // no direct-URL traces.
@@ -160,7 +172,67 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
         </CardContent>
       </Card>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Price history</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {priceChanges.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-muted">
+              No price changes recorded yet. Cost updates on each purchase (weighted average);
+              selling-price edits and bulk re-pricing also appear here.
+            </div>
+          ) : (
+            <Table>
+              <THead>
+                <TR>
+                  <TH>When</TH>
+                  <TH>Reason</TH>
+                  <TH className="text-right">Cost</TH>
+                  <TH className="text-right">Selling</TH>
+                  <TH>Note</TH>
+                  <TH>By</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {priceChanges.map((c) => {
+                  const meta = reasonMeta[c.reason];
+                  return (
+                    <TR key={c.id}>
+                      <TD className="text-muted">{formatDateTime(c.createdAt)}</TD>
+                      <TD>
+                        <Badge tone={meta.tone}>{meta.label}</Badge>
+                      </TD>
+                      <TD className="text-right">
+                        <Delta from={toNum(c.oldCostPrice)} to={toNum(c.newCostPrice)} />
+                      </TD>
+                      <TD className="text-right">
+                        <Delta from={toNum(c.oldSellingPrice)} to={toNum(c.newSellingPrice)} />
+                      </TD>
+                      <TD className="text-muted">{c.note ?? "—"}</TD>
+                      <TD className="text-muted">{c.createdBy?.name ?? "—"}</TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
     </div>
+  );
+}
+
+/** Shows "old → new" when a value changed, or just the value (muted) when not. */
+function Delta({ from, to }: { from: number; to: number }) {
+  if (from === to) return <span className="text-muted">{formatLKR(to)}</span>;
+  return (
+    <span className="whitespace-nowrap">
+      <span className="text-muted">{formatLKR(from)}</span>
+      <span className="text-muted"> → </span>
+      <span className="font-semibold text-foreground">{formatLKR(to)}</span>
+    </span>
   );
 }
 

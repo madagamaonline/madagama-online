@@ -55,17 +55,23 @@ export async function createCustomer(
     return { error: "A customer with this phone number already exists.", duplicate: true };
   }
 
-  const c = await prisma.customer.create({
-    data: {
-      name: d.name.trim(),
-      phone: phoneCheck.normalized,
-      nic: d.nic?.trim() || null,
-      address: d.address?.trim() || null,
-      email: d.email?.trim() || null,
-      nicFrontKey: d.nicFrontKey || null,
-      nicBackKey: d.nicBackKey || null,
-    },
-  });
+  let c;
+  try {
+    c = await prisma.customer.create({
+      data: {
+        name: d.name.trim(),
+        phone: phoneCheck.normalized,
+        nic: d.nic?.trim() || null,
+        address: d.address?.trim() || null,
+        email: d.email?.trim() || null,
+        nicFrontKey: d.nicFrontKey || null,
+        nicBackKey: d.nicBackKey || null,
+      },
+    });
+  } catch (e) {
+    console.error("createCustomer failed", e);
+    return { error: "Could not save the customer. Please try again." };
+  }
   revalidatePath("/customers");
   redirect(`/customers/${c.id}`);
 }
@@ -87,18 +93,23 @@ export async function updateCustomer(
     return { error: "Another customer with this phone number already exists.", duplicate: true };
   }
 
-  await prisma.customer.update({
-    where: { id },
-    data: {
-      name: d.name.trim(),
-      phone: phoneCheck.normalized,
-      nic: d.nic?.trim() || null,
-      address: d.address?.trim() || null,
-      email: d.email?.trim() || null,
-      nicFrontKey: d.nicFrontKey || null,
-      nicBackKey: d.nicBackKey || null,
-    },
-  });
+  try {
+    await prisma.customer.update({
+      where: { id },
+      data: {
+        name: d.name.trim(),
+        phone: phoneCheck.normalized,
+        nic: d.nic?.trim() || null,
+        address: d.address?.trim() || null,
+        email: d.email?.trim() || null,
+        nicFrontKey: d.nicFrontKey || null,
+        nicBackKey: d.nicBackKey || null,
+      },
+    });
+  } catch (e) {
+    console.error("updateCustomer failed", e);
+    return { error: "Could not update the customer. Please try again." };
+  }
   revalidatePath("/customers");
   redirect(`/customers/${id}`);
 }

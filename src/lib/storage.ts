@@ -42,26 +42,40 @@ function s3(): S3Client {
   return _s3;
 }
 
-export async function saveUpload(file: File, folder = "nic"): Promise<string> {
-  const ext = path.extname(file.name).toLowerCase() || ".bin";
-  const key = `${folder}/${crypto.randomUUID()}${ext}`;
-  const buf = Buffer.from(await file.arrayBuffer());
-
+/** Write raw bytes at an exact key (used by saveUpload and the scan-ticket marker). */
+export async function putObject(key: string, body: Buffer, contentType: string): Promise<void> {
   if (DRIVER === "s3") {
     await s3().send(
       new PutObjectCommand({
         Bucket: process.env.S3_BUCKET,
         Key: key,
-        Body: buf,
-        ContentType: file.type || contentTypeFor(key),
+        Body: body,
+        ContentType: contentType,
       }),
     );
-    return key;
+    return;
+  }
+
+  // Vercel's filesystem is ephemeral — a local write here would be silently lost
+  // when the container recycles, taking customer/guarantor NIC images with it.
+  // Fail loudly so this is caught at upload time, not discovered later as data loss.
+  if (process.env.VERCEL) {
+    throw new Error(
+      "Refusing to save uploads to the local filesystem on Vercel (ephemeral). Set STORAGE_DRIVER=s3 and the S3_* env vars.",
+    );
   }
 
   const full = path.join(ROOT, key);
+  if (!full.startsWith(ROOT)) throw new Error("Invalid storage key");
   await fs.mkdir(path.dirname(full), { recursive: true });
-  await fs.writeFile(full, buf);
+  await fs.writeFile(full, body);
+}
+
+export async function saveUpload(file: File, folder = "nic"): Promise<string> {
+  const ext = path.extname(file.name).toLowerCase() || ".bin";
+  const key = `${folder}/${crypto.randomUUID()}${ext}`;
+  const buf = Buffer.from(await file.arrayBuffer());
+  await putObject(key, buf, file.type || contentTypeFor(key));
   return key;
 }
 

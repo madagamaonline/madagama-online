@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Trash2, Loader2, CreditCard } from "lucide-react";
@@ -59,15 +59,18 @@ export function CreditSale({
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
 
-  const [localCustomers, setLocalCustomers] = useState(customers);
+  // Customers added via the quick-add modal during this session, kept separate
+  // from the `customers` prop and merged during render — mirroring the prop into
+  // state via an effect triggers cascading renders (react-hooks/set-state-in-effect).
+  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
-
-  useEffect(() => {
-    setLocalCustomers(customers);
-  }, [customers]);
+  const localCustomers = useMemo(
+    () => [...addedCustomers, ...customers],
+    [addedCustomers, customers],
+  );
 
   function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
-    setLocalCustomers((prev) => [newCust, ...prev]);
+    setAddedCustomers((prev) => [newCust, ...prev]);
     setCustomerId(newCust.id);
   }
 
@@ -438,7 +441,7 @@ export function CreditSale({
                   onChange={(e) => setAllowDuplicatePhone(e.target.checked)}
                   className="mt-0.5 h-4 w-4 rounded border-border"
                 />
-                <span>Continue anyway — the guarantor's phone matches the customer's.</span>
+                <span>Continue anyway — the guarantor&apos;s phone matches the customer&apos;s.</span>
               </label>
             )}
 

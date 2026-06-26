@@ -1,5 +1,39 @@
-import { addMonths, differenceInCalendarMonths } from "date-fns";
 import { round2 } from "./utils";
+
+// All month/anniversary math is anchored to Asia/Colombo (a fixed UTC+05:30, no
+// DST since 2006), NOT the server's process timezone (UTC on Vercel). Without
+// this, an anniversary falls at the UTC wall-time of the original sale and a
+// payment can land on the wrong side of the interest-accrual boundary by up to
+// 5.5 hours. These helpers are deterministic regardless of where the code runs.
+const BIZ_OFFSET_MS = (5 * 60 + 30) * 60_000;
+
+/** Add whole months in the Colombo calendar (clamping Jan 31 + 1mo → Feb 28),
+ *  returning the UTC instant at the same Colombo wall-clock time as `instant`. */
+function addBusinessMonths(instant: Date, months: number): Date {
+  const local = new Date(instant.getTime() + BIZ_OFFSET_MS); // Colombo clock as UTC fields
+  const monthAbs = local.getUTCMonth() + months;
+  const targetYear = local.getUTCFullYear() + Math.floor(monthAbs / 12);
+  const targetMonth = ((monthAbs % 12) + 12) % 12;
+  const lastDay = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+  const day = Math.min(local.getUTCDate(), lastDay);
+  const result = Date.UTC(
+    targetYear,
+    targetMonth,
+    day,
+    local.getUTCHours(),
+    local.getUTCMinutes(),
+    local.getUTCSeconds(),
+    local.getUTCMilliseconds(),
+  );
+  return new Date(result - BIZ_OFFSET_MS);
+}
+
+/** Whole calendar-month difference (`a - b`) in the Colombo calendar. */
+function businessMonthDiff(a: Date, b: Date): number {
+  const la = new Date(a.getTime() + BIZ_OFFSET_MS);
+  const lb = new Date(b.getTime() + BIZ_OFFSET_MS);
+  return (la.getUTCFullYear() - lb.getUTCFullYear()) * 12 + (la.getUTCMonth() - lb.getUTCMonth());
+}
 
 export type AgreementInput = {
   principal: number;
@@ -47,7 +81,7 @@ export function computeCreditState(
   asOf: Date = new Date(),
 ): CreditState {
   const { principal, startDate, interestRatePerMonth, interestFreeMonths } = agreement;
-  const graceEndDate = addMonths(startDate, interestFreeMonths);
+  const graceEndDate = addBusinessMonths(startDate, interestFreeMonths);
 
   // Build the event timeline up to `asOf`.
   const events: Event[] = [];
@@ -58,7 +92,7 @@ export function computeCreditState(
   }
   // Interest posts at each monthly anniversary after the grace period.
   for (let k = interestFreeMonths + 1; ; k++) {
-    const anniversary = addMonths(startDate, k);
+    const anniversary = addBusinessMonths(startDate, k);
     if (anniversary > asOf) break;
     events.push({ date: anniversary, kind: "accrue", order: 0 });
   }
@@ -91,7 +125,7 @@ export function computeCreditState(
   }
 
   const outstanding = round2(principalRemaining + interestOutstanding);
-  const monthsElapsed = Math.max(0, differenceInCalendarMonths(asOf, startDate));
+  const monthsElapsed = Math.max(0, businessMonthDiff(asOf, startDate));
   const isSettled = outstanding <= 0;
   const inGracePeriod = monthsElapsed < interestFreeMonths && !isSettled;
   const isOverdue = !isSettled && monthsElapsed >= interestFreeMonths;
@@ -100,7 +134,7 @@ export function computeCreditState(
   let nextChargeDate: Date | null = null;
   if (!isSettled) {
     for (let k = interestFreeMonths + 1; ; k++) {
-      const anniversary = addMonths(startDate, k);
+      const anniversary = addBusinessMonths(startDate, k);
       if (anniversary > asOf) {
         nextChargeDate = anniversary;
         break;

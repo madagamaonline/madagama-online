@@ -223,56 +223,88 @@ export async function recordPayment(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid payment" };
 
   const session = await getSession();
-  const agreement = await prisma.creditAgreement.findUnique({
-    where: { id: agreementId },
-    include: { payments: true },
-  });
-  if (!agreement) return { error: "Agreement not found" };
+  if (!session) return { error: "Your session has expired — please sign in again." };
 
   const paidDate = parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date();
 
-  await prisma.payment.create({
-    data: {
-      agreementId,
-      amount: parsed.data.amount,
-      paidDate,
-      method: parsed.data.method?.trim() || "CASH",
-      note: parsed.data.note?.trim() || null,
-      recordedByUserId: session?.id ?? null,
-    },
-  });
+  // Record the payment and recompute the invoice/agreement state atomically.
+  // A serializable transaction (with retry) prevents the lost-update race where
+  // two concurrent payments — or a double-clicked Submit — each read the same
+  // starting balance and one overwrites the other's `amountPaid`. All reads and
+  // writes happen inside the transaction so a mid-flight connection drop can't
+  // leave a payment row without its invoice/agreement update.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const agreement = await tx.creditAgreement.findUnique({
+            where: { id: agreementId },
+          });
+          if (!agreement) return { notFound: true as const };
 
-  // Recompute and settle if fully paid.
-  const allPayments = [
-    ...agreement.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
-    { amount: parsed.data.amount, paidDate },
-  ];
-  const state = computeCreditState(
-    {
-      principal: toNum(agreement.principal),
-      startDate: agreement.startDate,
-      interestRatePerMonth: toNum(agreement.interestRatePerMonth),
-      interestFreeMonths: agreement.interestFreeMonths,
-    },
-    allPayments,
-  );
+          await tx.payment.create({
+            data: {
+              agreementId,
+              amount: parsed.data.amount,
+              paidDate,
+              method: parsed.data.method?.trim() || "CASH",
+              note: parsed.data.note?.trim() || null,
+              recordedByUserId: session.id,
+            },
+          });
 
-  const totalPaid = allPayments.reduce((s, p) => s + p.amount, 0);
-  await prisma.invoice.update({
-    where: { id: agreement.invoiceId },
-    data: {
-      amountPaid: totalPaid,
-      status: state.isSettled ? "PAID" : "PARTIAL",
-    },
-  });
-  if (state.isSettled && agreement.status !== "SETTLED") {
-    await prisma.creditAgreement.update({ where: { id: agreementId }, data: { status: "SETTLED" } });
+          // Re-read every payment from inside the transaction (authoritative —
+          // includes the row we just wrote) rather than trusting a pre-read.
+          const payments = await tx.payment.findMany({ where: { agreementId } });
+          const allPayments = payments.map((p) => ({
+            amount: toNum(p.amount),
+            paidDate: p.paidDate,
+          }));
+          const state = computeCreditState(
+            {
+              principal: toNum(agreement.principal),
+              startDate: agreement.startDate,
+              interestRatePerMonth: toNum(agreement.interestRatePerMonth),
+              interestFreeMonths: agreement.interestFreeMonths,
+            },
+            allPayments,
+          );
+
+          const totalPaid = allPayments.reduce((s, p) => s + p.amount, 0);
+          await tx.invoice.update({
+            where: { id: agreement.invoiceId },
+            data: {
+              amountPaid: totalPaid,
+              status: state.isSettled ? "PAID" : "PARTIAL",
+            },
+          });
+          if (state.isSettled && agreement.status !== "SETTLED") {
+            await tx.creditAgreement.update({
+              where: { id: agreementId },
+              data: { status: "SETTLED" },
+            });
+          }
+          return { notFound: false as const };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
+      );
+
+      if (result.notFound) return { error: "Agreement not found" };
+
+      revalidatePath(`/credit/${agreementId}`);
+      revalidatePath("/credit");
+      revalidatePath("/dashboard");
+      return { ok: true };
+    } catch (e) {
+      // P2034: write conflict / serialization failure — retry the whole tx.
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034" && attempt < 2) {
+        continue;
+      }
+      console.error("recordPayment failed", e);
+      return { error: "Could not record the payment. Please try again." };
+    }
   }
-
-  revalidatePath(`/credit/${agreementId}`);
-  revalidatePath("/credit");
-  revalidatePath("/dashboard");
-  return { ok: true };
+  return { error: "The till is busy — please try recording the payment again." };
 }
 
 export type ReminderResult = { ok: boolean; message: string };

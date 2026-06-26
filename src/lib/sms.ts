@@ -24,6 +24,11 @@ export async function sendSms(
     return { ok: true, simulated: true };
   }
 
+  // Abort a hung gateway after 5s so a frozen socket can't pin the (serverless)
+  // function open until the platform timeout — which would block the rest of the
+  // reminder batch and inflate execution costs.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
   try {
     const res = await fetch("https://app.text.lk/api/v3/sms/send", {
       method: "POST",
@@ -38,6 +43,7 @@ export async function sendSms(
         type: "plain",
         message,
       }),
+      signal: controller.signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
@@ -45,6 +51,10 @@ export async function sendSms(
     }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: (e as Error).message };
+    const err = e as Error;
+    if (err.name === "AbortError") return { ok: false, error: "text.lk timed out after 5s" };
+    return { ok: false, error: err.message };
+  } finally {
+    clearTimeout(timeout);
   }
 }

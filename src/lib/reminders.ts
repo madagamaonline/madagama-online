@@ -6,9 +6,12 @@ import { computeCreditState } from "./credit";
 import { sendSms, type SmsResult } from "./sms";
 import { toNum, formatLKR } from "./utils";
 
-async function alreadySent(dedupeKey: string): Promise<boolean> {
-  const existing = await prisma.notificationLog.findUnique({ where: { dedupeKey } });
-  return !!existing;
+/** Run `tasks` with at most `size` in flight at once (keeps the cron under the
+ *  serverless time limit without a p-limit dependency). */
+async function inBatches<T>(items: T[], size: number, run: (item: T) => Promise<void>): Promise<void> {
+  for (let i = 0; i < items.length; i += size) {
+    await Promise.all(items.slice(i, i + size).map(run));
+  }
 }
 
 async function log(
@@ -56,6 +59,36 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
   let skipped = 0;
   let failed = 0;
 
+  type SendTask = {
+    type: NotificationType;
+    refId: string;
+    dedupeKey: string;
+    recipient: string;
+    message: string;
+  };
+
+  // Preload every used dedupe key in ONE query, instead of querying per reminder
+  // inside the loop (the old O(N) round-trips). Membership is then an in-memory
+  // Set lookup, so building the work list does no further DB I/O.
+  const seenKeys = new Set(
+    (
+      await prisma.notificationLog.findMany({
+        where: { dedupeKey: { not: null } },
+        select: { dedupeKey: true },
+      })
+    ).map((r) => r.dedupeKey as string),
+  );
+
+  const tasks: SendTask[] = [];
+  const queue = (t: SendTask) => {
+    if (seenKeys.has(t.dedupeKey)) {
+      skipped++;
+      return;
+    }
+    seenKeys.add(t.dedupeKey); // guard against duplicate keys within this run
+    tasks.push(t);
+  };
+
   // --- Customer credit reminders ---
   const agreements = await prisma.creditAgreement.findMany({
     where: { status: "ACTIVE" },
@@ -83,30 +116,24 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
     // Interest warning within 7 days before grace ends.
     const daysToGraceEnd = differenceInDays(state.graceEndDate, now);
     if (daysToGraceEnd >= 0 && daysToGraceEnd <= 7) {
-      const key = `interest-warning:${a.id}`;
-      if (await alreadySent(key)) {
-        skipped++;
-      } else {
-        const msg = `${business}: Dear ${a.customer.name}, balance ${formatLKR(state.outstanding)} on ${a.invoice.invoiceNumber} is interest-free until ${format(state.graceEndDate, "dd MMM yyyy")}. Please settle to avoid interest.`;
-        const r = await sendSms(phone, msg, senderId, apiToken);
-        await log("INTEREST_WARNING", a.id, key, phone, msg, r);
-        if (r.ok) sent++;
-        else failed++;
-      }
+      queue({
+        type: "INTEREST_WARNING",
+        refId: a.id,
+        dedupeKey: `interest-warning:${a.id}`,
+        recipient: phone,
+        message: `${business}: Dear ${a.customer.name}, balance ${formatLKR(state.outstanding)} on ${a.invoice.invoiceNumber} is interest-free until ${format(state.graceEndDate, "dd MMM yyyy")}. Please settle to avoid interest.`,
+      });
     }
 
     // Overdue: one reminder per calendar month.
     if (state.isOverdue && state.outstanding > 0) {
-      const key = `overdue:${a.id}:${format(now, "yyyy-MM")}`;
-      if (await alreadySent(key)) {
-        skipped++;
-      } else {
-        const msg = `${business}: Dear ${a.customer.name}, your balance on ${a.invoice.invoiceNumber} is ${formatLKR(state.outstanding)} (incl. interest). Please make a payment.`;
-        const r = await sendSms(phone, msg, senderId, apiToken);
-        await log("CUSTOMER_PAYMENT", a.id, key, phone, msg, r);
-        if (r.ok) sent++;
-        else failed++;
-      }
+      queue({
+        type: "CUSTOMER_PAYMENT",
+        refId: a.id,
+        dedupeKey: `overdue:${a.id}:${format(now, "yyyy-MM")}`,
+        recipient: phone,
+        message: `${business}: Dear ${a.customer.name}, your balance on ${a.invoice.invoiceNumber} is ${formatLKR(state.outstanding)} (incl. interest). Please make a payment.`,
+      });
     }
   }
 
@@ -122,19 +149,26 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
       if (balance <= 0) continue;
       const days = differenceInDays(due, now);
       if (days > 7) continue;
-      const key = days < 0 ? `supplier-overdue:${p.id}:${format(now, "yyyy-MM")}` : `supplier-due:${p.id}`;
-      if (await alreadySent(key)) {
-        skipped++;
-        continue;
-      }
       const when = days < 0 ? "OVERDUE" : `due in ${days} day(s)`;
-      const msg = `${business} admin: Payment to ${p.supplier.name} of ${formatLKR(balance)} is ${when} (due ${format(due, "dd MMM")}).`;
-      const r = await sendSms(adminPhone, msg, senderId, apiToken);
-      await log("SUPPLIER_CREDIT", p.id, key, adminPhone, msg, r);
-      if (r.ok) sent++;
-      else failed++;
+      queue({
+        type: "SUPPLIER_CREDIT",
+        refId: p.id,
+        dedupeKey: days < 0 ? `supplier-overdue:${p.id}:${format(now, "yyyy-MM")}` : `supplier-due:${p.id}`,
+        recipient: adminPhone,
+        message: `${business} admin: Payment to ${p.supplier.name} of ${formatLKR(balance)} is ${when} (due ${format(due, "dd MMM")}).`,
+      });
     }
   }
+
+  // Deliver concurrently in small batches so 50+ reminders don't run for 15–25s
+  // of sequential awaits and blow the serverless time limit. Each send still logs
+  // its own dedupe row (success or failure) right after the attempt.
+  await inBatches(tasks, 8, async (t) => {
+    const r = await sendSms(t.recipient, t.message, senderId, apiToken);
+    await log(t.type, t.refId, t.dedupeKey, t.recipient, t.message, r);
+    if (r.ok) sent++;
+    else failed++;
+  });
 
   return { sent, skipped, failed, customers: agreements.length, suppliers: adminPhone ? 1 : 0 };
 }

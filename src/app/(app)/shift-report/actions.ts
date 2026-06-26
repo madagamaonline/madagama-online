@@ -60,24 +60,25 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
   };
 }
 
+// Only the physically counted cash comes from the client. The shift window and
+// the expected total are computed on the server (see below) so the audit can't
+// be forged from the browser.
 const shiftReportSchema = z.object({
-  expectedCash: z.coerce.number(),
   actualCash: z.coerce.number().min(0, "Actual cash must be positive"),
-  discrepancy: z.coerce.number(),
   notes: z.string().optional(),
 });
 
 export type ShiftReportFormState = { error?: string; ok?: boolean };
 
 export async function createShiftReport(
-  startTime: Date,
   _prev: ShiftReportFormState,
   formData: FormData,
 ): Promise<ShiftReportFormState> {
+  const session = await getSession();
+  if (!session) return { error: "Your session has expired — please sign in again." };
+
   const parsed = shiftReportSchema.safeParse({
-    expectedCash: formData.get("expectedCash"),
     actualCash: formData.get("actualCash"),
-    discrepancy: formData.get("discrepancy"),
     notes: formData.get("notes") || undefined,
   });
 
@@ -86,17 +87,22 @@ export async function createShiftReport(
   }
 
   const data = parsed.data;
-  const session = await getSession();
+
+  // Derive the shift window and expected cash from the server, NOT the client —
+  // a forged startTime/expectedCash could otherwise shrink the audited window or
+  // hide a drawer discrepancy. The discrepancy is recomputed here too.
+  const { startTime, expectedCash } = await getCurrentShiftSummary();
+  const discrepancy = data.actualCash - expectedCash;
 
   try {
     await prisma.shiftReport.create({
       data: {
-        createdByUserId: session?.id ?? null,
+        createdByUserId: session.id,
         startTime,
         endTime: new Date(),
-        expectedCash: data.expectedCash,
+        expectedCash,
         actualCash: data.actualCash,
-        discrepancy: data.discrepancy,
+        discrepancy,
         notes: data.notes?.trim() || null,
       },
     });

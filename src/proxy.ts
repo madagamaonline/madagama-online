@@ -1,7 +1,11 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron"];
+// `/scan-upload` (the phone capture page) and `/api/scan-upload` (its upload +
+// poll endpoint) are public because the phone has no session — they are
+// authorized by the signed ticket in the URL instead. Note `/api/scan-ticket`
+// (which MINTS tickets) is deliberately NOT here, so it stays session-gated.
+const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron", "/scan-upload", "/api/scan-upload"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

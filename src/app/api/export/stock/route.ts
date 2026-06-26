@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 import { toNum } from "@/lib/utils";
 import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
@@ -6,6 +7,10 @@ import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Full stock valuation (cost prices) — re-check auth here, not just in the proxy.
+  if (!(await getSession())) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   // When non-taxable is off, export taxable products only and drop the Taxable
   // column (every row would say "Yes" anyway).
   const ntEnabled = await nonTaxableEnabled();

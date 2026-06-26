@@ -56,15 +56,13 @@ export function ShiftReportForm({
   const expectedCash = summary.expectedCash;
   const discrepancy = actualCash - expectedCash;
 
-  const createReportAction = createShiftReport.bind(null, summary.startTime);
-  const [state, formAction, pending] = useActionState(createReportAction, {});
+  const [state, formAction, pending] = useActionState(createShiftReport, {});
 
   return (
     <form action={formAction} className="grid gap-6 lg:grid-cols-5">
-      {/* Hidden inputs to pass calculated totals to the server action */}
-      <input type="hidden" name="expectedCash" value={expectedCash} />
+      {/* Only the physically counted cash is sent — the server re-derives the
+          shift window, expected cash, and discrepancy so they can't be forged. */}
       <input type="hidden" name="actualCash" value={actualCash} />
-      <input type="hidden" name="discrepancy" value={discrepancy} />
 
       {/* Left Column: Shift Details & Operator Info (2 cols) */}
       <div className="space-y-6 lg:col-span-2">

@@ -39,12 +39,25 @@ export async function updateSettings(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
 
-  // The non-taxable kill-switch is admin-only. Non-admins never see the toggle,
-  // so we must NOT let a missing checkbox (which reads as "off") overwrite it —
-  // only apply the change when the current user is an admin.
+  // Defense in depth: don't rely on the middleware alone — verify a real session
+  // here too, since a server action is just a POST endpoint.
   const me = await getSession();
-  const isAdmin = me?.role === "ADMIN";
+  if (!me) return { error: "Your session has expired — please sign in again." };
+  const isAdmin = me.role === "ADMIN";
   const nonTaxableEnabled = formData.get("nonTaxableEnabled") === "on";
+
+  // Money- and credential-sensitive fields are admin-only. Non-admins use the
+  // same form but never see these inputs, so we must NOT let their submission
+  // overwrite the stored values — only apply them when the user is an admin.
+  // (This is the same guard the non-taxable kill-switch already uses.)
+  const adminOnly = isAdmin
+    ? {
+        interestRatePerMonth: d.interestRatePct / 100,
+        interestFreeMonths: d.interestFreeMonths,
+        textlkApiToken: d.textlkApiToken?.trim() || null,
+        nonTaxableEnabled,
+      }
+    : {};
 
   await prisma.setting.update({
     where: { id: 1 },
@@ -53,13 +66,10 @@ export async function updateSettings(
       address: d.address?.trim() ?? "",
       phone: d.phone?.trim() ?? "",
       email: d.email?.trim() ?? "",
-      interestRatePerMonth: d.interestRatePct / 100,
-      interestFreeMonths: d.interestFreeMonths,
       smsSenderId: d.smsSenderId?.trim() || "Madagama",
       smsEnabled: d.smsEnabled,
-      textlkApiToken: d.textlkApiToken?.trim() || null,
       reminderDayOfMonth: d.reminderDayOfMonth,
-      ...(isAdmin ? { nonTaxableEnabled } : {}),
+      ...adminOnly,
     },
   });
 

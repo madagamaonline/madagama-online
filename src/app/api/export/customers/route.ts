@@ -1,9 +1,15 @@
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  // Don't rely on the proxy/middleware alone — this dump contains customer PII
+  // (names, phones, NICs, addresses), so re-check auth at the route itself.
+  if (!(await getSession())) {
+    return new Response("Unauthorized", { status: 401 });
+  }
   const customers = await prisma.customer.findMany({
     orderBy: { name: "asc" },
     include: { _count: { select: { creditAgreements: true } } },

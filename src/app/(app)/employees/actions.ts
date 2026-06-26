@@ -4,8 +4,17 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
 
 export type EmployeeFormState = { error?: string };
+
+/** Employee records (incl. daily pay rates) are payroll master data — admin only. */
+async function requireAdminState(): Promise<{ error: string } | null> {
+  const me = await getSession();
+  if (!me) return { error: "Your session has expired — please sign in again." };
+  if (me.role !== "ADMIN") return { error: "Only an admin can manage employees." };
+  return null;
+}
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -31,19 +40,26 @@ export async function createEmployee(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
+  const denied = await requireAdminState();
+  if (denied) return denied;
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
-  await prisma.employee.create({
-    data: {
-      name: d.name.trim(),
-      nic: d.nic?.trim() || null,
-      phone: d.phone?.trim() || null,
-      address: d.address?.trim() || null,
-      position: d.position?.trim() || null,
-      dailyRate: d.dailyRate,
-    },
-  });
+  try {
+    await prisma.employee.create({
+      data: {
+        name: d.name.trim(),
+        nic: d.nic?.trim() || null,
+        phone: d.phone?.trim() || null,
+        address: d.address?.trim() || null,
+        position: d.position?.trim() || null,
+        dailyRate: d.dailyRate,
+      },
+    });
+  } catch (e) {
+    console.error("createEmployee failed", e);
+    return { error: "Could not save the employee. Please try again." };
+  }
   revalidatePath("/employees");
   redirect("/employees");
 }
@@ -53,25 +69,34 @@ export async function updateEmployee(
   _prev: EmployeeFormState,
   formData: FormData,
 ): Promise<EmployeeFormState> {
+  const denied = await requireAdminState();
+  if (denied) return denied;
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
-  await prisma.employee.update({
-    where: { id },
-    data: {
-      name: d.name.trim(),
-      nic: d.nic?.trim() || null,
-      phone: d.phone?.trim() || null,
-      address: d.address?.trim() || null,
-      position: d.position?.trim() || null,
-      dailyRate: d.dailyRate,
-    },
-  });
+  try {
+    await prisma.employee.update({
+      where: { id },
+      data: {
+        name: d.name.trim(),
+        nic: d.nic?.trim() || null,
+        phone: d.phone?.trim() || null,
+        address: d.address?.trim() || null,
+        position: d.position?.trim() || null,
+        dailyRate: d.dailyRate,
+      },
+    });
+  } catch (e) {
+    console.error("updateEmployee failed", e);
+    return { error: "Could not update the employee. Please try again." };
+  }
   revalidatePath("/employees");
   redirect("/employees");
 }
 
 export async function toggleEmployeeActive(id: string, active: boolean) {
+  const me = await getSession();
+  if (!me || me.role !== "ADMIN") throw new Error("Not authorized.");
   await prisma.employee.update({ where: { id }, data: { active } });
   revalidatePath("/employees");
 }

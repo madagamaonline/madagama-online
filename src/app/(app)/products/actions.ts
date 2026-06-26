@@ -11,6 +11,13 @@ import { nonTaxableEnabled } from "@/lib/tax-mode";
 
 export type ProductFormState = { error?: string };
 
+/** Defense in depth: every product mutation needs a real signed-in user. */
+async function requireSessionState(): Promise<{ error: string } | null> {
+  const me = await getSession();
+  if (!me) return { error: "Your session has expired — please sign in again." };
+  return null;
+}
+
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
   subcategoryId: z.string().min(1, "Subcategory is required"),
@@ -41,6 +48,8 @@ export async function createProduct(
   _prev: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
+  const denied = await requireSessionState();
+  if (denied) return denied;
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -94,6 +103,8 @@ export async function updateProduct(
   _prev: ProductFormState,
   formData: FormData,
 ): Promise<ProductFormState> {
+  const denied = await requireSessionState();
+  if (denied) return denied;
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -127,6 +138,8 @@ export async function updateProduct(
 }
 
 export async function toggleProductActive(id: string, active: boolean) {
+  const me = await getSession();
+  if (!me) throw new Error("Not authorized.");
   await prisma.product.update({ where: { id }, data: { active } });
   revalidatePath("/products");
 }
@@ -139,6 +152,8 @@ export async function adjustStock(
   _prev: AdjustStockState,
   formData: FormData,
 ): Promise<AdjustStockState> {
+  const denied = await requireSessionState();
+  if (denied) return denied;
   const direction = formData.get("direction"); // "in" | "out"
   const qty = Math.trunc(Number(formData.get("qty")));
   const reason = (formData.get("reason") as string | null)?.trim() || "";

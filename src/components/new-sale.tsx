@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -80,15 +80,18 @@ export function NewSale({
   const searchRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false);
 
-  const [localCustomers, setLocalCustomers] = useState(customers);
+  // Customers added via the quick-add modal during this session, merged with the
+  // `customers` prop during render — mirroring the prop into state via an effect
+  // triggers cascading renders (react-hooks/set-state-in-effect).
+  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
-
-  useEffect(() => {
-    setLocalCustomers(customers);
-  }, [customers]);
+  const localCustomers = useMemo(
+    () => [...addedCustomers, ...customers],
+    [addedCustomers, customers],
+  );
 
   function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
-    setLocalCustomers((prev) => [newCust, ...prev]);
+    setAddedCustomers((prev) => [newCust, ...prev]);
     setCustomerId(newCust.id);
   }
 

@@ -26,16 +26,18 @@ model User {
   email        String   @unique
   passwordHash String
   role         Role     @default(ADMIN)
-  pin          String?  // 4-digit PIN for quick login switching at the till
+  pin          String? // 4-digit PIN for quick login switching at the till
   active       Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  invoicesCreated  Invoice[]       @relation("InvoiceCreatedBy")
-  paymentsRecorded Payment[]       @relation("PaymentRecordedBy")
+  invoicesCreated  Invoice[]         @relation("InvoiceCreatedBy")
+  paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
   stockMovements   StockMovement[]
   salesReturns     SalesReturn[]
   shiftReports     ShiftReport[]
+  serviceJobs      ServiceJob[]
+  serviceJobEvents ServiceJobEvent[]
 }
 
 // Single-row global configuration (id = 1).
@@ -88,25 +90,25 @@ model Subcategory {
 }
 
 model Product {
-  id                String        @id @default(cuid())
-  code              String        @unique // e.g. AGR-TOOL-0001
+  id                String      @id @default(cuid())
+  code              String      @unique // e.g. AGR-TOOL-0001
   name              String
   description       String?
-  category          Category      @relation(fields: [categoryId], references: [id])
+  category          Category    @relation(fields: [categoryId], references: [id])
   categoryId        String
-  subcategory       Subcategory   @relation(fields: [subcategoryId], references: [id])
+  subcategory       Subcategory @relation(fields: [subcategoryId], references: [id])
   subcategoryId     String
-  costPrice         Decimal       @default("0") @db.Decimal(12, 2)
-  sellingPrice      Decimal       @default("0") @db.Decimal(12, 2)
-  quantityInStock   Int           @default(0)
-  reorderLevel      Int           @default(0)
-  taxable           Boolean       @default(true)
+  costPrice         Decimal     @default("0") @db.Decimal(12, 2)
+  sellingPrice      Decimal     @default("0") @db.Decimal(12, 2)
+  quantityInStock   Int         @default(0)
+  reorderLevel      Int         @default(0)
+  taxable           Boolean     @default(true)
   barcode           String?
-  primarySupplier   Supplier?     @relation(fields: [primarySupplierId], references: [id])
+  primarySupplier   Supplier?   @relation(fields: [primarySupplierId], references: [id])
   primarySupplierId String?
-  active            Boolean       @default(true)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  active            Boolean     @default(true)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   invoiceItems   InvoiceItem[]
   purchaseItems  PurchaseItem[]
@@ -135,6 +137,7 @@ model Customer {
 
   invoices         Invoice[]
   creditAgreements CreditAgreement[]
+  serviceJobs      ServiceJob[]
 
   @@index([phone])
 }
@@ -158,10 +161,10 @@ model Employee {
   nic        String?
   phone      String?
   address    String?
-  position   String?  // job role, e.g. Sales Rep / Driver / Helper
+  position   String? // job role, e.g. Sales Rep / Driver / Helper
   dailyRate  Decimal  @default("0") @db.Decimal(12, 2)
   joinedDate DateTime @default(now())
-  pin        String?  // 4-digit PIN for operator switching
+  pin        String? // 4-digit PIN for operator switching
   active     Boolean  @default(true)
   createdAt  DateTime @default(now())
 
@@ -191,13 +194,13 @@ model ShiftReport {
 }
 
 model Supplier {
-  id            String     @id @default(cuid())
+  id            String   @id @default(cuid())
   name          String
   contactPerson String?
   phone         String?
   email         String?
   address       String?
-  createdAt     DateTime   @default(now())
+  createdAt     DateTime @default(now())
 
   products  Product[]
   purchases Purchase[]
@@ -225,27 +228,28 @@ enum TaxCategory {
 }
 
 model Invoice {
-  id            String        @id @default(cuid())
-  invoiceNumber String        @unique
-  type          InvoiceType   @default(CASH)
-  taxCategory   TaxCategory   @default(TAXABLE)
-  customer      Customer?     @relation(fields: [customerId], references: [id])
-  customerId    String?
-  soldBy        Employee?     @relation(fields: [soldByEmployeeId], references: [id])
+  id               String        @id @default(cuid())
+  invoiceNumber    String        @unique
+  type             InvoiceType   @default(CASH)
+  taxCategory      TaxCategory   @default(TAXABLE)
+  customer         Customer?     @relation(fields: [customerId], references: [id])
+  customerId       String?
+  soldBy           Employee?     @relation(fields: [soldByEmployeeId], references: [id])
   soldByEmployeeId String?
-  subtotal      Decimal       @db.Decimal(12, 2)
-  discount      Decimal       @default("0") @db.Decimal(12, 2)
-  grandTotal    Decimal       @db.Decimal(12, 2)
-  amountPaid    Decimal       @default("0") @db.Decimal(12, 2)
-  status        InvoiceStatus @default(PAID)
-  notes         String?
-  createdBy     User?         @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
-  createdByUserId String?
-  createdAt     DateTime      @default(now())
+  subtotal         Decimal       @db.Decimal(12, 2)
+  discount         Decimal       @default("0") @db.Decimal(12, 2)
+  grandTotal       Decimal       @db.Decimal(12, 2)
+  amountPaid       Decimal       @default("0") @db.Decimal(12, 2)
+  status           InvoiceStatus @default(PAID)
+  notes            String?
+  createdBy        User?         @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
+  createdByUserId  String?
+  createdAt        DateTime      @default(now())
 
   items           InvoiceItem[]
   creditAgreement CreditAgreement?
   returns         SalesReturn[]
+  serviceJobs     ServiceJob[]
 
   @@index([createdAt])
   @@index([customerId])
@@ -256,16 +260,16 @@ model Invoice {
 }
 
 model InvoiceItem {
-  id          String  @id @default(cuid())
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId   String
-  product     Product? @relation(fields: [productId], references: [id])
-  productId   String?
+  id           String   @id @default(cuid())
+  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId    String
+  product      Product? @relation(fields: [productId], references: [id])
+  productId    String?
   nameSnapshot String
   codeSnapshot String?
-  qty         Int
-  unitPrice   Decimal @db.Decimal(12, 2)
-  lineTotal   Decimal @db.Decimal(12, 2)
+  qty          Int
+  unitPrice    Decimal  @db.Decimal(12, 2)
+  lineTotal    Decimal  @db.Decimal(12, 2)
 
   @@index([invoiceId])
   @@index([productId])
@@ -317,16 +321,16 @@ model InterestCharge {
 }
 
 model Payment {
-  id          String          @id @default(cuid())
-  agreement   CreditAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
-  agreementId String
-  amount      Decimal         @db.Decimal(12, 2)
-  paidDate    DateTime        @default(now())
-  method      String          @default("CASH")
-  note        String?
-  recordedBy  User?           @relation("PaymentRecordedBy", fields: [recordedByUserId], references: [id])
+  id               String          @id @default(cuid())
+  agreement        CreditAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  agreementId      String
+  amount           Decimal         @db.Decimal(12, 2)
+  paidDate         DateTime        @default(now())
+  method           String          @default("CASH")
+  note             String?
+  recordedBy       User?           @relation("PaymentRecordedBy", fields: [recordedByUserId], references: [id])
   recordedByUserId String?
-  createdAt   DateTime        @default(now())
+  createdAt        DateTime        @default(now())
 
   @@index([agreementId])
   @@index([paidDate])
@@ -348,18 +352,18 @@ enum PurchaseStatus {
 }
 
 model Purchase {
-  id              String         @id @default(cuid())
-  supplier        Supplier       @relation(fields: [supplierId], references: [id])
-  supplierId      String
+  id                String         @id @default(cuid())
+  supplier          Supplier       @relation(fields: [supplierId], references: [id])
+  supplierId        String
   supplierInvoiceNo String?
-  date            DateTime       @default(now())
-  type            PurchaseType   @default(CASH)
-  total           Decimal        @db.Decimal(12, 2)
-  amountPaid      Decimal        @default("0") @db.Decimal(12, 2)
-  creditDueDate   DateTime?
-  status          PurchaseStatus @default(PAID)
-  notes           String?
-  createdAt       DateTime       @default(now())
+  date              DateTime       @default(now())
+  type              PurchaseType   @default(CASH)
+  total             Decimal        @db.Decimal(12, 2)
+  amountPaid        Decimal        @default("0") @db.Decimal(12, 2)
+  creditDueDate     DateTime?
+  status            PurchaseStatus @default(PAID)
+  notes             String?
+  createdAt         DateTime       @default(now())
 
   items    PurchaseItem[]
   payments PurchasePayment[]
@@ -552,4 +556,75 @@ model SalesReturnItem {
   lineTotal Decimal     @db.Decimal(12, 2)
 
   @@index([returnId])
+}
+
+// ----------------------------------------------------------------------------
+// After-sales service & warranty jobs
+// ----------------------------------------------------------------------------
+
+enum ServiceJobStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ServiceEventType {
+  CREATED
+  STATUS_CHANGE
+  NOTE
+}
+
+// An after-sale service / warranty repair brought in by a customer. Internal
+// record only — no money flows through it; any charge is noted in `notes`.
+model ServiceJob {
+  id        String           @id @default(cuid())
+  jobNumber String           @unique // SVC-000001
+  status    ServiceJobStatus @default(PENDING)
+
+  itemName      String // e.g. "Refrigerator"
+  brand         String? // brand / model
+  serialNumber  String?
+  underWarranty Boolean  @default(false) // warranty repair vs paid job
+  issue         String // reported problem / requested work
+  resolution    String? // what was done (filled on completion)
+  notes         String? // free text, incl. any cost notes
+  photoKeys     String[] @default([]) // storage keys (served via /api/files)
+
+  // optional customer link; falls back to inline contact for walk-ins
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId   String?
+  contactName  String?
+  contactPhone String?
+
+  // optional link back to the original sale
+  invoice   Invoice? @relation(fields: [invoiceId], references: [id])
+  invoiceId String?
+
+  createdBy       User?     @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  events ServiceJobEvent[]
+
+  @@index([status])
+  @@index([customerId])
+  @@index([createdAt])
+}
+
+// Dated audit timeline for a service job — the "proof" of what happened and when.
+model ServiceJobEvent {
+  id              String            @id @default(cuid())
+  job             ServiceJob        @relation(fields: [serviceJobId], references: [id], onDelete: Cascade)
+  serviceJobId    String
+  type            ServiceEventType
+  status          ServiceJobStatus? // snapshot for STATUS_CHANGE
+  note            String?
+  createdBy       User?             @relation(fields: [createdByUserId], references: [id])
+  createdByUserId String?
+  createdAt       DateTime          @default(now())
+
+  @@index([serviceJobId])
 }

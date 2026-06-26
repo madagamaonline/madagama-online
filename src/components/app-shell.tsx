@@ -22,6 +22,7 @@ import {
   Menu,
   ClipboardCheck,
   Undo2,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -38,6 +39,7 @@ const NAV: NavGroup[] = [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/returns", label: "Returns", icon: Undo2 },
+      { href: "/services", label: "Service Jobs", icon: Wrench },
       { href: "/customers", label: "Customers", icon: Users },
       { href: "/credit", label: "Credit", icon: CreditCard },
     ],

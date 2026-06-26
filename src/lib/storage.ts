@@ -31,8 +31,13 @@ export function contentTypeFor(key: string): string {
 let _s3: S3Client | null = null;
 function s3(): S3Client {
   if (!_s3) {
+    // S3_ENDPOINT lets this point at any S3-compatible provider (e.g. Backblaze
+    // B2: https://s3.<region>.backblazeb2.com). When set we use path-style URLs,
+    // which is the safe default off-AWS. Left unset, this talks to AWS S3 as before.
+    const endpoint = process.env.S3_ENDPOINT;
     _s3 = new S3Client({
       region: process.env.S3_REGION,
+      ...(endpoint ? { endpoint, forcePathStyle: true } : {}),
       credentials: {
         accessKeyId: process.env.S3_ACCESS_KEY_ID ?? "",
         secretAccessKey: process.env.S3_SECRET_ACCESS_KEY ?? "",

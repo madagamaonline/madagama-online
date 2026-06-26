@@ -108,6 +108,7 @@ export default async function ProductsPage({
                   <TH>Code</TH>
                   <TH>Name</TH>
                   <TH>Category</TH>
+                  <TH className="text-right">Cost (WAC)</TH>
                   <TH className="text-right">Price</TH>
                   <TH className="text-right">Margin</TH>
                   <TH className="text-right">Stock</TH>
@@ -138,6 +139,7 @@ export default async function ProductsPage({
                       <TD className="text-muted">
                         {p.category.name} / {p.subcategory.name}
                       </TD>
+                      <TD className="text-right text-muted">{formatLKR(cost)}</TD>
                       <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>
                       <TD className="text-right">
                         <span className={marginPct < 0 ? "text-danger" : "text-muted"}>

@@ -22,6 +22,7 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
+import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
 import { createCashInvoice, type CreatedInvoice } from "@/app/(app)/invoices/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
@@ -31,6 +32,7 @@ type ProductHit = {
   code: string;
   name: string;
   sellingPrice: number;
+  costPrice: number; // weighted-average cost — shown so the cashier can judge discounts
   taxable: boolean;
   stock: number;
 };
@@ -444,6 +446,9 @@ export function NewSale({
                         <span className="font-medium">{h.name}</span>
                         {nonTaxableEnabled && !h.taxable && <span className="ml-2 text-xs text-muted">(non-taxable)</span>}
                         <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
+                        {h.costPrice > 0 && (
+                          <span className="ml-2 text-xs text-muted">WAC: {formatLKR(h.costPrice)}</span>
+                        )}
                       </span>
                       <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
                     </button>
@@ -511,7 +516,10 @@ export function NewSale({
                       </tr>
                     </thead>
                     <tbody>
-                      {cart.map((l) => (
+                      {cart.map((l) => {
+                        const hasCost = l.product.costPrice > 0;
+                        const lineMargin = grossMarginPct(l.product.costPrice, l.unitPrice);
+                        return (
                         <tr key={l.product.id} className="border-b border-border last:border-0">
                           <td className="py-2 pr-2">
                             <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
@@ -521,6 +529,14 @@ export function NewSale({
                                 <span className="text-xs text-muted">(non-taxable)</span>
                               )}
                             </div>
+                            {hasCost && (
+                              <div className="text-xs text-muted">
+                                WAC {formatLKR(l.product.costPrice)} · margin{" "}
+                                <span className={lineMargin < 0 ? "font-semibold text-danger" : "font-semibold text-foreground"}>
+                                  {lineMargin.toFixed(0)}%
+                                </span>
+                              </div>
+                            )}
                           </td>
                           <td className="px-2">
                             <Input
@@ -552,7 +568,8 @@ export function NewSale({
                             </button>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="mt-3 flex justify-end gap-4">

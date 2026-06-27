@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { SettingsForm } from "@/components/settings-form";
 import { UsersManager } from "@/components/users-manager";
+import { SystemReset } from "@/components/system-reset";
 import { getSession } from "@/lib/auth";
 import { toNum } from "@/lib/utils";
 
@@ -50,6 +51,7 @@ export default async function SettingsPage() {
         }}
       />
       {isAdmin && session && <UsersManager users={userRows} currentUserId={session.id} />}
+      {isAdmin && <SystemReset />}
     </div>
   );
 }

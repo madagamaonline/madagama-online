@@ -38,50 +38,77 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background px-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary text-2xl font-bold text-primary-foreground">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#efeae0] px-4">
+      {/* Background Ambient Glows */}
+      <div className="absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+      <div className="absolute -right-40 -bottom-40 h-[480px] w-[480px] rounded-full bg-clay/10 blur-3xl pointer-events-none" />
+      
+      <div className="relative w-full max-w-[380px] transition-all duration-300">
+        <div className="mb-8 text-center">
+          <div className="group mx-auto mb-4 flex h-16 w-16 cursor-pointer items-center justify-center rounded-[18px] bg-gradient-to-tr from-primary to-[#6c8e65] text-2xl font-extrabold text-white shadow-lg shadow-primary/20 transition-all duration-300 hover:scale-105 hover:rotate-3 hover:shadow-xl hover:shadow-primary/30">
             M
           </div>
-          <h1 className="text-xl font-semibold text-foreground">Madagama Pvt Ltd</h1>
-          <p className="text-sm text-muted">Sign in to continue</p>
+          <h1 className="text-2xl font-extrabold tracking-tight text-foreground">Madagama Pvt Ltd</h1>
+          <p className="mt-1.5 text-xs font-semibold uppercase tracking-wider text-muted">Retail & Credit System</p>
         </div>
 
         <form
           onSubmit={onSubmit}
-          className="rounded-xl border border-border bg-surface p-6 shadow-sm"
+          className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface/80 p-8 shadow-[0_8px_32px_0_rgba(93,124,87,0.06)] backdrop-blur-md"
         >
           {error && (
-            <div className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">
+            <div className="mb-5 border border-danger/10 rounded-xl bg-danger-soft px-4 py-3 text-xs font-semibold text-danger-ink transition-all duration-300">
               {error}
             </div>
           )}
-          <div className="mb-4">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+          
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email" className="text-xs font-bold uppercase tracking-wider text-muted">Email Address</Label>
+              <Input
+                id="email"
+                type="email"
+                autoComplete="username"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                className="mt-1 h-11 border-input-border/70 transition-all focus-visible:ring-primary/20"
+                placeholder="name@madagama.lk"
+              />
+            </div>
+            
+            <div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs font-bold uppercase tracking-wider text-muted">Password</Label>
+              </div>
+              <Input
+                id="password"
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                className="mt-1 h-11 border-input-border/70 transition-all focus-visible:ring-primary/20"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              size="lg" 
+              className="mt-2 w-full bg-gradient-to-r from-primary to-[#6c8e65] text-white font-bold hover:brightness-105 active:scale-[0.98] transition-all shadow-md shadow-primary/10" 
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  Signing in…
+                </span>
+              ) : (
+                "Sign In"
+              )}
+            </Button>
           </div>
-          <div className="mb-6">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <Button type="submit" size="lg" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign In"}
-          </Button>
         </form>
       </div>
     </div>

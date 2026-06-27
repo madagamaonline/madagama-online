@@ -1,0 +1,107 @@
+name: Database backup
+
+# Nightly off-site backup of the Neon Postgres database to an rclone remote
+# (e.g. Google Drive). This is the independent recovery path called out in the
+# production-readiness review: Neon's built-in point-in-time recovery does NOT
+# protect against account suspension or accidental project deletion, so we keep
+# our own copy elsewhere.
+#
+# Required repository secrets (Settings -> Secrets and variables -> Actions):
+#   BACKUP_DATABASE_URL  Direct (non-pooled) Postgres connection string. Use the
+#                        DIRECT_URL value from .env, NOT the pgbouncer/pooled URL
+#                        (pg_dump needs a session connection). Keep sslmode=require.
+#   RCLONE_CONF_BASE64   base64 of a working rclone.conf that defines a remote
+#                        named `backup`. Create it locally once:
+#                          rclone config            # authorize Google Drive, name it "backup"
+#                          base64 -i ~/.config/rclone/rclone.conf | pbcopy   # macOS
+#                        then paste as the secret value.
+#
+# Optional repository variables (Settings -> Secrets and variables -> Actions -> Variables):
+#   RCLONE_REMOTE_PATH    Destination, default "backup:madagama-db-backups".
+#   BACKUP_RETENTION_DAYS Prune copies older than this many days, default "30".
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 20:00 UTC daily = 01:30 Asia/Colombo (off-hours)
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+# Never let two backup runs overlap.
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Bump this if Neon upgrades its Postgres major version. pg_dump must be
+      # >= the server version, so always match or exceed it.
+      PG_MAJOR: "17"
+      RCLONE_REMOTE_PATH: ${{ vars.RCLONE_REMOTE_PATH || 'backup:madagama-db-backups' }}
+      BACKUP_RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS || '30' }}
+    steps:
+      - name: Check required secrets
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          RCLONE_CONF_BASE64: ${{ secrets.RCLONE_CONF_BASE64 }}
+        run: |
+          set -euo pipefail
+          missing=0
+          if [ -z "${BACKUP_DATABASE_URL}" ]; then echo "::error::BACKUP_DATABASE_URL secret is not set"; missing=1; fi
+          if [ -z "${RCLONE_CONF_BASE64}" ]; then echo "::error::RCLONE_CONF_BASE64 secret is not set"; missing=1; fi
+          if [ "$missing" = "1" ]; then exit 1; fi
+          echo "Required secrets are present."
+
+      - name: Install PostgreSQL ${{ env.PG_MAJOR }} client
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y "postgresql-client-${PG_MAJOR}"
+          pg_dump --version
+
+      - name: Install rclone
+        run: |
+          set -euo pipefail
+          curl -fsSL https://rclone.org/install.sh | sudo bash
+          rclone version
+
+      - name: Configure rclone
+        env:
+          RCLONE_CONF_BASE64: ${{ secrets.RCLONE_CONF_BASE64 }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.config/rclone"
+          echo "$RCLONE_CONF_BASE64" | base64 -d > "$HOME/.config/rclone/rclone.conf"
+
+      - name: Dump database and upload
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          file="madagama-${stamp}.sql.gz"
+          echo "Dumping database to ${file} ..."
+          pg_dump --no-owner --no-privileges --clean --if-exists "$BACKUP_DATABASE_URL" \
+            | gzip -9 > "$file"
+          ls -lh "$file"
+          # Guard against a silently truncated/empty dump before we trust it.
+          if [ "$(stat -c%s "$file")" -lt 1024 ]; then
+            echo "::error::Dump file is suspiciously small (<1KB) - aborting upload"
+            exit 1
+          fi
+          echo "Uploading to ${RCLONE_REMOTE_PATH} ..."
+          rclone copy "$file" "${RCLONE_REMOTE_PATH}" --no-traverse
+
+      - name: Prune old backups
+        run: |
+          set -euo pipefail
+          echo "Pruning backups older than ${BACKUP_RETENTION_DAYS} days ..."
+          rclone delete "${RCLONE_REMOTE_PATH}" \
+            --min-age "${BACKUP_RETENTION_DAYS}d" \
+            --include "madagama-*.sql.gz"

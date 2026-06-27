@@ -15,10 +15,10 @@ export function StockAdjustForm({ productId }: { productId: string }) {
   return (
     <form action={action} className="space-y-3">
       {state.error && (
-        <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{state.error}</div>
+        <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</div>
       )}
       {state.ok && (
-        <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">Stock adjusted.</div>
+        <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">Stock adjusted.</div>
       )}
       <div className="grid grid-cols-2 gap-3">
         <div>

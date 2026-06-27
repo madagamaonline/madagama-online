@@ -27,8 +27,8 @@ export function AddCommission({ employees }: { employees: { id: string; name: st
       </CardHeader>
       <CardContent>
         <form ref={ref} action={action} className="space-y-3">
-          {state.error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{state.error}</div>}
-          {state.ok && <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">Commission added.</div>}
+          {state.error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</div>}
+          {state.ok && <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">Commission added.</div>}
           <div>
             <Label htmlFor="employeeId">Employee</Label>
             <Select id="employeeId" name="employeeId" required>

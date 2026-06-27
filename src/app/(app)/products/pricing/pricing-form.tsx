@@ -87,7 +87,7 @@ export function BulkPricingForm({
     <div className="space-y-4">
       <Card>
         <CardContent className="space-y-5">
-          {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{error}</div>}
+          {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
           {done && (
             <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">{done}</div>
           )}

@@ -51,10 +51,14 @@ Run unit tests (interest engine + code generator): `npm test`.
 2. Set all environment variables above in the Vercel project.
    - **Important:** set `STORAGE_DRIVER=s3` and the `S3_*` vars — Vercel's filesystem is ephemeral, so the `local` driver would lose uploaded NIC images.
    - Set `CRON_SECRET`; Vercel automatically sends it as a Bearer token to the cron route.
-3. The build runs `prisma generate && next build`. To apply migrations on deploy, run `npm run db:deploy` (or set the build command to `prisma migrate deploy && prisma generate && next build`).
+3. The build runs `prisma generate && next build`. Apply migrations on deploy with `npm run db:deploy` (or set the build command to `prisma migrate deploy && prisma generate && next build`). The full schema lives in `prisma/migrations` — **do not run `prisma db push` against production**; it bypasses migration history and causes drift.
 4. The daily reminder cron is configured in `vercel.json` (`/api/cron/reminders`, 03:00 UTC).
+
+## Operations
+
+- **Health check** — `GET /api/health` runs a trivial `SELECT 1` and returns `{ "status": "ok" }` (HTTP 200) or `{ "status": "error" }` (HTTP 503) if the database is unreachable. It's public (no session). Point an external monitor (UptimeRobot, Better Stack) at it for downtime alerts.
+- **Off-site backups** — `.github/workflows/db-backup.yml` dumps the database nightly and uploads it to an rclone remote (e.g. Google Drive), independent of Neon's built-in PITR. It needs the `BACKUP_DATABASE_URL` and `RCLONE_CONF_BASE64` repository secrets (see the file header). Trigger a manual run from the Actions tab to verify before relying on it.
 
 ## Notes / follow-ups
 
-- Next 16 deprecates the `middleware` filename in favour of `proxy`; the current `src/middleware.ts` still works — rename when convenient.
 - Net profit in Reports is approximate (uses current product cost for COGS; excludes credit interest income).

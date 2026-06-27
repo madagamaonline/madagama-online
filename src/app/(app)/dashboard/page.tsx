@@ -231,21 +231,21 @@ export default async function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Hero — Today's sales */}
-        <div className="relative flex h-40 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-[0_4px_18px_rgba(70,55,30,0.12)]">
+        <div className="relative flex h-40 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-[0_4px_18px_rgba(70,55,30,0.12)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(70,55,30,0.18)] transition-all duration-300 group">
           <div className="flex items-start justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-white/80">Today&apos;s Sales</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-white/85">Today&apos;s Sales</span>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white group-hover:scale-105 transition-transform duration-300">
               <ArrowUpRight className="h-4 w-4" />
             </div>
           </div>
-          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight">{k(todayVal)}</h2>
+          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight group-hover:translate-x-0.5 transition-transform duration-300">{k(todayVal)}</h2>
           <div className="flex items-center gap-1.5">
             <span className="inline-flex items-center gap-0.5 rounded-full bg-white/20 px-2 py-0.5 text-[10px] font-bold">
               {todayDiff >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
               {todayDiff >= 0 ? "+" : ""}
               {todayDiff}%
             </span>
-            <span className="text-[11px] font-medium text-white/80">
+            <span className="text-[11px] font-medium text-white/85">
               {todayVal > 0 ? `Cash ${cashShare}% · Credit ${100 - cashShare}%` : `${todaySales._count} invoice(s) · vs yesterday`}
             </span>
           </div>
@@ -255,14 +255,14 @@ export default async function DashboardPage() {
         <KpiCard label="This Month" value={k(monthVal)} diff={monthDiff} sub="vs last month" />
 
         {/* Outstanding credit */}
-        <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-clay/20 transition-all duration-300 group">
           <div className="flex items-start justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Outstanding Credit</span>
-            <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-clay-soft text-clay">
+            <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-clay-soft text-clay group-hover:scale-105 transition-transform duration-300">
               <CreditCard className="h-4 w-4" />
             </div>
           </div>
-          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground">{k(outstanding)}</h2>
+          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground group-hover:translate-x-0.5 transition-transform duration-300">{k(outstanding)}</h2>
           <div className="flex items-center gap-1.5">
             <span className="inline-flex items-center rounded-full bg-clay-soft px-2 py-0.5 text-[10px] font-bold text-clay-ink">
               {agStates.filter((x) => !x.s.isSettled).length} active
@@ -315,16 +315,16 @@ export default async function DashboardPage() {
                 <div key={idx} className="group relative flex flex-1 flex-col items-center">
                   <div className="flex w-full flex-1 items-end justify-center">
                     <div
-                      className={`w-full max-w-[40px] rounded-xl transition-all ${
-                        peak ? "bg-primary" : day.isToday ? "bg-clay/70" : "bg-primary-soft"
+                      className={`w-full max-w-[40px] rounded-t-xl transition-all duration-300 group-hover:scale-x-105 group-hover:brightness-105 shadow-xs ${
+                        peak ? "bg-primary" : day.isToday ? "bg-clay/80" : "bg-primary-soft hover:bg-primary-soft/90"
                       }`}
                       style={{ height: `${h}%` }}
                     />
                   </div>
-                  <span className={`mt-2 text-[11px] font-bold ${day.isToday ? "text-primary-ink" : "text-faint"}`}>
+                  <span className={`mt-2 text-[11px] font-bold transition-colors ${day.isToday ? "text-primary-ink" : "text-faint"}`}>
                     {day.dayName}
                   </span>
-                  <div className="pointer-events-none absolute -top-7 rounded-lg bg-foreground px-2 py-1 text-[10px] font-semibold text-surface opacity-0 transition-opacity group-hover:opacity-100">
+                  <div className="pointer-events-none absolute -top-8 rounded-lg bg-foreground/90 backdrop-blur-xs px-2.5 py-1 text-[10px] font-bold text-surface opacity-0 scale-95 transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 group-hover:-translate-y-1 shadow-md z-10 whitespace-nowrap">
                     {k(day.total)}
                   </div>
                 </div>
@@ -553,14 +553,14 @@ export default async function DashboardPage() {
 
 function KpiCard({ label, value, diff, sub }: { label: string; value: string; diff: number; sub: string }) {
   return (
-    <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+    <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-primary/20 transition-all duration-300 group">
       <div className="flex items-start justify-between">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{label}</span>
-        <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-border-subtle text-muted">
-          <ArrowUpRight className="h-4 w-4" />
+        <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-border-subtle text-muted group-hover:bg-primary-soft group-hover:text-primary-ink transition-colors duration-300">
+          <ArrowUpRight className="h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-300" />
         </div>
       </div>
-      <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground">{value}</h2>
+      <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground group-hover:translate-x-0.5 transition-transform duration-300">{value}</h2>
       <div className="flex items-center gap-1.5">
         <span
           className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${

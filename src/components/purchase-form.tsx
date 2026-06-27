@@ -127,7 +127,7 @@ export function PurchaseForm({
                     <button
                       key={h.id}
                       onClick={() => addProduct(h)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-slate-50"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-input"
                     >
                       <span>
                         <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
@@ -194,7 +194,7 @@ export function PurchaseForm({
                       <td className="pl-2 text-right">
                         <button
                           onClick={() => setLines((prev) => prev.filter((x) => x.product.id !== l.product.id))}
-                          className="rounded-md p-1.5 text-danger hover:bg-red-50"
+                          className="rounded-md p-1.5 text-danger hover:bg-danger-soft"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -271,7 +271,7 @@ export function PurchaseForm({
               <span>{formatLKR(total)}</span>
             </div>
 
-            {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{error}</div>}
+            {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
 
             <Button onClick={submit} size="lg" className="w-full" disabled={pending}>
               {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <PackagePlus className="h-5 w-5" />}

@@ -104,7 +104,7 @@ function DeleteButton({
             if (r?.error) setErr(r.error);
           });
         }}
-        className="rounded-md p-1.5 text-danger hover:bg-red-50 disabled:opacity-50"
+        className="rounded-md p-1.5 text-danger hover:bg-danger-soft disabled:opacity-50"
         aria-label="Delete"
       >
         <Trash2 className="h-4 w-4" />
@@ -231,7 +231,7 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
                     <button
                       type="button"
                       onClick={() => setEditingCat(cat.id)}
-                      className="rounded-md p-1.5 text-muted hover:bg-slate-100"
+                      className="rounded-md p-1.5 text-muted hover:bg-border-subtle"
                       aria-label="Edit category"
                     >
                       <Pencil className="h-4 w-4" />
@@ -266,7 +266,7 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
                             <button
                               type="button"
                               onClick={() => setEditingSub(s.id)}
-                              className="rounded-md p-1.5 text-muted hover:bg-slate-100"
+                              className="rounded-md p-1.5 text-muted hover:bg-border-subtle"
                               aria-label="Edit subcategory"
                             >
                               <Pencil className="h-4 w-4" />

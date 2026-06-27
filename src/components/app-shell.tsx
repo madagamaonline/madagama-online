@@ -134,7 +134,7 @@ export function AppShell({
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 overflow-y-auto px-3 py-3">
+        <nav className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin">
           {NAV.map((group, gi) => (
             <div key={gi} className="mb-4">
               {group.title && (
@@ -176,7 +176,7 @@ export function AppShell({
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-20 flex h-[62px] items-center justify-between border-b border-border-subtle bg-background/80 px-5 backdrop-blur lg:px-6">
+        <header className="sticky top-0 z-20 flex h-[62px] items-center justify-between border-b border-border-subtle bg-background/85 px-5 backdrop-blur-md lg:px-6 shadow-[0_1px_2px_rgba(70,55,30,0.02)]">
           <button
             className="rounded-lg p-2 text-muted hover:bg-border-subtle lg:hidden"
             onClick={() => setOpen(true)}

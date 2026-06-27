@@ -96,7 +96,7 @@ export default async function CustomerDetailPage({
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={`/api/files/${n.key}`} alt={n.label} className="h-24 w-full object-cover" />
-                    <span className="block bg-slate-50 px-2 py-1 text-center text-xs text-muted">{n.label}</span>
+                    <span className="block bg-input px-2 py-1 text-center text-xs text-muted">{n.label}</span>
                   </a>
                 ))}
               </div>

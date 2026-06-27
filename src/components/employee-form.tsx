@@ -47,7 +47,7 @@ export function EmployeeForm({
       <Card>
         <CardContent className="space-y-5">
           {state.error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{state.error}</div>
+            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</div>
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

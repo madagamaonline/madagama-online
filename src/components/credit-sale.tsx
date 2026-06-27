@@ -346,7 +346,7 @@ export function CreditSale({
       </div>
 
       {/* Summary */}
-      <div>
+      <div className="lg:sticky lg:top-[82px] lg:h-fit">
         <Card>
           <CardContent className="space-y-4">
             <div>
@@ -434,7 +434,7 @@ export function CreditSale({
             {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
 
             {phoneClash && (
-              <label className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              <label className="flex items-start gap-2 rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
                 <input
                   type="checkbox"
                   checked={allowDuplicatePhone}

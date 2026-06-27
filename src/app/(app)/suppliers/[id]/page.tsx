@@ -63,9 +63,9 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
             {supplier.phone && <p className="text-muted">{supplier.phone}</p>}
             {supplier.email && <p className="text-muted">{supplier.email}</p>}
             {supplier.address && <p className="text-muted">{supplier.address}</p>}
-            <div className="mt-3 rounded-lg bg-amber-50 px-3 py-2">
-              <p className="text-xs text-amber-800">Total payable</p>
-              <p className="text-lg font-semibold text-amber-900">{formatLKR(payable)}</p>
+            <div className="mt-3 rounded-lg bg-clay-soft px-3 py-2">
+              <p className="text-xs text-clay-ink/80">Total payable</p>
+              <p className="text-lg font-semibold text-clay-ink">{formatLKR(payable)}</p>
             </div>
           </CardContent>
         </Card>

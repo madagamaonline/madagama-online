@@ -47,10 +47,10 @@ export function CustomerForm({
       <Card>
         <CardContent className="space-y-5">
           {state.error && (
-            <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{state.error}</div>
+            <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</div>
           )}
           {state.duplicate && (
-            <label className="flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            <label className="flex items-start gap-2 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay-ink">
               <input type="checkbox" name="confirmDuplicate" className="mt-0.5 h-4 w-4 rounded border-border" />
               <span>Save anyway — this phone number is already used by another customer.</span>
             </label>

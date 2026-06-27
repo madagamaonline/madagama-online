@@ -22,21 +22,26 @@ async function log(
   message: string,
   result: SmsResult,
 ) {
+  const status = result.ok ? "SENT" : "FAILED";
+  const error = result.error ?? null;
   try {
-    await prisma.notificationLog.create({
-      data: {
-        type,
-        refId,
-        dedupeKey,
-        channel: "SMS",
-        recipient,
-        message,
-        status: result.ok ? "SENT" : "FAILED",
-        error: result.error ?? null,
-      },
-    });
+    // Upsert on dedupeKey so retrying a previously FAILED send updates that row
+    // (FAILED -> SENT) instead of colliding on the unique constraint. With a
+    // plain create the conflict was swallowed below, leaving the row FAILED and
+    // re-sending on every run once we stop deduping on failed sends.
+    if (dedupeKey) {
+      await prisma.notificationLog.upsert({
+        where: { dedupeKey },
+        create: { type, refId, dedupeKey, channel: "SMS", recipient, message, status, error },
+        update: { status, error, recipient, message, sentAt: new Date() },
+      });
+    } else {
+      await prisma.notificationLog.create({
+        data: { type, refId, dedupeKey, channel: "SMS", recipient, message, status, error },
+      });
+    }
   } catch {
-    // unique dedupe race — ignore
+    // best-effort logging — never let a logging failure abort the cron run
   }
 }
 
@@ -70,10 +75,14 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
   // Preload every used dedupe key in ONE query, instead of querying per reminder
   // inside the loop (the old O(N) round-trips). Membership is then an in-memory
   // Set lookup, so building the work list does no further DB I/O.
+  //
+  // Only SENT keys suppress a resend: if a previous send FAILED (e.g. a text.lk
+  // outage), we want the next cron run to retry it, not skip it forever. This is
+  // the lightweight outage tolerance — retry on the next daily run.
   const seenKeys = new Set(
     (
       await prisma.notificationLog.findMany({
-        where: { dedupeKey: { not: null } },
+        where: { dedupeKey: { not: null }, status: "SENT" },
         select: { dedupeKey: true },
       })
     ).map((r) => r.dedupeKey as string),

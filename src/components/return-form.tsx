@@ -49,7 +49,7 @@ export function ReturnForm({ invoiceId, lines }: { invoiceId: string; lines: Ret
   return (
     <Card>
       <CardContent className="space-y-4">
-        {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-danger">{error}</div>}
+        {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
 
         <table className="w-full text-sm">
           <thead>

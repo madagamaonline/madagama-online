@@ -5,7 +5,9 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // poll endpoint) are public because the phone has no session — they are
 // authorized by the signed ticket in the URL instead. Note `/api/scan-ticket`
 // (which MINTS tickets) is deliberately NOT here, so it stays session-gated.
-const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron", "/scan-upload", "/api/scan-upload"];
+// `/api/health` is public so external uptime monitors can ping it without a
+// session — it only ever returns a status flag, never any data.
+const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron", "/api/health", "/scan-upload", "/api/scan-upload"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

@@ -588,7 +588,7 @@ export function NewSale({
       </div>
 
       {/* Right: summary */}
-      <div>
+      <div className="lg:sticky lg:top-[82px] lg:h-fit">
         <Card>
           <CardContent className="space-y-4">
             <div>

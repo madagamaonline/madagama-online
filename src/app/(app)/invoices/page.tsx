@@ -110,8 +110,8 @@ export default async function InvoicesPage({
                         key={f.label}
                         href={buildHref({ category: f.value })}
                         className={cn(
-                          "rounded-lg px-3 py-1.5 text-sm font-medium",
-                          active ? "bg-primary text-primary-foreground" : "bg-slate-100 text-muted hover:bg-slate-200",
+                          "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
+                          active ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border hover:text-foreground",
                         )}
                       >
                         {f.label}

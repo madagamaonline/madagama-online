@@ -6,6 +6,7 @@ import type { ProductFormState } from "@/app/(app)/products/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -138,26 +139,20 @@ export function ProductForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
               <Label htmlFor="costPrice">Cost price (LKR)</Label>
-              <Input
+              <NumberInput
                 id="costPrice"
                 name="costPrice"
-                type="number"
-                step="0.01"
-                min="0"
                 value={costPrice}
-                onChange={(e) => setCostPrice(e.target.value)}
+                onValueChange={setCostPrice}
               />
             </div>
             <div>
               <Label htmlFor="sellingPrice">Selling price (LKR)</Label>
-              <Input
+              <NumberInput
                 id="sellingPrice"
                 name="sellingPrice"
-                type="number"
-                step="0.01"
-                min="0"
                 value={sellingPrice}
-                onChange={(e) => setSellingPrice(e.target.value)}
+                onValueChange={setSellingPrice}
                 required
               />
             </div>

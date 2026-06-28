@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef } from "react";
 import { recordPurchasePayment, type PurchasePaymentState } from "@/app/(app)/purchases/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 
 const initial: PurchasePaymentState = {};
@@ -25,7 +26,7 @@ export function PurchasePayment({ purchaseId }: { purchaseId: string }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="amount">Amount (LKR)</Label>
-          <Input id="amount" name="amount" type="number" min="0" step="0.01" required />
+          <NumberInput id="amount" name="amount" required />
         </div>
         <div>
           <Label htmlFor="paidDate">Date</Label>

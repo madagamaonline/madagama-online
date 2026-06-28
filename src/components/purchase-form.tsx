@@ -7,6 +7,7 @@ import { Search, Trash2, Loader2, PackagePlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -175,15 +176,12 @@ export function PurchaseForm({
                         />
                       </td>
                       <td className="px-2">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <NumberInput
                           value={l.costPrice}
-                          onChange={(e) =>
+                          onValueChange={(c) =>
                             setLines((prev) =>
                               prev.map((x) =>
-                                x.product.id === l.product.id ? { ...x, costPrice: Math.max(0, Number(e.target.value)) } : x,
+                                x.product.id === l.product.id ? { ...x, costPrice: Math.max(0, Number(c)) } : x,
                               ),
                             )
                           }
@@ -250,12 +248,9 @@ export function PurchaseForm({
                 </div>
                 <div>
                   <Label>Paid now</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
+                  <NumberInput
                     value={amountPaid || ""}
-                    onChange={(e) => setAmountPaid(Math.max(0, Number(e.target.value)))}
+                    onValueChange={(c) => setAmountPaid(Math.max(0, Number(c)))}
                     placeholder="0.00"
                   />
                 </div>

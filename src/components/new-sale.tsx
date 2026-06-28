@@ -18,6 +18,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -548,12 +549,9 @@ export function NewSale({
                             />
                           </td>
                           <td className="px-2">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <NumberInput
                               value={l.unitPrice}
-                              onChange={(e) => updateLine(l.product.id, { unitPrice: Math.max(0, Number(e.target.value)) })}
+                              onValueChange={(c) => updateLine(l.product.id, { unitPrice: Math.max(0, Number(c)) })}
                               className="h-9 w-28"
                             />
                           </td>
@@ -642,12 +640,9 @@ export function NewSale({
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Discount</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <NumberInput
                   value={discount || ""}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                  onValueChange={(c) => setDiscount(Math.max(0, Number(c)))}
                   className="h-9 w-28 text-right"
                   placeholder="0.00"
                 />
@@ -662,12 +657,9 @@ export function NewSale({
             <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Cash received</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <NumberInput
                   value={tendered || ""}
-                  onChange={(e) => setTendered(Math.max(0, Number(e.target.value)))}
+                  onValueChange={(c) => setTendered(Math.max(0, Number(c)))}
                   className="h-9 w-32 text-right"
                   placeholder="0.00"
                 />

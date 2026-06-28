@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { Calculator, AlertTriangle, ShieldCheck, Coins, Save, ArrowRight, Loader2, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createShiftReport, type ShiftSummary } from "@/app/(app)/shift-report/actions";
@@ -152,13 +152,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n5000">Rs. 5,000 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n5000"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n5000 || ""}
-                    onChange={(e) => handleCountChange("n5000", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n5000", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n5000 * 5000)}
@@ -169,13 +168,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n1000">Rs. 1,000 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n1000"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n1000 || ""}
-                    onChange={(e) => handleCountChange("n1000", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n1000", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n1000 * 1000)}
@@ -186,13 +184,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n500">Rs. 500 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n500"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n500 || ""}
-                    onChange={(e) => handleCountChange("n500", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n500", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n500 * 500)}
@@ -205,13 +202,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n100">Rs. 100 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n100"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n100 || ""}
-                    onChange={(e) => handleCountChange("n100", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n100", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n100 * 100)}
@@ -222,13 +218,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n50">Rs. 50 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n50"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n50 || ""}
-                    onChange={(e) => handleCountChange("n50", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n50", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n50 * 50)}
@@ -239,13 +234,12 @@ export function ShiftReportForm({
               <div>
                 <Label htmlFor="n20">Rs. 20 Note count</Label>
                 <div className="relative mt-1 flex items-center">
-                  <Input
+                  <NumberInput
                     id="n20"
-                    type="number"
-                    min="0"
+                    allowDecimal={false}
                     placeholder="0"
                     value={counts.n20 || ""}
-                    onChange={(e) => handleCountChange("n20", e.target.value)}
+                    onValueChange={(c) => handleCountChange("n20", c)}
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n20 * 20)}
@@ -260,13 +254,12 @@ export function ShiftReportForm({
               <Coins className="h-4 w-4 text-faint" />
               Coins & Loose Change Sum (Rs.)
             </Label>
-            <Input
+            <NumberInput
               id="looseCoins"
-              type="number"
-              min="0"
+              allowDecimal={false}
               placeholder="e.g. 145"
               value={counts.looseCoins || ""}
-              onChange={(e) => handleCountChange("looseCoins", e.target.value)}
+              onValueChange={(c) => handleCountChange("looseCoins", c)}
               className="mt-1"
             />
           </div>

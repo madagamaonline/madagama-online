@@ -7,6 +7,7 @@ import { Search, Trash2, Loader2, CreditCard } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -281,15 +282,12 @@ export function CreditSale({
                         />
                       </td>
                       <td className="px-2">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
+                        <NumberInput
                           value={l.unitPrice}
-                          onChange={(e) =>
+                          onValueChange={(c) =>
                             setCart((prev) =>
                               prev.map((x) =>
-                                x.product.id === l.product.id ? { ...x, unitPrice: Math.max(0, Number(e.target.value)) } : x,
+                                x.product.id === l.product.id ? { ...x, unitPrice: Math.max(0, Number(c)) } : x,
                               ),
                             )
                           }
@@ -404,12 +402,9 @@ export function CreditSale({
               </div>
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Discount</span>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <NumberInput
                   value={discount || ""}
-                  onChange={(e) => setDiscount(Math.max(0, Number(e.target.value)))}
+                  onValueChange={(c) => setDiscount(Math.max(0, Number(c)))}
                   className="h-9 w-28 text-right"
                   placeholder="0.00"
                 />

@@ -6,6 +6,7 @@ import { createCommission, type CommissionState } from "@/app/(app)/commissions/
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
@@ -43,7 +44,7 @@ export function AddCommission({ employees }: { employees: { id: string; name: st
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label htmlFor="amount">Amount (LKR)</Label>
-              <Input id="amount" name="amount" type="number" min="0" step="0.01" required />
+              <NumberInput id="amount" name="amount" required />
             </div>
             <div>
               <Label htmlFor="date">Date</Label>

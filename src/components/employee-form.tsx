@@ -6,6 +6,7 @@ import type { EmployeeFormState } from "@/app/(app)/employees/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,7 +57,7 @@ export function EmployeeForm({
             </div>
             <div>
               <Label htmlFor="dailyRate">Daily rate (LKR)</Label>
-              <Input id="dailyRate" name="dailyRate" type="number" min="0" step="0.01" defaultValue={initial.dailyRate} required />
+              <NumberInput id="dailyRate" name="dailyRate" defaultValue={initial.dailyRate} required />
             </div>
             <div>
               <Label htmlFor="position">Position / role</Label>

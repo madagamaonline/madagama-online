@@ -21,6 +21,9 @@ export type SettingsInitial = {
   reminderDayOfMonth: number;
   nonTaxableEnabled: boolean;
   defaultTargetMarginPct: number;
+  epfEmployeePct: number;
+  epfEmployerPct: number;
+  etfPct: number;
 };
 
 export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsInitial; isAdmin?: boolean }) {
@@ -132,6 +135,35 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
               report figure and filter — it behaves as if only taxable stock exists, and new
               non-taxable items can&apos;t be created. Nothing is deleted: turning it back on makes
               everything reappear exactly as before. Admins only.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle>EPF / ETF (payroll)</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="epfEmployeePct">EPF employee (%)</Label>
+                <Input id="epfEmployeePct" name="epfEmployeePct" type="number" step="0.1" min="0" max="100" defaultValue={initial.epfEmployeePct} />
+              </div>
+              <div>
+                <Label htmlFor="epfEmployerPct">EPF employer (%)</Label>
+                <Input id="epfEmployerPct" name="epfEmployerPct" type="number" step="0.1" min="0" max="100" defaultValue={initial.epfEmployerPct} />
+              </div>
+              <div>
+                <Label htmlFor="etfPct">ETF employer (%)</Label>
+                <Input id="etfPct" name="etfPct" type="number" step="0.1" min="0" max="100" defaultValue={initial.etfPct} />
+              </div>
+            </div>
+            <p className="text-xs text-muted">
+              Statutory rates (Sri Lanka defaults: EPF employee 8%, employer 12%, ETF 3%). The
+              employee share is deducted from pay; the employer shares are a company cost. Applied
+              only to employees marked as EPF/ETF members, on basic wages. Admins only.
             </p>
           </CardContent>
         </Card>

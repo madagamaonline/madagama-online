@@ -23,6 +23,8 @@ const schema = z.object({
   address: z.string().optional(),
   position: z.string().optional(),
   dailyRate: z.coerce.number().min(0),
+  epfEtfMember: z.boolean(),
+  epfNumber: z.string().optional(),
 });
 
 function parse(formData: FormData) {
@@ -33,6 +35,8 @@ function parse(formData: FormData) {
     address: formData.get("address") || undefined,
     position: formData.get("position") || undefined,
     dailyRate: formData.get("dailyRate") || 0,
+    epfEtfMember: formData.get("epfEtfMember") === "on",
+    epfNumber: formData.get("epfNumber") || undefined,
   });
 }
 
@@ -54,6 +58,8 @@ export async function createEmployee(
         address: d.address?.trim() || null,
         position: d.position?.trim() || null,
         dailyRate: d.dailyRate,
+        epfEtfMember: d.epfEtfMember,
+        epfNumber: d.epfNumber?.trim() || null,
       },
     });
   } catch (e) {
@@ -84,6 +90,8 @@ export async function updateEmployee(
         address: d.address?.trim() || null,
         position: d.position?.trim() || null,
         dailyRate: d.dailyRate,
+        epfEtfMember: d.epfEtfMember,
+        epfNumber: d.epfNumber?.trim() || null,
       },
     });
   } catch (e) {

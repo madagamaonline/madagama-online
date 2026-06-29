@@ -20,6 +20,8 @@ export type EmployeeInitial = {
   address: string;
   position: string;
   dailyRate: number;
+  epfEtfMember: boolean;
+  epfNumber: string;
 };
 
 const empty: EmployeeInitial = {
@@ -29,6 +31,8 @@ const empty: EmployeeInitial = {
   address: "",
   position: "",
   dailyRate: 0,
+  epfEtfMember: false,
+  epfNumber: "",
 };
 
 export function EmployeeForm({
@@ -82,6 +86,26 @@ export function EmployeeForm({
           <div>
             <Label htmlFor="address">Address</Label>
             <Textarea id="address" name="address" defaultValue={initial.address} />
+          </div>
+          <div className="rounded-lg border border-border bg-input/40 p-4 space-y-3">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                name="epfEtfMember"
+                defaultChecked={initial.epfEtfMember}
+                className="h-4 w-4 rounded border-border"
+              />
+              EPF / ETF member
+            </label>
+            <p className="text-xs text-muted">
+              Tick for permanent staff registered for EPF/ETF. Members have 8% EPF deducted from pay
+              (on basic wages); the shop also contributes 12% EPF + 3% ETF. Leave unticked for casual
+              / daily helpers.
+            </p>
+            <div className="max-w-xs">
+              <Label htmlFor="epfNumber">EPF number (optional)</Label>
+              <Input id="epfNumber" name="epfNumber" defaultValue={initial.epfNumber} placeholder="e.g. SL/12345" />
+            </div>
           </div>
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={pending}>

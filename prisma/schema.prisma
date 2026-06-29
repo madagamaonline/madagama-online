@@ -51,6 +51,11 @@ model Setting {
   logoKey              String?
   interestRatePerMonth Decimal  @default("0.02") @db.Decimal(5, 4)
   interestFreeMonths   Int      @default(4)
+  // EPF/ETF contribution rates (fractions, e.g. 0.08 = 8%). Sri Lanka defaults:
+  // EPF employee 8% (deducted), EPF employer 12% + ETF 3% (employer cost).
+  epfEmployeeRate      Decimal  @default("0.08") @db.Decimal(6, 4)
+  epfEmployerRate      Decimal  @default("0.12") @db.Decimal(6, 4)
+  etfRate              Decimal  @default("0.03") @db.Decimal(6, 4)
   smsSenderId          String   @default("Madagama")
   smsEnabled           Boolean  @default(false)
   textlkApiToken       String?
@@ -174,11 +179,18 @@ model Employee {
   joinedDate DateTime @default(now())
   pin        String? // 4-digit PIN for operator switching
   active     Boolean  @default(true)
+  // EPF/ETF membership. Only members get statutory deductions/contributions
+  // (casual/daily helpers are typically not registered). epfNumber is the
+  // member's EPF reference for remittance.
+  epfEtfMember Boolean @default(false)
+  epfNumber    String?
   createdAt  DateTime @default(now())
 
   invoices     Invoice[]
   attendance   Attendance[]
   commissions  Commission[]
+  overtime     Overtime[]
+  advances     SalaryAdvance[]
   payrollLines PayrollLine[]
   shiftReports ShiftReport[]
 }
@@ -443,6 +455,47 @@ model Commission {
   @@index([date])
 }
 
+// Extra pay for hours worked beyond normal. Manually entered (like Commission);
+// folds into gross pay at payroll but is excluded from the EPF/ETF base.
+model Overtime {
+  id         String   @id @default(cuid())
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  date       DateTime @default(now())
+  hours      Decimal  @db.Decimal(6, 2)
+  rate       Decimal  @db.Decimal(12, 2) // per-hour rate
+  amount     Decimal  @db.Decimal(12, 2) // hours x rate, computed at entry
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  @@index([employeeId])
+  @@index([date])
+}
+
+enum AdvanceStatus {
+  OUTSTANDING
+  RECOVERED
+}
+
+// Salary paid up front. Auto-recovered (deducted) from a later payroll run,
+// oldest-first, whole-or-defer (never partially splits a single advance, and
+// never pushes net pay below zero). recoveredRunId links it to the run that
+// recovered it so regenerating that run can release it again (idempotent).
+model SalaryAdvance {
+  id             String        @id @default(cuid())
+  employee       Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId     String
+  amount         Decimal       @db.Decimal(12, 2)
+  date           DateTime      @default(now())
+  note           String?
+  status         AdvanceStatus @default(OUTSTANDING)
+  recoveredRunId String? // PayrollRun.id that recovered it (loose ref, no FK)
+  recoveredAt    DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([employeeId, status])
+}
+
 model PayrollRun {
   id          String        @id @default(cuid())
   period      String        @unique // YYYY-MM
@@ -459,8 +512,13 @@ model PayrollLine {
   daysWorked       Decimal    @db.Decimal(6, 1)
   dailyRate        Decimal    @db.Decimal(12, 2)
   baseSalary       Decimal    @db.Decimal(12, 2)
+  overtimeTotal    Decimal    @default("0") @db.Decimal(12, 2)
   commissionsTotal Decimal    @default("0") @db.Decimal(12, 2)
-  deductions       Decimal    @default("0") @db.Decimal(12, 2)
+  epfEmployee      Decimal    @default("0") @db.Decimal(12, 2) // 8% deducted from pay
+  epfEmployer      Decimal    @default("0") @db.Decimal(12, 2) // 12% employer cost
+  etf              Decimal    @default("0") @db.Decimal(12, 2) // 3% employer cost
+  advanceDeduction Decimal    @default("0") @db.Decimal(12, 2)
+  deductions       Decimal    @default("0") @db.Decimal(12, 2) // epfEmployee + advanceDeduction
   netPay           Decimal    @db.Decimal(12, 2)
 }
 

@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { PayrollControls } from "@/components/payroll-controls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
+import { buttonVariants } from "@/components/ui/button";
 import { formatLKR, formatDateTime, formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -33,10 +34,27 @@ export default async function PayrollPage({
   ]);
 
   const totalNet = lines.reduce((s, l) => s + l.netPay, 0);
+  const totalEmployerContrib = lines.reduce((s, l) => s + l.epfEmployer + l.etf, 0);
 
   return (
     <div>
-      <PageHeader title="Payroll" subtitle="Monthly salary sheets from attendance + commissions" />
+      <PageHeader
+        title="Payroll"
+        subtitle="Monthly salary sheets from attendance, overtime, commissions, EPF/ETF & advances"
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Link href="/overtime" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Overtime
+            </Link>
+            <Link href="/commissions" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Commissions
+            </Link>
+            <Link href="/advances" className={buttonVariants({ variant: "outline", size: "sm" })}>
+              Advances
+            </Link>
+          </div>
+        }
+      />
 
       <Card className="mb-4">
         <CardContent>
@@ -57,9 +75,11 @@ export default async function PayrollPage({
                 <TR>
                   <TH>Employee</TH>
                   <TH className="text-right">Days</TH>
-                  <TH className="text-right">Daily Rate</TH>
                   <TH className="text-right">Base</TH>
+                  <TH className="text-right">Overtime</TH>
                   <TH className="text-right">Commission</TH>
+                  <TH className="text-right">EPF (8%)</TH>
+                  <TH className="text-right">Advance</TH>
                   <TH className="text-right">Net Pay</TH>
                 </TR>
               </THead>
@@ -94,17 +114,29 @@ export default async function PayrollPage({
                         <span className="text-muted">0 days</span>
                       )}
                     </TD>
-                    <TD className="text-right">{formatLKR(l.dailyRate)}</TD>
-                    <TD className="text-right">{formatLKR(l.baseSalary)}</TD>
-                    <TD className="text-right">{formatLKR(l.commissionsTotal)}</TD>
-                    <TD className="text-right font-semibold">{formatLKR(l.netPay)}</TD>
+                    <TD className="text-right tabular">{formatLKR(l.baseSalary)}</TD>
+                    <TD className="text-right tabular">{l.overtimeTotal ? formatLKR(l.overtimeTotal) : "—"}</TD>
+                    <TD className="text-right tabular">{l.commissionsTotal ? formatLKR(l.commissionsTotal) : "—"}</TD>
+                    <TD className="text-right tabular text-danger">
+                      {l.epfEmployee ? `−${formatLKR(l.epfEmployee)}` : l.epfEtfMember ? formatLKR(0) : "—"}
+                    </TD>
+                    <TD className="text-right tabular text-danger">
+                      {l.advanceDeduction ? `−${formatLKR(l.advanceDeduction)}` : "—"}
+                    </TD>
+                    <TD className="text-right font-semibold tabular">{formatLKR(l.netPay)}</TD>
                   </TR>
                 ))}
                 <TR>
-                  <TD className="font-semibold" colSpan={5}>
-                    Total
+                  <TD className="font-semibold" colSpan={7}>
+                    Total net pay
                   </TD>
-                  <TD className="text-right font-semibold">{formatLKR(totalNet)}</TD>
+                  <TD className="text-right font-semibold tabular">{formatLKR(totalNet)}</TD>
+                </TR>
+                <TR>
+                  <TD className="text-xs text-muted" colSpan={7}>
+                    + Employer contributions (EPF employer share + ETF) — company cost, paid on top of net
+                  </TD>
+                  <TD className="text-right text-xs text-muted tabular">{formatLKR(totalEmployerContrib)}</TD>
                 </TR>
               </TBody>
             </Table>

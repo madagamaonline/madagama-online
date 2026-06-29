@@ -48,6 +48,9 @@ export default async function SettingsPage() {
           reminderDayOfMonth: s?.reminderDayOfMonth ?? 1,
           nonTaxableEnabled: s?.nonTaxableEnabled ?? true,
           defaultTargetMarginPct: toNum(s?.defaultTargetMarginPct ?? 20),
+          epfEmployeePct: Math.round(toNum(s?.epfEmployeeRate ?? 0.08) * 10000) / 100,
+          epfEmployerPct: Math.round(toNum(s?.epfEmployerRate ?? 0.12) * 10000) / 100,
+          etfPct: Math.round(toNum(s?.etfRate ?? 0.03) * 10000) / 100,
         }}
       />
       {isAdmin && session && <UsersManager users={userRows} currentUserId={session.id} />}

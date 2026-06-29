@@ -31,6 +31,17 @@ export function formatNumber(value: Numeric): string {
   return new Intl.NumberFormat("en-LK").format(toNum(value));
 }
 
+/**
+ * Human label for a signed day count where negative = overdue:
+ * "Overdue 3d" / "Due today" / "Due tomorrow" / "Due in 5d".
+ */
+export function dueLabel(days: number): string {
+  if (days < 0) return `Overdue ${Math.abs(days)}d`;
+  if (days === 0) return "Due today";
+  if (days === 1) return "Due tomorrow";
+  return `Due in ${days}d`;
+}
+
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;

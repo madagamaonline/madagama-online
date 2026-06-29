@@ -1,6 +1,10 @@
 import "server-only";
 import { prisma } from "./prisma";
-import { toNum, round2 } from "./utils";
+import { toNum } from "./utils";
+import { computePayLine, type PayRates } from "./payroll-math";
+
+export { selectAdvancesToRecover, computePayLine } from "./payroll-math";
+export type { PayRates, PayLine, PayLineInput } from "./payroll-math";
 
 export type AttendanceDay = { date: Date; status: string };
 
@@ -13,8 +17,19 @@ export type PayrollLineData = {
   absentDays: number;
   dailyRate: number;
   baseSalary: number;
+  overtimeTotal: number;
   commissionsTotal: number;
-  netPay: number;
+  grossPay: number;
+  // Statutory (EPF/ETF). Computed on basic wages only (baseSalary), and only
+  // for employees flagged as EPF/ETF members.
+  epfEtfMember: boolean;
+  epfEmployee: number; // 8% — deducted from the employee's pay
+  epfEmployer: number; // 12% — employer cost, NOT deducted
+  etf: number; // 3% — employer cost, NOT deducted
+  advanceDeduction: number; // salary advances recovered this run
+  deductions: number; // epfEmployee + advanceDeduction
+  netPay: number; // grossPay − deductions
+  employerCost: number; // grossPay + epfEmployer + etf (info only)
   dates: AttendanceDay[];
 };
 
@@ -23,17 +38,31 @@ export function monthRange(month: string): { start: Date; end: Date } {
   return { start: new Date(Date.UTC(y, m - 1, 1)), end: new Date(Date.UTC(y, m, 1)) };
 }
 
-/** Computes salary lines for a month (YYYY-MM) from attendance + commissions. */
+const DEFAULT_RATES: PayRates = { epfEmployee: 0.08, epfEmployer: 0.12, etf: 0.03 };
+
+/** Computes salary lines for a month (YYYY-MM) from attendance, overtime, commissions and advances. */
 export async function computePayroll(month: string): Promise<PayrollLineData[]> {
   const { start, end } = monthRange(month);
   const employees = await prisma.employee.findMany({
     where: { active: true },
     orderBy: { name: "asc" },
   });
-  const [attendance, commissions] = await Promise.all([
+  const [attendance, commissions, overtime, advances, setting] = await Promise.all([
     prisma.attendance.findMany({ where: { date: { gte: start, lt: end } } }),
     prisma.commission.findMany({ where: { date: { gte: start, lt: end } } }),
+    prisma.overtime.findMany({ where: { date: { gte: start, lt: end } } }),
+    prisma.salaryAdvance.findMany({
+      where: { status: "OUTSTANDING" },
+      orderBy: { date: "asc" }, // oldest-first for whole-or-defer recovery
+    }),
+    prisma.setting.findUnique({ where: { id: 1 } }),
   ]);
+
+  const rates = {
+    epfEmployee: setting ? toNum(setting.epfEmployeeRate) : DEFAULT_RATES.epfEmployee,
+    epfEmployer: setting ? toNum(setting.epfEmployerRate) : DEFAULT_RATES.epfEmployer,
+    etf: setting ? toNum(setting.etfRate) : DEFAULT_RATES.etf,
+  };
 
   const days = new Map<string, number>();
   const fulls = new Map<string, number>();
@@ -59,12 +88,29 @@ export async function computePayroll(month: string): Promise<PayrollLineData[]> 
   for (const c of commissions) {
     comm.set(c.employeeId, (comm.get(c.employeeId) ?? 0) + toNum(c.amount));
   }
+  const ot = new Map<string, number>();
+  for (const o of overtime) {
+    ot.set(o.employeeId, (ot.get(o.employeeId) ?? 0) + toNum(o.amount));
+  }
+  const outstandingByEmployee = new Map<string, { id: string; amount: number }[]>();
+  for (const adv of advances) {
+    const list = outstandingByEmployee.get(adv.employeeId) ?? [];
+    list.push({ id: adv.id, amount: toNum(adv.amount) });
+    outstandingByEmployee.set(adv.employeeId, list);
+  }
 
   return employees.map((e) => {
     const daysWorked = days.get(e.id) ?? 0;
     const dailyRate = toNum(e.dailyRate);
-    const baseSalary = round2(daysWorked * dailyRate);
-    const commissionsTotal = round2(comm.get(e.id) ?? 0);
+    const line = computePayLine({
+      daysWorked,
+      dailyRate,
+      overtimeTotal: ot.get(e.id) ?? 0,
+      commissionsTotal: comm.get(e.id) ?? 0,
+      epfEtfMember: e.epfEtfMember,
+      outstandingAdvances: outstandingByEmployee.get(e.id) ?? [],
+      rates,
+    });
     return {
       employeeId: e.id,
       name: e.name,
@@ -73,9 +119,18 @@ export async function computePayroll(month: string): Promise<PayrollLineData[]> 
       halfDays: halves.get(e.id) ?? 0,
       absentDays: absents.get(e.id) ?? 0,
       dailyRate,
-      baseSalary,
-      commissionsTotal,
-      netPay: round2(baseSalary + commissionsTotal),
+      baseSalary: line.baseSalary,
+      overtimeTotal: line.overtimeTotal,
+      commissionsTotal: line.commissionsTotal,
+      grossPay: line.grossPay,
+      epfEtfMember: e.epfEtfMember,
+      epfEmployee: line.epfEmployee,
+      epfEmployer: line.epfEmployer,
+      etf: line.etf,
+      advanceDeduction: line.advanceDeduction,
+      deductions: line.deductions,
+      netPay: line.netPay,
+      employerCost: line.employerCost,
       dates: datesByEmployee.get(e.id) ?? [],
     };
   });

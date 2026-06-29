@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
   Undo2,
   Wrench,
+  Bell,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -32,7 +33,13 @@ type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavGroup = { title: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
-  { title: "", items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
+  {
+    title: "",
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/reminders", label: "Reminders", icon: Bell },
+    ],
+  },
   {
     title: "Sales",
     items: [

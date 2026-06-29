@@ -19,6 +19,9 @@ const schema = z.object({
   textlkApiToken: z.string().optional(),
   reminderDayOfMonth: z.coerce.number().int().min(1).max(28),
   defaultTargetMarginPct: z.coerce.number().min(0).max(99),
+  epfEmployeePct: z.coerce.number().min(0).max(100),
+  epfEmployerPct: z.coerce.number().min(0).max(100),
+  etfPct: z.coerce.number().min(0).max(100),
 });
 
 export async function updateSettings(
@@ -37,6 +40,9 @@ export async function updateSettings(
     textlkApiToken: formData.get("textlkApiToken") ?? undefined,
     reminderDayOfMonth: formData.get("reminderDayOfMonth"),
     defaultTargetMarginPct: formData.get("defaultTargetMarginPct") || 20,
+    epfEmployeePct: formData.get("epfEmployeePct") ?? 8,
+    epfEmployerPct: formData.get("epfEmployerPct") ?? 12,
+    etfPct: formData.get("etfPct") ?? 3,
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -59,6 +65,9 @@ export async function updateSettings(
         textlkApiToken: d.textlkApiToken?.trim() || null,
         nonTaxableEnabled,
         defaultTargetMarginPct: d.defaultTargetMarginPct,
+        epfEmployeeRate: d.epfEmployeePct / 100,
+        epfEmployerRate: d.epfEmployerPct / 100,
+        etfRate: d.etfPct / 100,
       }
     : {};
 

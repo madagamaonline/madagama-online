@@ -25,6 +25,8 @@ export default async function EditEmployeePage({ params }: { params: Promise<{ i
           address: e.address ?? "",
           position: e.position ?? "",
           dailyRate: toNum(e.dailyRate),
+          epfEtfMember: e.epfEtfMember,
+          epfNumber: e.epfNumber ?? "",
         }}
       />
     </div>

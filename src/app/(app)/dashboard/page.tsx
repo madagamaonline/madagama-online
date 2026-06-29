@@ -26,7 +26,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { computeCreditState } from "@/lib/credit";
 import { Badge } from "@/components/ui/badge";
-import { formatLKR, formatDate, toNum } from "@/lib/utils";
+import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
 import { nonTaxableEnabled, invoiceTaxableWhere, productTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
@@ -150,9 +150,6 @@ export default async function DashboardPage() {
     .filter((x) => !x.s.isSettled && x.s.outstanding > 0 && x.days >= 0 && x.days <= 7)
     .sort((a, b) => a.days - b.days)
     .slice(0, 6);
-
-  const dueLabel = (days: number) =>
-    days < 0 ? `Overdue ${Math.abs(days)}d` : days === 0 ? "Due today" : days === 1 ? "Due tomorrow" : `Due in ${days}d`;
 
   const lowStockProducts = lowStockProductsRaw
     .filter((p) => p.quantityInStock <= p.reorderLevel)

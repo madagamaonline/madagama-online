@@ -1,13 +1,14 @@
 import Link from "next/link";
-import { Plus, Search, Tags, Pencil, Download, Percent } from "lucide-react";
+import { Plus, Tags, Pencil, Download, Percent } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ListSearch } from "@/components/list-search";
+import { Highlight } from "@/components/highlight";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
@@ -86,15 +87,7 @@ export default async function ProductsPage({
       <Card>
         <CardContent className="p-0">
           <div className="border-b border-border p-4">
-            <form className="relative max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input
-                name="q"
-                defaultValue={query}
-                placeholder="Search by code, name or barcode…"
-                className="pl-9"
-              />
-            </form>
+            <ListSearch placeholder="Search by code, name or barcode…" />
           </div>
 
           {products.length === 0 ? (
@@ -128,12 +121,12 @@ export default async function ProductsPage({
                     <TR key={p.id} className={p.active ? "" : "opacity-50"}>
                       <TD className="font-mono text-xs font-semibold">
                         <Link href={`/products/${p.id}`} className="text-primary hover:underline">
-                          {p.code}
+                          <Highlight text={p.code} query={query} />
                         </Link>
                       </TD>
                       <TD className="font-medium">
                         <Link href={`/products/${p.id}`} className="hover:underline">
-                          {p.name}
+                          <Highlight text={p.name} query={query} />
                         </Link>
                       </TD>
                       <TD className="text-muted">

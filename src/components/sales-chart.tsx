@@ -1,38 +1,65 @@
 "use client";
 
 import {
-  BarChart,
   Bar,
+  BarChart,
+  Cell,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
 } from "recharts";
+import { formatLKR } from "@/lib/utils";
 
-export function SalesChart({
-  data,
-  height = 280,
+type Datum = { label: string; total: number; highlight?: boolean };
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
 }: {
-  data: { label: string; total: number }[];
-  height?: number;
+  active?: boolean;
+  payload?: { value?: number }[];
+  label?: string;
 }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-lg border border-border bg-surface px-3 py-2 shadow-lg">
+      <p className="text-[11px] font-semibold text-faint">{label}</p>
+      <p className="tabular text-sm font-bold text-foreground">{formatLKR(payload[0]?.value ?? 0)}</p>
+    </div>
+  );
+}
+
+export function SalesChart({ data, height = 220 }: { data: Datum[]; height?: number }) {
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eef1f4" />
-        <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+      <BarChart data={data} margin={{ top: 12, right: 4, bottom: 0, left: -14 }}>
+        <defs>
+          <linearGradient id="salesBarFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-primary)" stopOpacity={0.95} />
+            <stop offset="100%" stopColor="var(--color-accent)" stopOpacity={0.5} />
+          </linearGradient>
+        </defs>
+        <XAxis
+          dataKey="label"
+          tickLine={false}
+          axisLine={false}
+          tick={{ fontSize: 11, fill: "var(--color-faint)" }}
+        />
         <YAxis
-          tick={{ fontSize: 11 }}
+          tickLine={false}
+          axisLine={false}
+          width={44}
+          tick={{ fontSize: 11, fill: "var(--color-faint)" }}
           tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
-          width={40}
         />
-        <Tooltip
-          formatter={(v) => [`LKR ${Number(v).toLocaleString("en-LK")}`, "Sales"]}
-          labelStyle={{ fontSize: 12 }}
-          contentStyle={{ fontSize: 12, borderRadius: 8 }}
-        />
-        <Bar dataKey="total" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
+        <Tooltip cursor={{ fill: "var(--color-border-subtle)", opacity: 0.55 }} content={<ChartTooltip />} />
+        <Bar dataKey="total" radius={[6, 6, 0, 0]} maxBarSize={48} animationDuration={700}>
+          {data.map((d, i) => (
+            <Cell key={i} fill={d.highlight ? "var(--color-clay)" : "url(#salesBarFill)"} />
+          ))}
+        </Bar>
       </BarChart>
     </ResponsiveContainer>
   );

@@ -49,6 +49,7 @@ export function CreditSale({
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [removing, setRemoving] = useState<Set<string>>(() => new Set());
   const [discount, setDiscount] = useState(0);
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
@@ -261,7 +262,12 @@ export function CreditSale({
               <table className="mt-4 w-full text-sm">
                 <tbody>
                   {cart.map((l) => (
-                    <tr key={l.product.id} className="border-b border-border last:border-0">
+                    <tr
+                      key={l.product.id}
+                      className={`border-b border-border last:border-0 ${
+                        removing.has(l.product.id) ? "animate-row-out" : "animate-row-in"
+                      }`}
+                    >
                       <td className="py-2">
                         <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
                         <div className="font-medium">{l.product.name}</div>
@@ -297,7 +303,18 @@ export function CreditSale({
                       <td className="px-2 text-right font-medium">{formatLKR(l.qty * l.unitPrice)}</td>
                       <td className="pl-2 text-right">
                         <button
-                          onClick={() => setCart((prev) => prev.filter((x) => x.product.id !== l.product.id))}
+                          onClick={() => {
+                            const id = l.product.id;
+                            setRemoving((prev) => new Set(prev).add(id));
+                            setTimeout(() => {
+                              setCart((prev) => prev.filter((x) => x.product.id !== id));
+                              setRemoving((prev) => {
+                                const next = new Set(prev);
+                                next.delete(id);
+                                return next;
+                              });
+                            }, 170);
+                          }}
                           className="rounded-md p-1.5 text-danger hover:bg-danger-soft"
                         >
                           <Trash2 className="h-4 w-4" />

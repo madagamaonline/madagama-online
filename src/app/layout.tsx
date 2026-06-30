@@ -19,13 +19,24 @@ export const metadata: Metadata = {
   description: "Retail & credit management system",
 };
 
+// Applies the saved (or system) theme before first paint to avoid a flash of
+// the wrong palette. Runs inline in <head> ahead of hydration.
+const themeScript = `(function(){try{var t=localStorage.getItem('madagama:theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${hanken.variable} ${spaceMono.variable} antialiased`}>
+    <html
+      lang="en"
+      className={`${hanken.variable} ${spaceMono.variable} antialiased`}
+      suppressHydrationWarning
+    >
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="min-h-full">{children}</body>
     </html>
   );

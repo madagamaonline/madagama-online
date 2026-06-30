@@ -110,3 +110,108 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--color-primary) !important;
   box-shadow: 0 0 0 3px rgba(93, 124, 87, 0.15) !important;
 }
+
+/* ============================================================
+   Dark mode — deep charcoal + sage. Tokens override the @theme
+   custom properties; every `bg-*`/`text-*` utility references
+   these vars, so the whole UI re-skins from this one block.
+   ============================================================ */
+@custom-variant dark (&:where(.dark, .dark *));
+
+.dark {
+  --color-background: #171512;
+  --color-sidebar: #1d1a15;
+  --color-surface: #221e18;
+  --color-input: #26221b;
+  --color-border: #353026;
+  --color-border-subtle: #2a261f;
+  --color-input-border: #3d362b;
+
+  --color-foreground: #ece6da;
+  --color-muted: #a59b88;
+  --color-faint: #7c7464;
+
+  --color-primary: #7fa372;
+  --color-primary-foreground: #14120e;
+  --color-primary-hover: #8fb281;
+  --color-primary-soft: #2b3526;
+  --color-primary-ink: #b8d0ad;
+
+  --color-accent: #c89a6a;
+  --color-clay: #c89a6a;
+  --color-clay-soft: #382f1f;
+  --color-clay-ink: #e2bf91;
+
+  --color-danger: #cf6a53;
+  --color-danger-soft: #3a241f;
+  --color-danger-ink: #e8a392;
+
+  color-scheme: dark;
+}
+
+/* ============================================================
+   Motion — keyframes + utility classes. We define our own
+   instead of relying on a plugin so animations work standalone.
+   ============================================================ */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-page-in { animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+@keyframes row-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.animate-row-in { animation: row-in 0.22s ease-out both; }
+
+@keyframes row-out {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(14px); }
+}
+.animate-row-out { animation: row-out 0.18s ease-in both; }
+
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-pop-in { animation: pop-in 0.16s ease-out both; }
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-fade-in { animation: fade-in 0.15s ease-out both; }
+
+/* Shimmer skeleton — themed pulse over a subtle base. */
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-border-subtle);
+  border-radius: 8px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+  animation: shimmer 1.5s infinite;
+}
+.dark .skeleton::after {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.06), transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-page-in,
+  .animate-row-in,
+  .animate-row-out,
+  .animate-pop-in,
+  .animate-fade-in {
+    animation: none !important;
+  }
+  .skeleton::after { animation: none !important; }
+}

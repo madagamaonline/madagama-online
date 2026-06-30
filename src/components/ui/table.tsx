@@ -1,10 +1,53 @@
+"use client";
+
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+  const ref = React.useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = React.useState({ left: false, right: false });
+
+  const update = React.useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setEdges({
+      left: scrollLeft > 1,
+      right: scrollLeft + clientWidth < scrollWidth - 1,
+    });
+  }, []);
+
+  React.useEffect(() => {
+    update();
+    const el = ref.current;
+    if (!el) return;
+    el.addEventListener("scroll", update, { passive: true });
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => {
+      el.removeEventListener("scroll", update);
+      ro.disconnect();
+    };
+  }, [update]);
+
   return (
-    <div className="w-full overflow-x-auto">
-      <table className={cn("w-full border-collapse text-sm", className)} {...props} />
+    <div className="relative">
+      <div ref={ref} className="w-full overflow-x-auto scrollbar-thin">
+        <table className={cn("w-full border-collapse text-sm", className)} {...props} />
+      </div>
+      {/* Soft-edge fades hint at horizontally scrollable content. */}
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-surface to-transparent transition-opacity duration-200",
+          edges.left ? "opacity-100" : "opacity-0",
+        )}
+      />
+      <div
+        className={cn(
+          "pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface to-transparent transition-opacity duration-200",
+          edges.right ? "opacity-100" : "opacity-0",
+        )}
+      />
     </div>
   );
 }

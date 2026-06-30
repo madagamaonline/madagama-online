@@ -79,6 +79,7 @@ export function NewSale({
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
   const [parked, setParked] = useState<ParkedSale[]>([]);
   const [resumed, setResumed] = useState(false);
+  const [removing, setRemoving] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
   const searchRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false);
@@ -234,7 +235,16 @@ export function NewSale({
     setCart((prev) => prev.map((l) => (l.product.id === id ? { ...l, ...patch } : l)));
   }
   function removeLine(id: string) {
-    setCart((prev) => prev.filter((l) => l.product.id !== id));
+    // Play the slide-out, then drop the line once the animation finishes.
+    setRemoving((prev) => new Set(prev).add(id));
+    setTimeout(() => {
+      setCart((prev) => prev.filter((l) => l.product.id !== id));
+      setRemoving((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+    }, 170);
   }
   function clearSale() {
     setCart([]);
@@ -521,7 +531,12 @@ export function NewSale({
                         const hasCost = l.product.costPrice > 0;
                         const lineMargin = grossMarginPct(l.product.costPrice, l.unitPrice);
                         return (
-                        <tr key={l.product.id} className="border-b border-border last:border-0">
+                        <tr
+                          key={l.product.id}
+                          className={`border-b border-border last:border-0 ${
+                            removing.has(l.product.id) ? "animate-row-out" : "animate-row-in"
+                          }`}
+                        >
                           <td className="py-2 pr-2">
                             <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
                             <div className="font-medium">

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 /**
  * Confirm-then-delete button. `onDelete` is a bound server action that either
@@ -17,6 +18,7 @@ export function DeleteButton({
   confirmText: string;
   label?: string;
 }) {
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [err, setErr] = useState("");
 
@@ -27,8 +29,9 @@ export function DeleteButton({
         type="button"
         variant="danger"
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm(confirmText)) return;
+        onClick={async () => {
+          const ok = await confirm({ title: "Delete?", message: confirmText, confirmLabel: label });
+          if (!ok) return;
           setErr("");
           start(async () => {
             const r = await onDelete();

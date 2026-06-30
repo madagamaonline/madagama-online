@@ -26,6 +26,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { computeCreditState } from "@/lib/credit";
 import { Badge } from "@/components/ui/badge";
+import { SalesChart } from "@/components/sales-chart";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
 import { nonTaxableEnabled, invoiceTaxableWhere, productTaxableWhere } from "@/lib/tax-mode";
 
@@ -174,8 +175,6 @@ export default async function DashboardPage() {
       .reduce((sum, inv) => sum + toNum(inv.grandTotal), 0);
     return { dayName: weekdays[businessWeekday(d)], total, isToday: key === todayKey };
   });
-  const maxChartVal = Math.max(...chartData.map((d) => d.total), 1);
-  const peakIndex = chartData.reduce((mi, d, idx, arr) => (d.total > arr[mi].total ? idx : mi), 0);
 
   // Cash vs credit split of today's sales.
   const cashToday = toNum(todayByType.find((t) => t.type === "CASH")?._sum.grandTotal);
@@ -304,29 +303,10 @@ export default async function DashboardPage() {
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] lg:col-span-2">
           <h3 className="text-[15px] font-bold text-foreground">Sales — last 7 days</h3>
           <p className="mt-0.5 text-[11px] text-faint">Daily total across all invoices</p>
-          <div className="relative mt-8 flex h-44 justify-between gap-3 px-1 select-none">
-            {chartData.map((day, idx) => {
-              const h = Math.max(Math.round((day.total / maxChartVal) * 100), 6);
-              const peak = idx === peakIndex && day.total > 0;
-              return (
-                <div key={idx} className="group relative flex flex-1 flex-col items-center">
-                  <div className="flex w-full flex-1 items-end justify-center">
-                    <div
-                      className={`w-full max-w-[40px] rounded-t-xl transition-all duration-300 group-hover:scale-x-105 group-hover:brightness-105 shadow-xs ${
-                        peak ? "bg-primary" : day.isToday ? "bg-clay/80" : "bg-primary-soft hover:bg-primary-soft/90"
-                      }`}
-                      style={{ height: `${h}%` }}
-                    />
-                  </div>
-                  <span className={`mt-2 text-[11px] font-bold transition-colors ${day.isToday ? "text-primary-ink" : "text-faint"}`}>
-                    {day.dayName}
-                  </span>
-                  <div className="pointer-events-none absolute -top-8 rounded-lg bg-foreground/90 backdrop-blur-xs px-2.5 py-1 text-[10px] font-bold text-surface opacity-0 scale-95 transition-all duration-200 group-hover:opacity-100 group-hover:scale-100 group-hover:-translate-y-1 shadow-md z-10 whitespace-nowrap">
-                    {k(day.total)}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mt-4">
+            <SalesChart
+              data={chartData.map((d) => ({ label: d.dayName, total: d.total, highlight: d.isToday }))}
+            />
           </div>
         </div>
 

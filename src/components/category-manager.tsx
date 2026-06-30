@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type Sub = { id: string; name: string; code: string; _count: { products: number } };
 type Category = { id: string; name: string; code: string; subcategories: Sub[] };
@@ -88,6 +89,7 @@ function DeleteButton({
   onDelete: () => Promise<ActionState>;
   confirmText: string;
 }) {
+  const confirm = useConfirm();
   const [pending, start] = useTransition();
   const [err, setErr] = useState("");
   return (
@@ -96,8 +98,9 @@ function DeleteButton({
       <button
         type="button"
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm(confirmText)) return;
+        onClick={async () => {
+          const ok = await confirm({ title: "Delete?", message: confirmText, confirmLabel: "Delete" });
+          if (!ok) return;
           setErr("");
           start(async () => {
             const r = await onDelete();

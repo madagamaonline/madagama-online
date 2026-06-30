@@ -24,10 +24,14 @@ import {
   Undo2,
   Wrench,
   Bell,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
 import { UserSwitcher } from "@/components/user-switcher";
+import { ThemeToggle } from "@/components/theme-toggle";
+import { CommandPalette } from "@/components/command-palette";
+import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavGroup = { title: string; items: NavItem[] };
@@ -117,6 +121,7 @@ export function AppShell({
   }
 
   return (
+    <ConfirmProvider>
     <div className="flex min-h-screen bg-background">
       {/* Sidebar */}
       <aside
@@ -192,7 +197,19 @@ export function AppShell({
             <Menu className="h-5 w-5" />
           </button>
           <div className="lg:hidden" />
-          <div className="ml-auto flex items-center gap-4">
+          <div className="ml-auto flex items-center gap-3">
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent("madagama:command-palette"))}
+              className="flex h-9 items-center gap-2 rounded-xl border border-input-border bg-surface px-3 text-[13px] font-medium text-muted transition-colors hover:bg-input hover:text-foreground"
+              aria-label="Open command palette"
+            >
+              <Search className="h-4 w-4" />
+              <span className="hidden sm:inline">Search</span>
+              <kbd className="hidden rounded-md border border-border-subtle px-1.5 py-0.5 text-[10px] font-semibold text-faint sm:inline">
+                ⌘K
+              </kbd>
+            </button>
+            <ThemeToggle />
             <UserSwitcher currentUser={{ id: user.id, name: user.name, role: user.role }} />
             <div className="text-right">
               <p className="text-[13px] font-semibold leading-tight text-foreground">{user.name}</p>
@@ -203,8 +220,14 @@ export function AppShell({
             </div>
           </div>
         </header>
-        <main className="flex-1 px-5 py-6 lg:px-6">{children}</main>
+        <main className="flex-1 px-5 py-6 lg:px-6">
+          <div key={pathname} className="animate-page-in">
+            {children}
+          </div>
+        </main>
       </div>
+      <CommandPalette />
     </div>
+    </ConfirmProvider>
   );
 }

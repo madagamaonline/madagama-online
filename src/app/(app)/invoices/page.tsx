@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import type { Prisma, TaxCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ListSearch } from "@/components/list-search";
+import { Highlight } from "@/components/highlight";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { InvoiceCashierFilter } from "@/components/invoice-cashier-filter";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
@@ -94,12 +95,7 @@ export default async function InvoicesPage({
       <Card>
         <CardContent className="p-0">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-            <form className="relative max-w-md flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input name="q" defaultValue={query} placeholder="Search invoice # or customer…" className="pl-9" />
-              {cat && <input type="hidden" name="category" value={cat} />}
-              {cashierId && <input type="hidden" name="cashier" value={cashierId} />}
-            </form>
+            <ListSearch placeholder="Search invoice # or customer…" className="relative max-w-md flex-1" />
             <div className="flex flex-wrap items-center gap-2">
               {ntEnabled && (
                 <div className="flex gap-1">
@@ -147,11 +143,11 @@ export default async function InvoicesPage({
                   <TR key={inv.id}>
                     <TD className="font-medium">
                       <Link href={`/invoices/${inv.id}`} className="text-primary hover:underline">
-                        {inv.invoiceNumber}
+                        <Highlight text={inv.invoiceNumber} query={query} />
                       </Link>
                     </TD>
                     <TD className="text-muted">{formatDate(inv.createdAt)}</TD>
-                    <TD>{inv.customer?.name ?? "Walk-in"}</TD>
+                    <TD>{inv.customer?.name ? <Highlight text={inv.customer.name} query={query} /> : "Walk-in"}</TD>
                     <TD className="text-muted">{inv.createdBy?.name ?? "—"}</TD>
                     {ntEnabled && (
                       <TD>

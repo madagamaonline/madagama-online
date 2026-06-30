@@ -26,7 +26,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      PG_MAJOR: "17"
+      # Must be >= the Neon server's Postgres major version (pg_dump refuses to
+      # dump a newer server). Bump this when Neon upgrades.
+      PG_MAJOR: "18"
     steps:
       - name: Check required secrets
         env:
@@ -56,7 +58,11 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update
           sudo apt-get install -y "postgresql-client-${PG_MAJOR}"
-          pg_dump --version
+          # The runner ships an older pg client whose /usr/bin/pg_dump wrapper
+          # otherwise wins on PATH. Put the just-installed major version first so
+          # later steps resolve to it.
+          echo "/usr/lib/postgresql/${PG_MAJOR}/bin" >> "$GITHUB_PATH"
+          "/usr/lib/postgresql/${PG_MAJOR}/bin/pg_dump" --version
 
       - name: Dump database and upload to Cloudflare R2
         env:

@@ -3,7 +3,14 @@ import { PageHeader } from "@/components/page-header";
 import { SettingsForm } from "@/components/settings-form";
 import { UsersManager } from "@/components/users-manager";
 import { SystemReset } from "@/components/system-reset";
+import { SystemRestore } from "@/components/system-restore";
 import { getSession } from "@/lib/auth";
+import {
+  listBackups,
+  backupsConfigured,
+  restoreConfigured,
+  restoreRunsUrl,
+} from "@/lib/backups";
 import { toNum } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +18,7 @@ export const dynamic = "force-dynamic";
 export default async function SettingsPage() {
   const session = await getSession();
   const isAdmin = session?.role === "ADMIN";
-  const [s, users] = await Promise.all([
+  const [s, users, backups] = await Promise.all([
     prisma.setting.findUnique({ where: { id: 1 } }),
     isAdmin
       ? prisma.user.findMany({
@@ -19,6 +26,9 @@ export default async function SettingsPage() {
           select: { id: true, name: true, email: true, role: true, active: true, pin: true },
         })
       : Promise.resolve([]),
+    // Listing backups hits Cloudflare R2 — never let a network hiccup there break
+    // the whole settings page; the restore card handles an empty list gracefully.
+    isAdmin && backupsConfigured() ? listBackups().catch(() => []) : Promise.resolve([]),
   ]);
 
   const userRows = users.map((u) => ({
@@ -54,6 +64,13 @@ export default async function SettingsPage() {
         }}
       />
       {isAdmin && session && <UsersManager users={userRows} currentUserId={session.id} />}
+      {isAdmin && (
+        <SystemRestore
+          backups={backups}
+          configured={backupsConfigured() && restoreConfigured()}
+          runsUrl={restoreRunsUrl()}
+        />
+      )}
       {isAdmin && <SystemReset />}
     </div>
   );

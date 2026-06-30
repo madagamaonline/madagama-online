@@ -1,0 +1,108 @@
+name: Database restore
+
+# On-demand restore of a chosen R2 backup back INTO the live Neon database.
+# Triggered from the app's Settings -> "Restore from backup" button (which calls
+# the workflow_dispatch API with the chosen file), or manually from the Actions tab.
+#
+# DANGER: this OVERWRITES the live database. The dumps are taken with
+# --clean --if-exists, so existing objects are dropped and recreated, and any
+# data written since the chosen backup was taken is permanently lost.
+#
+# Required repository secrets (same set the backup workflow uses):
+#   BACKUP_DATABASE_URL  Direct (non-pooled) Postgres connection string.
+#   R2_ACCESS_KEY_ID     Cloudflare R2 Access Key ID.
+#   R2_SECRET_ACCESS_KEY Cloudflare R2 Secret Access Key.
+#   R2_ENDPOINT          Cloudflare R2 Endpoint.
+#   R2_BUCKET            Cloudflare R2 Bucket name.
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_file:
+        description: "Backup object key in R2 (e.g. madagama-20260630T065742Z.sql.gz)"
+        required: true
+        type: string
+      confirm:
+        description: "Type RESTORE to confirm overwriting the live database"
+        required: true
+        type: string
+
+# Never let two restores run at once.
+concurrency:
+  group: db-restore
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # Must be >= the Neon server's Postgres major version.
+      PG_MAJOR: "18"
+    steps:
+      - name: Validate inputs and secrets
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BACKUP_FILE: ${{ inputs.backup_file }}
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          set -euo pipefail
+          if [ "$CONFIRM" != "RESTORE" ]; then
+            echo "::error::Confirmation not provided (expected the literal word RESTORE)."; exit 1
+          fi
+          # Accept only our own backup filenames - never an arbitrary key/path. This
+          # is the trust boundary for the file name passed in from the app.
+          if ! printf '%s' "$BACKUP_FILE" | grep -qE '^madagama-[0-9]{8}T[0-9]{6}Z\.sql\.gz$'; then
+            echo "::error::backup_file '$BACKUP_FILE' is not a valid backup name."; exit 1
+          fi
+          missing=0
+          for v in BACKUP_DATABASE_URL R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_ENDPOINT R2_BUCKET; do
+            if [ -z "${!v}" ]; then echo "::error::$v secret is not set"; missing=1; fi
+          done
+          if [ "$missing" = "1" ]; then exit 1; fi
+          echo "Inputs and secrets OK. Will restore: $BACKUP_FILE"
+
+      - name: Install PostgreSQL ${{ env.PG_MAJOR }} client
+        run: |
+          set -euo pipefail
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y "postgresql-client-${PG_MAJOR}"
+          # Put the just-installed major version first so psql resolves to it
+          # (the runner ships an older client whose wrapper otherwise wins on PATH).
+          echo "/usr/lib/postgresql/${PG_MAJOR}/bin" >> "$GITHUB_PATH"
+          "/usr/lib/postgresql/${PG_MAJOR}/bin/psql" --version
+
+      - name: Download backup from R2 and restore
+        env:
+          BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
+          BACKUP_FILE: ${{ inputs.backup_file }}
+        run: |
+          set -euo pipefail
+          echo "Downloading ${BACKUP_FILE} from R2 ..."
+          aws s3 cp "s3://${R2_BUCKET}/${BACKUP_FILE}" "./${BACKUP_FILE}" --endpoint-url "$R2_ENDPOINT"
+          ls -lh "./${BACKUP_FILE}"
+
+          # Refuse to restore a truncated/empty download.
+          if [ "$(stat -c%s "./${BACKUP_FILE}")" -lt 1024 ]; then
+            echo "::error::Downloaded backup is suspiciously small (<1KB) - aborting"; exit 1
+          fi
+
+          echo "Restoring into the live database (this overwrites existing data) ..."
+          # ON_ERROR_STOP halts on the first failed statement instead of leaving a
+          # half-restored database. pipefail surfaces a psql failure through gunzip.
+          gunzip -c "./${BACKUP_FILE}" | psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL"
+          echo "Restore complete."

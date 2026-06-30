@@ -1,31 +1,22 @@
 name: Database backup
 
-# Nightly off-site backup of the Neon Postgres database to an rclone remote
-# (e.g. Google Drive). This is the independent recovery path called out in the
-# production-readiness review: Neon's built-in point-in-time recovery does NOT
-# protect against account suspension or accidental project deletion, so we keep
-# our own copy elsewhere.
+# Nightly off-site backup of the Neon Postgres database to Cloudflare R2.
+# This is the independent recovery path called out in the production-readiness review.
+# Cloudflare R2 provides a free 10GB tier with $0 egress fees.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions):
 #   BACKUP_DATABASE_URL  Direct (non-pooled) Postgres connection string. Use the
-#                        DIRECT_URL value from .env, NOT the pgbouncer/pooled URL
-#                        (pg_dump needs a session connection). Keep sslmode=require.
-#   RCLONE_CONF_BASE64   base64 of a working rclone.conf that defines a remote
-#                        named `backup`. Create it locally once:
-#                          rclone config            # authorize Google Drive, name it "backup"
-#                          base64 -i ~/.config/rclone/rclone.conf | pbcopy   # macOS
-#                        then paste as the secret value.
-#
-# Optional repository variables (Settings -> Secrets and variables -> Actions -> Variables):
-#   RCLONE_REMOTE_PATH    Destination, default "backup:madagama-db-backups".
-#   BACKUP_RETENTION_DAYS Prune copies older than this many days, default "30".
+#                        DIRECT_URL value from .env, NOT the pgbouncer/pooled URL.
+#   R2_ACCESS_KEY_ID     Cloudflare R2 Access Key ID.
+#   R2_SECRET_ACCESS_KEY Cloudflare R2 Secret Access Key.
+#   R2_ENDPOINT          Cloudflare R2 Endpoint (e.g. https://<id>.r2.cloudflarestorage.com).
+#   R2_BUCKET            Cloudflare R2 Bucket name (e.g. madagama-db-backups).
 
 on:
   schedule:
     - cron: "0 20 * * *" # 20:00 UTC daily = 01:30 Asia/Colombo (off-hours)
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
-# Never let two backup runs overlap.
 concurrency:
   group: db-backup
   cancel-in-progress: false
@@ -33,23 +24,25 @@ concurrency:
 jobs:
   backup:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     env:
-      # Bump this if Neon upgrades its Postgres major version. pg_dump must be
-      # >= the server version, so always match or exceed it.
       PG_MAJOR: "17"
-      RCLONE_REMOTE_PATH: ${{ vars.RCLONE_REMOTE_PATH || 'backup:madagama-db-backups' }}
-      BACKUP_RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS || '30' }}
     steps:
       - name: Check required secrets
         env:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
-          RCLONE_CONF_BASE64: ${{ secrets.RCLONE_CONF_BASE64 }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
           missing=0
           if [ -z "${BACKUP_DATABASE_URL}" ]; then echo "::error::BACKUP_DATABASE_URL secret is not set"; missing=1; fi
-          if [ -z "${RCLONE_CONF_BASE64}" ]; then echo "::error::RCLONE_CONF_BASE64 secret is not set"; missing=1; fi
+          if [ -z "${R2_ACCESS_KEY_ID}" ]; then echo "::error::R2_ACCESS_KEY_ID secret is not set"; missing=1; fi
+          if [ -z "${R2_SECRET_ACCESS_KEY}" ]; then echo "::error::R2_SECRET_ACCESS_KEY secret is not set"; missing=1; fi
+          if [ -z "${R2_ENDPOINT}" ]; then echo "::error::R2_ENDPOINT secret is not set"; missing=1; fi
+          if [ -z "${R2_BUCKET}" ]; then echo "::error::R2_BUCKET secret is not set"; missing=1; fi
           if [ "$missing" = "1" ]; then exit 1; fi
           echo "Required secrets are present."
 
@@ -65,23 +58,14 @@ jobs:
           sudo apt-get install -y "postgresql-client-${PG_MAJOR}"
           pg_dump --version
 
-      - name: Install rclone
-        run: |
-          set -euo pipefail
-          curl -fsSL https://rclone.org/install.sh | sudo bash
-          rclone version
-
-      - name: Configure rclone
-        env:
-          RCLONE_CONF_BASE64: ${{ secrets.RCLONE_CONF_BASE64 }}
-        run: |
-          set -euo pipefail
-          mkdir -p "$HOME/.config/rclone"
-          echo "$RCLONE_CONF_BASE64" | base64 -d > "$HOME/.config/rclone/rclone.conf"
-
-      - name: Dump database and upload
+      - name: Dump database and upload to Cloudflare R2
         env:
           BACKUP_DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          R2_BUCKET: ${{ secrets.R2_BUCKET }}
         run: |
           set -euo pipefail
           stamp="$(date -u +%Y%m%dT%H%M%SZ)"
@@ -90,18 +74,12 @@ jobs:
           pg_dump --no-owner --no-privileges --clean --if-exists "$BACKUP_DATABASE_URL" \
             | gzip -9 > "$file"
           ls -lh "$file"
-          # Guard against a silently truncated/empty dump before we trust it.
+          
+          # Guard against a silently truncated/empty dump
           if [ "$(stat -c%s "$file")" -lt 1024 ]; then
             echo "::error::Dump file is suspiciously small (<1KB) - aborting upload"
             exit 1
           fi
-          echo "Uploading to ${RCLONE_REMOTE_PATH} ..."
-          rclone copy "$file" "${RCLONE_REMOTE_PATH}" --no-traverse
-
-      - name: Prune old backups
-        run: |
-          set -euo pipefail
-          echo "Pruning backups older than ${BACKUP_RETENTION_DAYS} days ..."
-          rclone delete "${RCLONE_REMOTE_PATH}" \
-            --min-age "${BACKUP_RETENTION_DAYS}d" \
-            --include "madagama-*.sql.gz"
+          
+          echo "Uploading to Cloudflare R2 bucket ${R2_BUCKET} ..."
+          aws s3 cp "$file" "s3://${R2_BUCKET}/${file}" --endpoint-url "$R2_ENDPOINT"

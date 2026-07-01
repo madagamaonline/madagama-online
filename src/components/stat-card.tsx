@@ -40,7 +40,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] transition-all",
+        "rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] transition-all",
         borderClasses[tone],
       )}
     >

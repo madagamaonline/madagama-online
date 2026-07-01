@@ -227,7 +227,7 @@ export default async function DashboardPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {/* Hero — Today's sales */}
-        <div className="relative flex h-40 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-[0_4px_18px_rgba(70,55,30,0.12)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(70,55,30,0.18)] transition-all duration-300 group">
+        <div className="relative flex h-40 flex-col justify-between overflow-hidden rounded-2xl bg-gradient-to-br from-primary to-accent p-5 text-white shadow-[0_4px_18px_rgba(30,41,74,0.12)] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(30,41,74,0.18)] transition-all duration-300 group">
           <div className="flex items-start justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-white/85">Today&apos;s Sales</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/15 text-white group-hover:scale-105 transition-transform duration-300">
@@ -251,7 +251,7 @@ export default async function DashboardPage() {
         <KpiCard label="This Month" value={k(monthVal)} diff={monthDiff} sub="vs last month" />
 
         {/* Outstanding credit */}
-        <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-clay/20 transition-all duration-300 group">
+        <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-clay/20 transition-all duration-300 group">
           <div className="flex items-start justify-between">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Outstanding Credit</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-clay-soft text-clay group-hover:scale-105 transition-transform duration-300">
@@ -270,7 +270,7 @@ export default async function DashboardPage() {
 
       {/* Secondary KPIs — cash collected & profit today */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface px-5 py-4 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface px-5 py-4 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-primary-soft text-primary-ink">
               <Coins className="h-4 w-4" />
@@ -282,7 +282,7 @@ export default async function DashboardPage() {
           </div>
           <span className="tabular text-xl font-extrabold text-foreground">{k(moneyIn)}</span>
         </div>
-        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface px-5 py-4 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="flex items-center justify-between rounded-2xl border border-border bg-surface px-5 py-4 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-[9px] bg-clay-soft text-clay-ink">
               <TrendingUp className="h-4 w-4" />
@@ -300,7 +300,7 @@ export default async function DashboardPage() {
 
       {/* Chart + needs attention */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] lg:col-span-2">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] lg:col-span-2">
           <h3 className="text-[15px] font-bold text-foreground">Sales — last 7 days</h3>
           <p className="mt-0.5 text-[11px] text-faint">Daily total across all invoices</p>
           <div className="mt-4">
@@ -311,7 +311,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Needs attention */}
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <h3 className="text-[15px] font-bold text-foreground">Needs attention</h3>
           <div className="mt-4 space-y-2">
             {overdueList.length === 0 && lowStockProducts.length === 0 && (
@@ -358,7 +358,7 @@ export default async function DashboardPage() {
 
       {/* Payments due soon */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-2">
             <Truck className="h-4 w-4 text-clay" />
             <h3 className="text-[15px] font-bold text-foreground">You owe suppliers — due soon</h3>
@@ -391,7 +391,7 @@ export default async function DashboardPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-2">
             <CalendarClock className="h-4 w-4 text-primary" />
             <h3 className="text-[15px] font-bold text-foreground">Customers owe you — due soon</h3>
@@ -424,7 +424,7 @@ export default async function DashboardPage() {
 
       {/* Top sellers & products this week */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-2">
             <Trophy className="h-4 w-4 text-clay" />
             <h3 className="text-[15px] font-bold text-foreground">Top sellers — this week</h3>
@@ -447,7 +447,7 @@ export default async function DashboardPage() {
             )}
           </div>
         </div>
-        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+        <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-primary" />
             <h3 className="text-[15px] font-bold text-foreground">Top products — this week</h3>
@@ -474,7 +474,7 @@ export default async function DashboardPage() {
       </div>
 
       {/* Recent invoices */}
-      <div className="rounded-2xl border border-border bg-surface shadow-[0_1px_2px_rgba(70,55,30,0.05)]">
+      <div className="rounded-2xl border border-border bg-surface shadow-[0_1px_2px_rgba(30,41,74,0.05)]">
         <div className="flex items-center justify-between px-5 py-4">
           <h3 className="text-[15px] font-bold text-foreground">Recent invoices</h3>
           <Link href="/invoices" className="inline-flex items-center gap-1 text-[13px] font-semibold text-primary hover:underline">
@@ -530,7 +530,7 @@ export default async function DashboardPage() {
 
 function KpiCard({ label, value, diff, sub }: { label: string; value: string; diff: number; sub: string }) {
   return (
-    <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(70,55,30,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-primary/20 transition-all duration-300 group">
+    <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-primary/20 transition-all duration-300 group">
       <div className="flex items-start justify-between">
         <span className="text-[11px] font-bold uppercase tracking-wider text-muted">{label}</span>
         <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-border-subtle text-muted group-hover:bg-primary-soft group-hover:text-primary-ink transition-colors duration-300">

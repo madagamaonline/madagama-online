@@ -2,17 +2,17 @@
 
 /* "Warm paper + sage" design system */
 @theme {
-  --color-background: #efeae0;
-  --color-sidebar: #faf7f0;
-  --color-surface: #fffefb;
-  --color-input: #fdfbf6;
-  --color-border: #e7e0d2;
-  --color-border-subtle: #f2ecdf;
-  --color-input-border: #e0d8c7;
+  --color-background: #eef1f6;
+  --color-sidebar: #f6f8fb;
+  --color-surface: #ffffff;
+  --color-input: #f8fafc;
+  --color-border: #dde3ec;
+  --color-border-subtle: #eef1f6;
+  --color-input-border: #d3dae6;
 
-  --color-foreground: #2c2822;
-  --color-muted: #8a8071;
-  --color-faint: #a0967f;
+  --color-foreground: #232833;
+  --color-muted: #6b7484;
+  --color-faint: #97a0b0;
 
   --color-primary: #4274d9;
   --color-primary-foreground: #ffffff;
@@ -20,10 +20,10 @@
   --color-primary-soft: #d0e7e6;
   --color-primary-ink: #293681;
 
-  --color-accent: #b07d4f;
-  --color-clay: #b07d4f;
-  --color-clay-soft: #f3e9dc;
-  --color-clay-ink: #8a5a2a;
+  --color-accent: #293681;
+  --color-clay: #293681;
+  --color-clay-soft: #e4e7f6;
+  --color-clay-ink: #232c66;
 
   --color-danger: #b1543f;
   --color-danger-soft: #fbeee8;
@@ -123,17 +123,17 @@ input:focus, select:focus, textarea:focus {
 @custom-variant dark (&:where(.dark, .dark *));
 
 .dark {
-  --color-background: #171512;
-  --color-sidebar: #1d1a15;
-  --color-surface: #221e18;
-  --color-input: #26221b;
-  --color-border: #353026;
-  --color-border-subtle: #2a261f;
-  --color-input-border: #3d362b;
+  --color-background: #12151b;
+  --color-sidebar: #171b22;
+  --color-surface: #1c212a;
+  --color-input: #20262f;
+  --color-border: #2e353f;
+  --color-border-subtle: #262c34;
+  --color-input-border: #363d48;
 
-  --color-foreground: #ece6da;
-  --color-muted: #a59b88;
-  --color-faint: #7c7464;
+  --color-foreground: #e4e8ef;
+  --color-muted: #9098a6;
+  --color-faint: #6c7480;
 
   --color-primary: #95ccdd;
   --color-primary-foreground: #0d1620;
@@ -141,10 +141,10 @@ input:focus, select:focus, textarea:focus {
   --color-primary-soft: #1e2f4a;
   --color-primary-ink: #cfe9f0;
 
-  --color-accent: #c89a6a;
-  --color-clay: #c89a6a;
-  --color-clay-soft: #382f1f;
-  --color-clay-ink: #e2bf91;
+  --color-accent: #7d93d6;
+  --color-clay: #7d93d6;
+  --color-clay-soft: #23304f;
+  --color-clay-ink: #b9c6f0;
 
   --color-danger: #cf6a53;
   --color-danger-soft: #3a241f;

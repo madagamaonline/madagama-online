@@ -6,22 +6,7 @@ import type { QuotationStatus } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { setQuotationStatus } from "@/app/(app)/quotations/actions";
-
-export const quotationStatusLabel: Record<QuotationStatus, string> = {
-  DRAFT: "Draft",
-  SENT: "Sent",
-  ACCEPTED: "Accepted",
-  DECLINED: "Declined",
-  EXPIRED: "Expired",
-};
-
-export const quotationStatusTone: Record<QuotationStatus, "gray" | "amber" | "green" | "red" | "blue"> = {
-  DRAFT: "gray",
-  SENT: "blue",
-  ACCEPTED: "green",
-  DECLINED: "red",
-  EXPIRED: "amber",
-};
+import { quotationStatusLabel } from "@/components/quotation-status-badge";
 
 const ORDER: QuotationStatus[] = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "EXPIRED"];
 

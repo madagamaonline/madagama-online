@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { quotationStatusLabel, quotationStatusTone } from "@/components/quotation-status-control";
+import { quotationStatusLabel, quotationStatusTone } from "@/components/quotation-status-badge";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
 import { businessStartOfMonth } from "@/lib/dates";
 

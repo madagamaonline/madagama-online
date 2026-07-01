@@ -7,11 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { PrintButton } from "@/components/print-button";
 import { DeleteButton } from "@/components/delete-button";
-import {
-  QuotationStatusControl,
-  quotationStatusLabel,
-  quotationStatusTone,
-} from "@/components/quotation-status-control";
+import { QuotationStatusControl } from "@/components/quotation-status-control";
+import { quotationStatusLabel, quotationStatusTone } from "@/components/quotation-status-badge";
 import { deleteQuotation } from "@/app/(app)/quotations/actions";
 import { formatLKR, formatDate, toNum } from "@/lib/utils";
 

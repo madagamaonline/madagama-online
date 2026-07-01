@@ -24,8 +24,7 @@ const inputSchema = z.object({
   customerName: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
-  branch: z.string().optional().nullable(),
-  soldByEmployeeId: z.string().optional().nullable(),
+  preparedByUserId: z.string().optional().nullable(),
   discount: z.coerce.number().min(0).default(0),
   validUntil: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
@@ -76,8 +75,8 @@ async function persist(input: QuotationInput, id: string | null): Promise<Quotat
     customerName: clean(data.customerName),
     address: clean(data.address),
     phone: clean(data.phone),
-    branch: clean(data.branch),
-    soldByEmployeeId: clean(data.soldByEmployeeId),
+    // Quotations are prepared by a cashier (login User); default to the current one.
+    createdByUserId: clean(data.preparedByUserId) ?? session.id,
     discount: totals.discount,
     subtotal: totals.subtotal,
     grandTotal: totals.grandTotal,
@@ -107,7 +106,6 @@ async function persist(input: QuotationInput, id: string | null): Promise<Quotat
           return tx.quotation.create({
             data: {
               quotationNumber,
-              createdByUserId: session.id,
               ...header,
               items: { create: items },
             },

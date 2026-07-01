@@ -26,7 +26,7 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
       include: {
         items: true,
         customer: true,
-        soldBy: { select: { name: true } },
+        createdBy: { select: { name: true } },
       },
     }),
     prisma.setting.findUnique({ where: { id: 1 } }),
@@ -89,12 +89,6 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
         {/* Meta row */}
         <div className="flex flex-wrap items-start justify-between gap-4 pt-5 text-sm">
           <div className="space-y-0.5">
-            {quotation.branch && (
-              <p>
-                <span className="text-muted">Branch: </span>
-                <span className="font-medium">{quotation.branch}</span>
-              </p>
-            )}
             <p>
               <span className="text-muted">Date: </span>
               <span className="font-medium">{formatDate(quotation.createdAt)}</span>
@@ -114,7 +108,7 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
 
         {/* Greeting + customer */}
         <div className="pt-5 text-sm">
-          <p className="font-medium">Dear Sir,</p>
+          <p className="font-medium">Dear Sir/Madam,</p>
           <p className="mt-1 text-muted">
             We are thankful to you for enquiring the items for which we have quoted our prices below.
           </p>
@@ -210,8 +204,8 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
             <p className="mt-6 font-semibold">Yours faithfully,</p>
             <p className="font-semibold">{businessName}</p>
             {setting?.phone && <p className="text-muted">Tel: {setting.phone}</p>}
-            {quotation.soldBy?.name && (
-              <p className="mt-1 text-xs text-faint">Prepared by {quotation.soldBy.name}</p>
+            {quotation.createdBy?.name && (
+              <p className="mt-1 text-xs text-faint">Prepared by {quotation.createdBy.name}</p>
             )}
           </div>
         </div>

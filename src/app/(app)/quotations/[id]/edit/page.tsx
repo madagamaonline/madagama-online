@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function EditQuotationPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  const [quotation, customers, employees] = await Promise.all([
+  const [quotation, customers, cashiers] = await Promise.all([
     prisma.quotation.findUnique({
       where: { id },
       include: { items: true },
@@ -20,7 +20,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
       select: { id: true, name: true, phone: true, address: true },
       take: 500,
     }),
-    prisma.employee.findMany({
+    prisma.user.findMany({
       where: { active: true },
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -34,8 +34,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
     customerName: quotation.customerName ?? "",
     address: quotation.address ?? "",
     phone: quotation.phone ?? "",
-    branch: quotation.branch ?? "",
-    soldByEmployeeId: quotation.soldByEmployeeId ?? "",
+    preparedByUserId: quotation.createdByUserId ?? "",
     discount: toNum(quotation.discount),
     validUntil: quotation.validUntil ? quotation.validUntil.toISOString().slice(0, 10) : "",
     notes: quotation.notes ?? "",
@@ -63,7 +62,7 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
       />
       <QuotationForm
         customers={customers}
-        employees={employees}
+        cashiers={cashiers}
         onSubmit={action}
         initial={initial}
         submitLabel="Save changes"

@@ -37,8 +37,7 @@ export type QuotationInitial = {
   customerName: string;
   address: string;
   phone: string;
-  branch: string;
-  soldByEmployeeId: string;
+  preparedByUserId: string;
   discount: number;
   validUntil: string; // yyyy-mm-dd
   notes: string;
@@ -58,8 +57,7 @@ const emptyInitial: QuotationInitial = {
   customerName: "",
   address: "",
   phone: "",
-  branch: "",
-  soldByEmployeeId: "",
+  preparedByUserId: "",
   discount: 0,
   validUntil: "",
   notes: "",
@@ -68,13 +66,13 @@ const emptyInitial: QuotationInitial = {
 
 export function QuotationForm({
   customers,
-  employees,
+  cashiers,
   onSubmit,
   initial = emptyInitial,
   submitLabel = "Save quotation",
 }: {
   customers: { id: string; name: string; phone: string; address: string | null }[];
-  employees: { id: string; name: string }[];
+  cashiers: { id: string; name: string }[];
   onSubmit: (input: QuotationInput) => Promise<QuotationResult>;
   initial?: QuotationInitial;
   submitLabel?: string;
@@ -85,8 +83,7 @@ export function QuotationForm({
   const [customerName, setCustomerName] = useState(initial.customerName);
   const [address, setAddress] = useState(initial.address);
   const [phone, setPhone] = useState(initial.phone);
-  const [branch, setBranch] = useState(initial.branch);
-  const [soldBy, setSoldBy] = useState(initial.soldByEmployeeId);
+  const [preparedBy, setPreparedBy] = useState(initial.preparedByUserId);
   const [discount, setDiscount] = useState(initial.discount);
   const [validUntil, setValidUntil] = useState(initial.validUntil);
   const [notes, setNotes] = useState(initial.notes);
@@ -197,8 +194,7 @@ export function QuotationForm({
         customerName: customerName || null,
         address: address || null,
         phone: phone || null,
-        branch: branch || null,
-        soldByEmployeeId: soldBy || null,
+        preparedByUserId: preparedBy || null,
         discount: discount || 0,
         validUntil: validUntil || null,
         notes: notes || null,
@@ -379,15 +375,9 @@ export function QuotationForm({
                 className="min-h-[54px]"
               />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="phone">Phone</Label>
-                <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="branch">Branch</Label>
-                <Input id="branch" value={branch} onChange={(e) => setBranch(e.target.value)} />
-              </div>
+            <div>
+              <Label htmlFor="phone">Phone</Label>
+              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
           </CardContent>
         </Card>
@@ -395,12 +385,12 @@ export function QuotationForm({
         <Card>
           <CardContent className="space-y-4">
             <div>
-              <Label>Prepared by (optional)</Label>
-              <Select value={soldBy} onChange={(e) => setSoldBy(e.target.value)}>
+              <Label>Prepared by (cashier)</Label>
+              <Select value={preparedBy} onChange={(e) => setPreparedBy(e.target.value)}>
                 <option value="">—</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name}
+                {cashiers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name}
                   </option>
                 ))}
               </Select>

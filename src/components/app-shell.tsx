@@ -25,6 +25,7 @@ import {
   Wrench,
   Bell,
   Search,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -49,6 +50,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },
       { href: "/services", label: "Service Jobs", icon: Wrench },
       { href: "/customers", label: "Customers", icon: Users },

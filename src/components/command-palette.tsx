@@ -25,6 +25,7 @@ import {
   UserPlus,
   CornerDownLeft,
   Loader2,
+  FileText,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 
@@ -33,6 +34,7 @@ type Cmd = { id: string; group: string; label: string; sub?: string; icon: React
 const ACTIONS: Cmd[] = [
   { id: "a-cash", group: "Actions", label: "New Cash Sale", sub: "Start a cash checkout", icon: ShoppingCart, href: "/invoices/new" },
   { id: "a-credit", group: "Actions", label: "New Credit Sale", sub: "Sell on credit", icon: CreditCard, href: "/credit/new" },
+  { id: "a-quote", group: "Actions", label: "New Quotation", sub: "Prepare a price quote", icon: FileText, href: "/quotations/new" },
   { id: "a-product", group: "Actions", label: "New Product", sub: "Add a stock item", icon: PackagePlus, href: "/products/new" },
   { id: "a-customer", group: "Actions", label: "New Customer", sub: "Add a customer", icon: UserPlus, href: "/customers/new" },
   { id: "a-purchase", group: "Actions", label: "New Purchase", sub: "Record a supplier purchase", icon: Truck, href: "/purchases/new" },
@@ -43,6 +45,7 @@ const PAGES: Cmd[] = [
   { id: "p-dash", group: "Go to", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { id: "p-rem", group: "Go to", label: "Reminders", icon: Bell, href: "/reminders" },
   { id: "p-inv", group: "Go to", label: "Invoices", icon: ReceiptText, href: "/invoices" },
+  { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
   { id: "p-ret", group: "Go to", label: "Returns", icon: Undo2, href: "/returns" },
   { id: "p-svc", group: "Go to", label: "Service Jobs", icon: Wrench, href: "/services" },
   { id: "p-cust", group: "Go to", label: "Customers", icon: Users, href: "/customers" },

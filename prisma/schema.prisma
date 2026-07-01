@@ -39,6 +39,7 @@ model User {
   serviceJobs      ServiceJob[]
   serviceJobEvents ServiceJobEvent[]
   priceChanges     PriceChange[]
+  quotations       Quotation[]
 }
 
 // Single-row global configuration (id = 1).
@@ -127,6 +128,7 @@ model Product {
   stockMovements StockMovement[]
   returnItems    SalesReturnItem[]
   priceChanges   PriceChange[]
+  quotationItems QuotationItem[]
 
   @@index([categoryId])
   @@index([subcategoryId])
@@ -151,6 +153,7 @@ model Customer {
   invoices         Invoice[]
   creditAgreements CreditAgreement[]
   serviceJobs      ServiceJob[]
+  quotations       Quotation[]
 
   @@index([phone])
 }
@@ -193,6 +196,7 @@ model Employee {
   advances     SalaryAdvance[]
   payrollLines PayrollLine[]
   shiftReports ShiftReport[]
+  quotations   Quotation[]
 }
 
 model ShiftReport {
@@ -296,6 +300,73 @@ model InvoiceItem {
   costSnapshot Decimal? @db.Decimal(12, 2)
 
   @@index([invoiceId])
+  @@index([productId])
+}
+
+// ----------------------------------------------------------------------------
+// Quotations — formal price quotes to customers. NOT a sale: no stock moves, no
+// invoice numbering. Lines can be catalog products or free-text (e.g. spec'd
+// solar pumps), mirroring the paper quotation book.
+// ----------------------------------------------------------------------------
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+model Quotation {
+  id              String          @id @default(cuid())
+  quotationNumber String          @unique // QUO-000001
+  status          QuotationStatus @default(DRAFT)
+
+  // Optional customer link; falls back to typed fields for a prospect / walk-in,
+  // matching the paper form's Customer Name / Address header.
+  customer     Customer? @relation(fields: [customerId], references: [id])
+  customerId   String?
+  customerName String? // typed name when no account is linked
+  address      String?
+  phone        String?
+  branch       String?
+
+  subtotal   Decimal   @db.Decimal(12, 2)
+  discount   Decimal   @default("0") @db.Decimal(12, 2)
+  grandTotal Decimal   @db.Decimal(12, 2)
+  notes      String?
+  validUntil DateTime?
+
+  soldBy           Employee? @relation(fields: [soldByEmployeeId], references: [id])
+  soldByEmployeeId String?
+  createdBy        User?     @relation(fields: [createdByUserId], references: [id])
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  items QuotationItem[]
+
+  @@index([createdAt])
+  @@index([customerId])
+  @@index([status])
+}
+
+model QuotationItem {
+  id          String    @id @default(cuid())
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  quotationId String
+
+  // Optional link to a catalog product (a line can also be fully free-text).
+  product     Product? @relation(fields: [productId], references: [id])
+  productId   String?
+  model       String? // free text, e.g. "2x2-2HP" (or the product code)
+  name        String // item name / heading
+  description String? // multi-line "Product Details"
+  qty         Int      @default(1)
+  unitPrice   Decimal  @db.Decimal(12, 2)
+  lineTotal   Decimal  @db.Decimal(12, 2)
+
+  @@index([quotationId])
   @@index([productId])
 }
 

@@ -64,6 +64,10 @@ input[type="number"] {
 }
 
 /* Print: show only the invoice / printable area */
+@page {
+  size: A4;
+  margin: 14mm;
+}
 @media print {
   body * {
     visibility: hidden;

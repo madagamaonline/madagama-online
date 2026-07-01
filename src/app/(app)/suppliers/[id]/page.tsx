@@ -19,7 +19,14 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
   const { id } = await params;
   const supplier = await prisma.supplier.findUnique({
     where: { id },
-    include: { purchases: { orderBy: { date: "desc" } } },
+    include: {
+      purchases: { orderBy: { date: "desc" } },
+      returns: {
+        orderBy: { createdAt: "desc" },
+        take: 50,
+        include: { _count: { select: { items: true } } },
+      },
+    },
   });
   if (!supplier) notFound();
 
@@ -27,6 +34,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
     (s, p) => s + Math.max(0, toNum(p.total) - toNum(p.amountPaid)),
     0,
   );
+  const returnedValue = supplier.returns.reduce((s, r) => s + toNum(r.totalValue), 0);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -67,6 +75,12 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
               <p className="text-xs text-clay-ink/80">Total payable</p>
               <p className="text-lg font-semibold text-clay-ink">{formatLKR(payable)}</p>
             </div>
+            {returnedValue > 0 && (
+              <div className="mt-2 flex items-center justify-between rounded-lg bg-border-subtle px-3 py-2 text-xs text-muted">
+                <span>Returned to supplier</span>
+                <span className="font-medium">{formatLKR(returnedValue)}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -112,6 +126,54 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
       </div>
+
+      {supplier.returns.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Returns to supplier</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Date</TH>
+                  <TH className="text-right">Items</TH>
+                  <TH>Settlement</TH>
+                  <TH>Reason</TH>
+                  <TH className="text-right">Credited</TH>
+                  <TH className="text-right">Value</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {supplier.returns.map((r) => (
+                  <TR key={r.id}>
+                    <TD>
+                      {r.purchaseId ? (
+                        <Link href={`/purchases/${r.purchaseId}`} className="text-primary hover:underline">
+                          {formatDate(r.date)}
+                        </Link>
+                      ) : (
+                        formatDate(r.date)
+                      )}
+                    </TD>
+                    <TD className="text-right">{r._count.items}</TD>
+                    <TD>
+                      {r.method === "REDUCE_PAYABLE"
+                        ? "Credit note"
+                        : r.method === "CASH_REFUND"
+                          ? "Cash refund"
+                          : "Replacement"}
+                    </TD>
+                    <TD className="text-muted">{r.reason ?? "—"}</TD>
+                    <TD className="text-right text-muted">{formatLKR(r.appliedToPayable)}</TD>
+                    <TD className="text-right font-medium">{formatLKR(r.totalValue)}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

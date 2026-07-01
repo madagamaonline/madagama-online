@@ -12,6 +12,7 @@ import {
   CreditCard,
   Truck,
   PackagePlus,
+  PackageX,
   UserCog,
   CalendarCheck,
   Wallet,
@@ -63,6 +64,7 @@ const NAV: NavGroup[] = [
       { href: "/products", label: "Products", icon: Package },
       { href: "/suppliers", label: "Suppliers", icon: Truck },
       { href: "/purchases", label: "Purchases", icon: PackagePlus },
+      { href: "/supplier-returns", label: "Supplier Returns", icon: PackageX },
     ],
   },
   {

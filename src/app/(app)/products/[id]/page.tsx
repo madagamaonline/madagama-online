@@ -20,6 +20,7 @@ const typeTone = {
   PURCHASE: "green",
   SALE: "blue",
   RETURN: "amber",
+  SUPPLIER_RETURN: "red",
   ADJUSTMENT: "amber",
 } as const;
 

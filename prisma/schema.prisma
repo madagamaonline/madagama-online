@@ -35,6 +35,7 @@ model User {
   paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
   stockMovements   StockMovement[]
   salesReturns     SalesReturn[]
+  supplierReturns  SupplierReturn[]
   shiftReports     ShiftReport[]
   serviceJobs      ServiceJob[]
   serviceJobEvents ServiceJobEvent[]
@@ -123,12 +124,13 @@ model Product {
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 
-  invoiceItems   InvoiceItem[]
-  purchaseItems  PurchaseItem[]
-  stockMovements StockMovement[]
-  returnItems    SalesReturnItem[]
-  priceChanges   PriceChange[]
-  quotationItems QuotationItem[]
+  invoiceItems        InvoiceItem[]
+  purchaseItems       PurchaseItem[]
+  stockMovements      StockMovement[]
+  returnItems         SalesReturnItem[]
+  supplierReturnItems SupplierReturnItem[]
+  priceChanges        PriceChange[]
+  quotationItems      QuotationItem[]
 
   @@index([categoryId])
   @@index([subcategoryId])
@@ -228,6 +230,7 @@ model Supplier {
 
   products  Product[]
   purchases Purchase[]
+  returns   SupplierReturn[]
 }
 
 // ----------------------------------------------------------------------------
@@ -462,6 +465,7 @@ model Purchase {
 
   items    PurchaseItem[]
   payments PurchasePayment[]
+  returns  SupplierReturn[]
 
   @@index([supplierId])
   @@index([creditDueDate])
@@ -646,7 +650,8 @@ enum StockMovementType {
   OPENING
   PURCHASE
   SALE
-  RETURN
+  RETURN // customer return — stock in
+  SUPPLIER_RETURN // returned to supplier — stock out
   ADJUSTMENT
 }
 
@@ -720,6 +725,48 @@ model SalesReturnItem {
   qty       Int
   unitPrice Decimal     @db.Decimal(12, 2)
   lineTotal Decimal     @db.Decimal(12, 2)
+
+  @@index([returnId])
+}
+
+// Stock returned to a supplier (defective / over-supply / wrong item). Decrements
+// stock. `method` = how the value is settled:
+//   REDUCE_PAYABLE — credited against the linked purchase's outstanding balance
+//   CASH_REFUND    — supplier refunds cash (recorded only, no balance change)
+//   REPLACEMENT    — supplier sends replacement goods (recorded only)
+// `appliedToPayable` is how much actually reduced the purchase balance (capped at
+// the balance), so the money effect is auditable.
+model SupplierReturn {
+  id               String    @id @default(cuid())
+  supplier         Supplier  @relation(fields: [supplierId], references: [id])
+  supplierId       String
+  purchase         Purchase? @relation(fields: [purchaseId], references: [id])
+  purchaseId       String?
+  date             DateTime  @default(now())
+  totalValue       Decimal   @db.Decimal(12, 2)
+  method           String    @default("REDUCE_PAYABLE")
+  appliedToPayable Decimal   @default("0") @db.Decimal(12, 2)
+  reason           String?
+  createdBy        User?     @relation(fields: [createdByUserId], references: [id])
+  createdByUserId  String?
+  createdAt        DateTime  @default(now())
+
+  items SupplierReturnItem[]
+
+  @@index([supplierId])
+  @@index([purchaseId])
+  @@index([createdAt])
+}
+
+model SupplierReturnItem {
+  id        String         @id @default(cuid())
+  return    SupplierReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  returnId  String
+  product   Product        @relation(fields: [productId], references: [id])
+  productId String
+  qty       Int
+  unitCost  Decimal        @db.Decimal(12, 2)
+  lineTotal Decimal        @db.Decimal(12, 2)
 
   @@index([returnId])
 }

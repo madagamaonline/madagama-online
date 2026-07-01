@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Undo2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -20,11 +22,13 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
       supplier: true,
       items: { include: { product: { select: { code: true, name: true } } } },
       payments: { orderBy: { paidDate: "desc" } },
+      returns: { orderBy: { createdAt: "desc" }, include: { _count: { select: { items: true } } } },
     },
   });
   if (!purchase) notFound();
 
   const balance = Math.max(0, toNum(purchase.total) - toNum(purchase.amountPaid));
+  const creditedFromReturns = purchase.returns.reduce((s, r) => s + toNum(r.appliedToPayable), 0);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -32,9 +36,16 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
         title={`Purchase — ${purchase.supplier.name}`}
         subtitle={`${formatDate(purchase.date)}${purchase.supplierInvoiceNo ? ` · ${purchase.supplierInvoiceNo}` : ""}`}
         action={
-          <Link href={`/suppliers/${purchase.supplierId}`} className="text-sm font-medium text-primary hover:underline">
-            View supplier
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link href={`/supplier-returns/new?purchase=${purchase.id}`}>
+              <Button variant="outline">
+                <Undo2 className="h-4 w-4" /> Return to supplier
+              </Button>
+            </Link>
+            <Link href={`/suppliers/${purchase.supplierId}`} className="text-sm font-medium text-primary hover:underline">
+              View supplier
+            </Link>
+          </div>
         }
       />
 
@@ -80,9 +91,15 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
               <span>{formatLKR(purchase.total)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-muted">Paid</span>
+              <span className="text-muted">Paid / settled</span>
               <span>{formatLKR(purchase.amountPaid)}</span>
             </div>
+            {creditedFromReturns > 0 && (
+              <div className="flex justify-between text-xs text-muted">
+                <span>incl. returns credited</span>
+                <span>{formatLKR(creditedFromReturns)}</span>
+              </div>
+            )}
             <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
               <span>Balance</span>
               <span>{formatLKR(balance)}</span>
@@ -98,6 +115,40 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
           </CardContent>
         </Card>
       </div>
+
+      {purchase.returns.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader>
+            <CardTitle>Returns to supplier</CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Date</TH>
+                  <TH className="text-right">Items</TH>
+                  <TH>Settlement</TH>
+                  <TH>Reason</TH>
+                  <TH className="text-right">Credited</TH>
+                  <TH className="text-right">Value</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {purchase.returns.map((r) => (
+                  <TR key={r.id}>
+                    <TD>{formatDate(r.date)}</TD>
+                    <TD className="text-right">{r._count.items}</TD>
+                    <TD>{r.method === "REDUCE_PAYABLE" ? "Credit note" : r.method === "CASH_REFUND" ? "Cash refund" : "Replacement"}</TD>
+                    <TD className="text-muted">{r.reason ?? "—"}</TD>
+                    <TD className="text-right text-muted">{formatLKR(r.appliedToPayable)}</TD>
+                    <TD className="text-right font-medium">{formatLKR(r.totalValue)}</TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {purchase.payments.length > 0 && (
         <Card className="mt-4">

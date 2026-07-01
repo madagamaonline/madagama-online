@@ -56,6 +56,8 @@ export default async function ReportsPage() {
     users,
     employees,
     stockProducts,
+    purchaseAgg,
+    supplierReturnAgg,
   ] = await Promise.all([
     prisma.invoice.findMany({ where: { createdAt: { gte: start12mo }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart }, ...taxF } }),
@@ -88,6 +90,8 @@ export default async function ReportsPage() {
       where: { active: true, ...prodF },
       select: { id: true, code: true, name: true, quantityInStock: true, costPrice: true, reorderLevel: true },
     }),
+    prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart } } }),
+    prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart } } }),
   ]);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
@@ -108,6 +112,11 @@ export default async function ReportsPage() {
       count: g._count._all,
     }))
     .sort((a, b) => b.total - a.total);
+
+  // Purchasing (this month): stock bought, value returned to suppliers, and net.
+  const purchasesMonth = toNum(purchaseAgg._sum.total ?? 0);
+  const supplierReturnsMonth = toNum(supplierReturnAgg._sum.totalValue ?? 0);
+  const netPurchases = round2(purchasesMonth - supplierReturnsMonth);
 
   // Stock valuation (at cost) + low-stock list.
   const stockValue = round2(stockProducts.reduce((s, p) => s + p.quantityInStock * toNum(p.costPrice), 0));
@@ -195,6 +204,12 @@ export default async function ReportsPage() {
           <StatCard label="Sales (month)" value={formatLKR(taxableSales)} tone="blue" />
         )}
         <StatCard label="Stock value (at cost)" value={formatLKR(stockValue)} tone="amber" />
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
+        <StatCard label="Purchases (month)" value={formatLKR(purchasesMonth)} tone="amber" />
+        <StatCard label="Supplier returns (month)" value={formatLKR(supplierReturnsMonth)} tone="default" />
+        <StatCard label="Net purchases (month)" value={formatLKR(netPurchases)} tone="blue" />
       </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

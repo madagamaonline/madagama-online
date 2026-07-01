@@ -54,7 +54,7 @@ export default function LoginPage() {
 
         <form
           onSubmit={onSubmit}
-          className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface/80 p-8 shadow-[0_8px_32px_0_rgba(43,131,196,0.06)] backdrop-blur-md"
+          className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface/80 p-8 shadow-[0_8px_32px_0_rgba(66,116,217,0.06)] backdrop-blur-md"
         >
           {error && (
             <div className="mb-5 border border-danger/10 rounded-xl bg-danger-soft px-4 py-3 text-xs font-semibold text-danger-ink transition-all duration-300">

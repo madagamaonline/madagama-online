@@ -14,11 +14,11 @@
   --color-muted: #8a8071;
   --color-faint: #a0967f;
 
-  --color-primary: #2b83c4;
+  --color-primary: #4274d9;
   --color-primary-foreground: #ffffff;
-  --color-primary-hover: #2470aa;
-  --color-primary-soft: #e2eff9;
-  --color-primary-ink: #1c5382;
+  --color-primary-hover: #345fc4;
+  --color-primary-soft: #d0e7e6;
+  --color-primary-ink: #293681;
 
   --color-accent: #b07d4f;
   --color-clay: #b07d4f;
@@ -112,7 +112,7 @@ input[type="number"] {
 /* Elegant focus rings across all input types */
 input:focus, select:focus, textarea:focus {
   border-color: var(--color-primary) !important;
-  box-shadow: 0 0 0 3px rgba(43, 131, 196, 0.15) !important;
+  box-shadow: 0 0 0 3px rgba(66, 116, 217, 0.15) !important;
 }
 
 /* ============================================================
@@ -135,11 +135,11 @@ input:focus, select:focus, textarea:focus {
   --color-muted: #a59b88;
   --color-faint: #7c7464;
 
-  --color-primary: #5aa9dd;
+  --color-primary: #95ccdd;
   --color-primary-foreground: #0d1620;
-  --color-primary-hover: #74b8e6;
-  --color-primary-soft: #1a2c3b;
-  --color-primary-ink: #a9d4f0;
+  --color-primary-hover: #aeddea;
+  --color-primary-soft: #1e2f4a;
+  --color-primary-ink: #cfe9f0;
 
   --color-accent: #c89a6a;
   --color-clay: #c89a6a;

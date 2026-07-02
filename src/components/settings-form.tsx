@@ -115,7 +115,10 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
         </CardContent>
       </Card>
 
-      {isAdmin && (
+      {/* Once the switch is OFF this card disappears entirely (even for admins) so
+          the feature leaves no trace in Settings. Re-enabling happens on the
+          unlisted, password-confirmed page /settings/tax-mode. */}
+      {isAdmin && initial.nonTaxableEnabled && (
         <Card>
           <CardHeader>
             <CardTitle>Tax mode</CardTitle>
@@ -133,8 +136,9 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
             <p className="text-xs text-muted">
               When this is <b>off</b>, the entire system hides every non-taxable product, invoice,
               report figure and filter — it behaves as if only taxable stock exists, and new
-              non-taxable items can&apos;t be created. Nothing is deleted: turning it back on makes
-              everything reappear exactly as before. Admins only.
+              non-taxable items can&apos;t be created. Nothing is deleted. Turning it off also hides
+              this card: to bring everything back, an admin must open <b>/settings/tax-mode</b>{" "}
+              directly and confirm with their password.
             </p>
           </CardContent>
         </Card>

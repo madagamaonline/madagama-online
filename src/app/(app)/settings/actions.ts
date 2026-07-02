@@ -54,6 +54,16 @@ export async function updateSettings(
   const isAdmin = me.role === "ADMIN";
   const nonTaxableEnabled = formData.get("nonTaxableEnabled") === "on";
 
+  // This form can only turn the non-taxable switch OFF, never back on. Once it
+  // is off the card is hidden from Settings entirely; re-enabling requires the
+  // password-confirmed page at /settings/tax-mode (see tax-mode-actions.ts).
+  // Without this guard a crafted POST from a till-PIN admin session could
+  // re-enable it, bypassing the password check.
+  const current = await prisma.setting.findUnique({
+    where: { id: 1 },
+    select: { nonTaxableEnabled: true },
+  });
+
   // Money- and credential-sensitive fields are admin-only. Non-admins use the
   // same form but never see these inputs, so we must NOT let their submission
   // overwrite the stored values — only apply them when the user is an admin.
@@ -63,7 +73,7 @@ export async function updateSettings(
         interestRatePerMonth: d.interestRatePct / 100,
         interestFreeMonths: d.interestFreeMonths,
         textlkApiToken: d.textlkApiToken?.trim() || null,
-        nonTaxableEnabled,
+        ...(current?.nonTaxableEnabled ? { nonTaxableEnabled } : {}),
         defaultTargetMarginPct: d.defaultTargetMarginPct,
         epfEmployeeRate: d.epfEmployeePct / 100,
         epfEmployerRate: d.epfEmployerPct / 100,

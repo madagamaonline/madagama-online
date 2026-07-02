@@ -68,6 +68,8 @@ export default async function DashboardPage() {
     weekByEmployee,
     employees,
     supplierCredits,
+    todayRefundAgg,
+    todayReturnedItems,
   ] = await Promise.all([
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, _count: true, where: { createdAt: { gte: startToday }, ...taxF } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: startYesterday, lt: startToday }, ...taxF } }),
@@ -114,6 +116,11 @@ export default async function DashboardPage() {
     prisma.purchase.findMany({
       where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null } },
       include: { supplier: { select: { name: true } } },
+    }),
+    prisma.salesReturn.aggregate({ _sum: { totalRefund: true }, where: { date: { gte: startToday } } }),
+    prisma.salesReturnItem.findMany({
+      where: { return: { date: { gte: startToday } } },
+      select: { qty: true, product: { select: { costPrice: true } } },
     }),
   ]);
 
@@ -183,9 +190,16 @@ export default async function DashboardPage() {
   // Cash actually collected today (credit instalment payments).
   const moneyIn = toNum(moneyInToday._sum.amount);
 
-  // Today's gross profit ≈ revenue − cost of goods sold (at current cost).
+  // Today's gross profit ≈ revenue − cost of goods sold (at current cost),
+  // corrected for customer returns: refunds come off revenue and the restocked
+  // goods give their cost back.
   const todayCogs = todayItems.reduce((s, it) => s + it.qty * toNum(it.product?.costPrice), 0);
-  const todayProfit = todayVal - todayCogs;
+  const todayRefunds = toNum(todayRefundAgg._sum.totalRefund);
+  const todayReturnedCogs = todayReturnedItems.reduce(
+    (s, it) => s + it.qty * toNum(it.product?.costPrice),
+    0,
+  );
+  const todayProfit = todayVal - todayRefunds - (todayCogs - todayReturnedCogs);
 
   // Top products this week (by revenue) — aggregated in the DB via groupBy.
   const topProducts = weekItems

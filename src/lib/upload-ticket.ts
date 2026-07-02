@@ -5,6 +5,11 @@ import { SignJWT, jwtVerify } from "jose";
 // this token instead; it is signed with the same AUTH_SECRET and expires quickly.
 // Edge-safe (no next/headers) so it works in both route handlers and the proxy.
 
+// Same rule as session.ts: a known fallback secret in production would let
+// anyone mint valid upload tickets, so fail hard instead.
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET is not set — refusing to start with a forgeable ticket secret.");
+}
 const secret = new TextEncoder().encode(
   process.env.AUTH_SECRET ?? "dev-insecure-secret-change-me",
 );

@@ -54,7 +54,7 @@ export default async function ReturnsPage() {
                       )}
                     </TD>
                     <TD className="text-right">{r._count.items}</TD>
-                    <TD>{r.method}</TD>
+                    <TD>{r.method === "CREDIT_BALANCE" ? "Credited to balance" : r.method === "CREDIT_NOTE" ? "Credit note" : r.method === "EXCHANGE" ? "Exchange" : "Cash"}</TD>
                     <TD className="text-muted">{r.reason ?? "—"}</TD>
                     <TD className="text-muted">{r.createdBy?.name ?? "—"}</TD>
                     <TD className="text-right font-medium">{formatLKR(r.totalRefund)}</TD>

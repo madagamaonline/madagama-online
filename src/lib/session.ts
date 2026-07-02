@@ -5,6 +5,11 @@ import { SignJWT, jwtVerify } from "jose";
 
 export const SESSION_COOKIE = "madagama_session";
 
+// In production a missing AUTH_SECRET must be a hard failure: falling back to a
+// known string would let anyone forge an admin session cookie.
+if (!process.env.AUTH_SECRET && process.env.NODE_ENV === "production") {
+  throw new Error("AUTH_SECRET is not set — refusing to start with a forgeable session secret.");
+}
 const secret = new TextEncoder().encode(
   process.env.AUTH_SECRET ?? "dev-insecure-secret-change-me",
 );

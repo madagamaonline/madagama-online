@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { ReturnForm, type ReturnLine } from "@/components/return-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { computeCreditState } from "@/lib/credit";
 import { toNum } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -37,9 +38,29 @@ export default async function NewReturnPage({
 
   const invoice = await prisma.invoice.findUnique({
     where: { id: invoiceId },
-    include: { items: true, customer: { select: { name: true } } },
+    include: {
+      items: true,
+      customer: { select: { name: true } },
+      creditAgreement: { include: { payments: true } },
+    },
   });
   if (!invoice) notFound();
+
+  // For a credit sale that is still owed on, the refund is credited against the
+  // customer's balance instead of paid out — tell the form so it can say so.
+  const agreement = invoice.creditAgreement;
+  const creditOutstanding =
+    agreement && agreement.status !== "SETTLED"
+      ? computeCreditState(
+          {
+            principal: toNum(agreement.principal),
+            startDate: agreement.startDate,
+            interestRatePerMonth: toNum(agreement.interestRatePerMonth),
+            interestFreeMonths: agreement.interestFreeMonths,
+          },
+          agreement.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+        ).outstanding
+      : null;
 
   // Only items still linked to a product can be restocked.
   const lines: ReturnLine[] = invoice.items
@@ -72,7 +93,7 @@ export default async function NewReturnPage({
           </CardContent>
         </Card>
       ) : (
-        <ReturnForm invoiceId={invoice.id} lines={lines} />
+        <ReturnForm invoiceId={invoice.id} lines={lines} creditOutstanding={creditOutstanding} />
       )}
     </div>
   );

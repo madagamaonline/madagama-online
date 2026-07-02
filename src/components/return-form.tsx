@@ -19,7 +19,18 @@ export type ReturnLine = {
   unitPrice: number;
 };
 
-export function ReturnForm({ invoiceId, lines }: { invoiceId: string; lines: ReturnLine[] }) {
+export function ReturnForm({
+  invoiceId,
+  lines,
+  creditOutstanding,
+}: {
+  invoiceId: string;
+  lines: ReturnLine[];
+  /** Outstanding balance when the invoice is an unsettled credit sale — the
+   *  refund reduces this balance instead of being paid out. */
+  creditOutstanding?: number | null;
+}) {
+  const isCredit = creditOutstanding != null;
   const router = useRouter();
   const [qtys, setQtys] = useState<Record<string, number>>({});
   const [method, setMethod] = useState("CASH");
@@ -90,19 +101,35 @@ export function ReturnForm({ invoiceId, lines }: { invoiceId: string; lines: Ret
         </table>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="method">Refund method</Label>
-            <Select id="method" value={method} onChange={(e) => setMethod(e.target.value)}>
-              <option value="CASH">Cash</option>
-              <option value="CREDIT_NOTE">Credit note</option>
-              <option value="EXCHANGE">Exchange</option>
-            </Select>
-          </div>
+          {!isCredit && (
+            <div>
+              <Label htmlFor="method">Refund method</Label>
+              <Select id="method" value={method} onChange={(e) => setMethod(e.target.value)}>
+                <option value="CASH">Cash</option>
+                <option value="CREDIT_NOTE">Credit note</option>
+                <option value="EXCHANGE">Exchange</option>
+              </Select>
+            </div>
+          )}
           <div>
             <Label htmlFor="reason">Reason (optional)</Label>
             <Input id="reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Faulty, wrong item" />
           </div>
         </div>
+
+        {isCredit && refund > 0 && (
+          <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">
+            This is a credit sale with {formatLKR(creditOutstanding)} still outstanding.{" "}
+            {refund <= creditOutstanding ? (
+              <>The full {formatLKR(refund)} will be credited against the customer&apos;s balance.</>
+            ) : (
+              <>
+                {formatLKR(creditOutstanding)} will be credited against the balance (settling it);
+                pay the remaining {formatLKR(refund - creditOutstanding)} to the customer in cash.
+              </>
+            )}
+          </div>
+        )}
 
         <div className="flex items-center justify-between border-t border-border pt-4">
           <span className="text-sm text-muted">Total refund</span>

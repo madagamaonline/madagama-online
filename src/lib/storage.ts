@@ -6,6 +6,7 @@ import {
   S3Client,
   PutObjectCommand,
   GetObjectCommand,
+  DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 
 // File storage abstraction.
@@ -82,6 +83,17 @@ export async function saveUpload(file: File, folder = "nic"): Promise<string> {
   const buf = Buffer.from(await file.arrayBuffer());
   await putObject(key, buf, file.type || contentTypeFor(key));
   return key;
+}
+
+/** Remove a stored object. Missing keys are not an error (delete is idempotent). */
+export async function deleteObject(key: string): Promise<void> {
+  if (DRIVER === "s3") {
+    await s3().send(new DeleteObjectCommand({ Bucket: process.env.S3_BUCKET, Key: key }));
+    return;
+  }
+  const full = path.join(ROOT, key);
+  if (!full.startsWith(ROOT)) throw new Error("Invalid storage key");
+  await fs.rm(full, { force: true });
 }
 
 export async function readUpload(key: string): Promise<Buffer | null> {

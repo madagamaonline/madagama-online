@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession, verifyPassword } from "@/lib/auth";
+import { deleteObject } from "@/lib/storage";
 
 export type ResetState = { error?: string; ok?: boolean; cleared?: number };
 
@@ -46,6 +47,20 @@ export async function resetSystemData(
     return { error: "Incorrect password." };
   }
 
+  // Collect the storage keys of every uploaded file BEFORE the rows referencing
+  // them are truncated, so the blobs (NIC images, service photos) can be removed
+  // too instead of being orphaned in the bucket.
+  const [customers, guarantors, serviceJobs] = await Promise.all([
+    prisma.customer.findMany({ select: { nicFrontKey: true, nicBackKey: true } }),
+    prisma.guarantor.findMany({ select: { nicFrontKey: true, nicBackKey: true } }),
+    prisma.serviceJob.findMany({ select: { photoKeys: true } }),
+  ]);
+  const uploadKeys = [
+    ...customers.flatMap((c) => [c.nicFrontKey, c.nicBackKey]),
+    ...guarantors.flatMap((g) => [g.nicFrontKey, g.nicBackKey]),
+    ...serviceJobs.flatMap((j) => j.photoKeys),
+  ].filter((k): k is string => !!k);
+
   // Discover every table to wipe — everything in the public schema except the
   // keep-list. Doing it dynamically means tables added by future migrations are
   // covered automatically without touching this code.
@@ -62,6 +77,16 @@ export async function resetSystemData(
   // `Setting` have no outgoing FKs into this set, so they are never touched.
   const list = tables.map((t) => `"${t}"`).join(", ");
   await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
+
+  // Best-effort blob cleanup after the wipe succeeded. A failed delete only
+  // leaves an orphaned file — it must never fail the reset itself.
+  for (const key of uploadKeys) {
+    try {
+      await deleteObject(key);
+    } catch {
+      // ignore — orphaned blob, harmless
+    }
+  }
 
   // Everything the app reads is now empty — refresh the major surfaces.
   for (const path of [

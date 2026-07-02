@@ -58,6 +58,8 @@ export default async function ReportsPage() {
     stockProducts,
     purchaseAgg,
     supplierReturnAgg,
+    refundAgg,
+    returnedItems,
   ] = await Promise.all([
     prisma.invoice.findMany({ where: { createdAt: { gte: start12mo }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart }, ...taxF } }),
@@ -92,6 +94,11 @@ export default async function ReportsPage() {
     }),
     prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart } } }),
     prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart } } }),
+    prisma.salesReturn.aggregate({ _sum: { totalRefund: true }, where: { date: { gte: monthStart } } }),
+    prisma.salesReturnItem.findMany({
+      where: { return: { date: { gte: monthStart } } },
+      select: { qty: true, product: { select: { costPrice: true } } },
+    }),
   ]);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
@@ -160,9 +167,16 @@ export default async function ReportsPage() {
       0,
     ),
   );
+  // Customer returns: refunds reduce revenue, and the restocked goods give
+  // their cost back (they'll be counted again when re-sold), so both sides of
+  // the gross-profit equation are corrected.
+  const refunds = toNum(refundAgg._sum.totalRefund ?? 0);
+  const returnedCogs = round2(
+    returnedItems.reduce((s, it) => s + it.qty * toNum(it.product?.costPrice ?? 0), 0),
+  );
   const expenses = toNum(expenseAgg._sum.amount ?? 0);
   const payroll = round2(payrollLines.reduce((s, l) => s + l.netPay, 0));
-  const grossProfit = round2(revenue - cogs);
+  const grossProfit = round2(revenue - refunds - (cogs - returnedCogs));
   const netProfit = round2(grossProfit - expenses - payroll);
 
   // Top products this month
@@ -187,7 +201,8 @@ export default async function ReportsPage() {
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Revenue (month)" value={formatLKR(revenue)} tone="green" />
-        <StatCard label="Cost of goods" value={formatLKR(cogs)} tone="amber" />
+        <StatCard label="Less: customer refunds" value={formatLKR(refunds)} tone={refunds > 0 ? "red" : "default"} />
+        <StatCard label="Cost of goods (net of returns)" value={formatLKR(round2(cogs - returnedCogs))} tone="amber" />
         <StatCard label="Gross profit" value={formatLKR(grossProfit)} tone="blue" />
         <StatCard label="Expenses" value={formatLKR(expenses)} tone="amber" />
         <StatCard label="Payroll" value={formatLKR(payroll)} tone="amber" />
@@ -356,7 +371,7 @@ export default async function ReportsPage() {
       </Card>
 
       <p className="mt-4 text-xs text-muted">
-        Net profit is approximate: revenue − cost of goods (captured at the time of sale) − expenses − payroll for the month. Credit-sale interest income is not included.
+        Net profit is approximate: revenue − customer refunds − cost of goods (captured at the time of sale, credited back for restocked returns at current cost) − expenses − payroll for the month. Credit-sale interest income is not included.
       </p>
     </div>
   );

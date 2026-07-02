@@ -8,7 +8,9 @@ export const maxDuration = 60;
 
 function authorized(req: Request): boolean {
   const secret = process.env.CRON_SECRET;
-  if (!secret) return true; // not configured (dev) — allow
+  // Unset secret: allow in dev only. In production an open cron endpoint would
+  // let anyone trigger SMS sends to customers at will.
+  if (!secret) return process.env.NODE_ENV !== "production";
   if (req.headers.get("authorization") === `Bearer ${secret}`) return true;
   const url = new URL(req.url);
   return url.searchParams.get("secret") === secret;

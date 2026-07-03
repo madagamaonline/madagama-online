@@ -105,7 +105,6 @@ export default async function ProductsPage({
                   <TH className="text-right">Price</TH>
                   <TH className="text-right">Margin</TH>
                   <TH className="text-right">Stock</TH>
-                  {ntEnabled && <TH>Tax</TH>}
                   <TH></TH>
                 </TR>
               </THead>
@@ -125,7 +124,11 @@ export default async function ProductsPage({
                         </Link>
                       </TD>
                       <TD className="font-medium">
-                        <Link href={`/products/${p.id}`} className="hover:underline">
+                        <Link
+                          href={`/products/${p.id}`}
+                          className={`hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
+                          title={ntEnabled ? (p.taxable ? "Taxable" : "Non-taxable") : undefined}
+                        >
                           <Highlight text={p.name} query={query} />
                         </Link>
                       </TD>
@@ -151,11 +154,6 @@ export default async function ProductsPage({
                           p.quantityInStock
                         )}
                       </TD>
-                      {ntEnabled && (
-                        <TD>
-                          {p.taxable ? <Badge tone="blue">Taxable</Badge> : <Badge>Non-taxable</Badge>}
-                        </TD>
-                      )}
                       <TD className="text-right">
                         <div className="flex justify-end gap-2">
                           <Link href={`/products/${p.id}/edit`}>

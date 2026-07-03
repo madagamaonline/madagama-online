@@ -21,7 +21,6 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
@@ -389,12 +388,12 @@ export function NewSale({
                 <div key={inv.id} className="flex items-center justify-between gap-3 p-3">
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold">{inv.invoiceNumber}</span>
-                      {nonTaxableEnabled && (
-                        <Badge tone={inv.taxCategory === "TAXABLE" ? "blue" : "gray"}>
-                          {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
-                        </Badge>
-                      )}
+                      <span
+                        className={`font-mono font-semibold ${nonTaxableEnabled ? (inv.taxCategory === "TAXABLE" ? "text-success" : "text-danger") : ""}`}
+                        title={nonTaxableEnabled ? (inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable") : undefined}
+                      >
+                        {inv.invoiceNumber}
+                      </span>
                     </div>
                     <div className="text-sm text-muted">{formatLKR(inv.grandTotal)}</div>
                   </div>
@@ -454,8 +453,12 @@ export function NewSale({
                     >
                       <span>
                         <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
-                        <span className="font-medium">{h.name}</span>
-                        {nonTaxableEnabled && !h.taxable && <span className="ml-2 text-xs text-muted">(non-taxable)</span>}
+                        <span
+                          className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
+                          title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
+                        >
+                          {h.name}
+                        </span>
                         <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
                         {h.costPrice > 0 && (
                           <span className="ml-2 text-xs text-muted">WAC: {formatLKR(h.costPrice)}</span>
@@ -539,11 +542,11 @@ export function NewSale({
                         >
                           <td className="py-2 pr-2">
                             <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
-                            <div className="font-medium">
-                              {l.product.name}{" "}
-                              {nonTaxableEnabled && !l.product.taxable && (
-                                <span className="text-xs text-muted">(non-taxable)</span>
-                              )}
+                            <div
+                              className={`font-medium ${nonTaxableEnabled ? (l.product.taxable ? "text-success" : "text-danger") : ""}`}
+                              title={nonTaxableEnabled ? (l.product.taxable ? "Taxable" : "Non-taxable") : undefined}
+                            >
+                              {l.product.name}
                             </div>
                             {hasCost && (
                               <div className="text-xs text-muted">

@@ -29,6 +29,10 @@
   --color-danger-soft: #fbeee8;
   --color-danger-ink: #8f3f2e;
 
+  --color-success: #3f8f5f;
+  --color-success-soft: #e7f4ec;
+  --color-success-ink: #2e6b47;
+
   --font-sans: var(--font-hanken);
   --font-mono: var(--font-space-mono);
 }
@@ -149,6 +153,10 @@ input:focus, select:focus, textarea:focus {
   --color-danger: #cf6a53;
   --color-danger-soft: #3a241f;
   --color-danger-ink: #e8a392;
+
+  --color-success: #7ec695;
+  --color-success-soft: #1f3327;
+  --color-success-ink: #a5ddb8;
 
   color-scheme: dark;
 }

@@ -12,7 +12,6 @@ import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NicUpload } from "@/components/nic-upload";
-import { Badge } from "@/components/ui/badge";
 import { formatLKR } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import { createCreditSale } from "@/app/(app)/credit/actions";
@@ -248,7 +247,12 @@ export function CreditSale({
                     >
                       <span>
                         <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
-                        <span className="font-medium">{h.name}</span>
+                        <span
+                          className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
+                          title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
+                        >
+                          {h.name}
+                        </span>
                         <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
                       </span>
                       <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
@@ -270,7 +274,12 @@ export function CreditSale({
                     >
                       <td className="py-2">
                         <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
-                        <div className="font-medium">{l.product.name}</div>
+                        <div
+                          className={`font-medium ${nonTaxableEnabled ? (l.product.taxable ? "text-success" : "text-danger") : ""}`}
+                          title={nonTaxableEnabled ? (l.product.taxable ? "Taxable" : "Non-taxable") : undefined}
+                        >
+                          {l.product.name}
+                        </div>
                       </td>
                       <td className="px-2">
                         <Input
@@ -406,9 +415,10 @@ export function CreditSale({
             {nonTaxableEnabled && cart.length > 0 && !mixed && (
               <div className="flex items-center justify-between border-t border-border pt-4 text-sm">
                 <span className="text-muted">Bill type</span>
-                <Badge tone={category === "TAXABLE" ? "blue" : "gray"}>
-                  {category === "TAXABLE" ? "Taxable" : "Non-taxable"}
-                </Badge>
+                <span
+                  className={`inline-block h-3 w-3 rounded-full ${category === "TAXABLE" ? "bg-success" : "bg-danger"}`}
+                  title={category === "TAXABLE" ? "Taxable" : "Non-taxable"}
+                />
               </div>
             )}
 

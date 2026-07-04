@@ -4,12 +4,14 @@ import { SettingsForm } from "@/components/settings-form";
 import { UsersManager } from "@/components/users-manager";
 import { SystemReset } from "@/components/system-reset";
 import { SystemRestore } from "@/components/system-restore";
+import { SystemBackup } from "@/components/system-backup";
 import { getSession } from "@/lib/auth";
 import {
   listBackups,
   backupsConfigured,
   restoreConfigured,
   restoreRunsUrl,
+  backupRunsUrl,
 } from "@/lib/backups";
 import { toNum } from "@/lib/utils";
 
@@ -64,6 +66,13 @@ export default async function SettingsPage() {
         }}
       />
       {isAdmin && session && <UsersManager users={userRows} currentUserId={session.id} />}
+      {isAdmin && (
+        <SystemBackup
+          latest={backups[0] ?? null}
+          configured={restoreConfigured()}
+          runsUrl={backupRunsUrl()}
+        />
+      )}
       {isAdmin && (
         <SystemRestore
           backups={backups}

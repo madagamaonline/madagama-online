@@ -26,7 +26,11 @@ export function backupsConfigured(): boolean {
   );
 }
 
-/** True when the GitHub credentials needed to TRIGGER a restore are present. */
+/**
+ * True when the GitHub credentials needed to dispatch a workflow (manual backup
+ * or restore) are present. The same PAT covers both — it authorizes
+ * `workflow_dispatch` on any workflow in the repo.
+ */
 export function restoreConfigured(): boolean {
   return Boolean(process.env.RESTORE_GITHUB_TOKEN && process.env.RESTORE_GITHUB_REPO);
 }
@@ -35,6 +39,12 @@ export function restoreConfigured(): boolean {
 export function restoreRunsUrl(): string | null {
   const repo = process.env.RESTORE_GITHUB_REPO;
   return repo ? `https://github.com/${repo}/actions/workflows/db-restore.yml` : null;
+}
+
+/** Link to the backup workflow's runs, so the UI can point the admin at progress. */
+export function backupRunsUrl(): string | null {
+  const repo = process.env.RESTORE_GITHUB_REPO;
+  return repo ? `https://github.com/${repo}/actions/workflows/db-backup.yml` : null;
 }
 
 function r2(): S3Client | null {
@@ -69,23 +79,20 @@ export async function listBackups(): Promise<BackupItem[]> {
   return items;
 }
 
-/**
- * Ask GitHub Actions to restore `backupFile` into the live database via the
- * db-restore.yml workflow. The caller is responsible for authorization and for
- * having validated that `backupFile` is a real, existing backup.
- */
-export async function dispatchRestore(backupFile: string): Promise<void> {
+/** POST a workflow_dispatch for `workflow` with optional `inputs`. */
+async function dispatchWorkflow(
+  workflow: string,
+  inputs: Record<string, string> | undefined,
+  what: string,
+): Promise<void> {
   const token = process.env.RESTORE_GITHUB_TOKEN;
   const repo = process.env.RESTORE_GITHUB_REPO;
   if (!token || !repo) {
-    throw new Error("Restore is not configured (missing RESTORE_GITHUB_TOKEN / RESTORE_GITHUB_REPO).");
-  }
-  if (!BACKUP_KEY_RE.test(backupFile)) {
-    throw new Error("Invalid backup file name.");
+    throw new Error(`${what} is not configured (missing RESTORE_GITHUB_TOKEN / RESTORE_GITHUB_REPO).`);
   }
 
   const res = await fetch(
-    `https://api.github.com/repos/${repo}/actions/workflows/db-restore.yml/dispatches`,
+    `https://api.github.com/repos/${repo}/actions/workflows/${workflow}/dispatches`,
     {
       method: "POST",
       headers: {
@@ -94,16 +101,38 @@ export async function dispatchRestore(backupFile: string): Promise<void> {
         "X-GitHub-Api-Version": "2022-11-28",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        ref: "main",
-        inputs: { backup_file: backupFile, confirm: "RESTORE" },
-      }),
+      body: JSON.stringify({ ref: "main", ...(inputs ? { inputs } : {}) }),
     },
   );
 
   // A successful dispatch returns 204 No Content.
   if (res.status !== 204) {
     const detail = await res.text().catch(() => "");
-    throw new Error(`GitHub could not start the restore (HTTP ${res.status}). ${detail.slice(0, 300)}`);
+    throw new Error(`GitHub could not start the ${what.toLowerCase()} (HTTP ${res.status}). ${detail.slice(0, 300)}`);
   }
+}
+
+/**
+ * Ask GitHub Actions to restore `backupFile` into the live database via the
+ * db-restore.yml workflow. The caller is responsible for authorization and for
+ * having validated that `backupFile` is a real, existing backup.
+ */
+export async function dispatchRestore(backupFile: string): Promise<void> {
+  if (!BACKUP_KEY_RE.test(backupFile)) {
+    throw new Error("Invalid backup file name.");
+  }
+  await dispatchWorkflow(
+    "db-restore.yml",
+    { backup_file: backupFile, confirm: "RESTORE" },
+    "Restore",
+  );
+}
+
+/**
+ * Ask GitHub Actions to take a fresh backup NOW via the db-backup.yml workflow
+ * (the same pipeline as the nightly 01:30 Colombo run). The dump lands in the
+ * R2 bucket a minute or two later with the usual madagama-<stamp>.sql.gz name.
+ */
+export async function dispatchBackup(): Promise<void> {
+  await dispatchWorkflow("db-backup.yml", undefined, "Backup");
 }

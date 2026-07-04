@@ -52,6 +52,7 @@ const PAGES: Cmd[] = [
   { id: "p-cust", group: "Go to", label: "Customers", icon: Users, href: "/customers" },
   { id: "p-cred", group: "Go to", label: "Credit", icon: CreditCard, href: "/credit" },
   { id: "p-prod", group: "Go to", label: "Products", icon: Package, href: "/products" },
+  { id: "p-labels", group: "Go to", label: "Sticker Labels", sub: "Print product short-code stickers", icon: Package, href: "/products/labels" },
   { id: "p-sup", group: "Go to", label: "Suppliers", icon: Truck, href: "/suppliers" },
   { id: "p-pur", group: "Go to", label: "Purchases", icon: PackagePlus, href: "/purchases" },
   { id: "p-sret", group: "Go to", label: "Supplier Returns", icon: PackageX, href: "/supplier-returns" },
@@ -64,7 +65,7 @@ const PAGES: Cmd[] = [
   { id: "p-set", group: "Go to", label: "Settings", icon: Settings, href: "/settings" },
 ];
 
-type ProductHit = { id: string; code: string; name: string; sellingPrice: number; stock: number };
+type ProductHit = { id: string; code: string; shortCode?: number; name: string; sellingPrice: number; stock: number };
 
 export function CommandPalette() {
   const router = useRouter();
@@ -159,7 +160,7 @@ export function CommandPalette() {
         id: `prod-${h.id}`,
         group: "Products",
         label: h.name,
-        sub: `${h.code} · ${formatLKR(h.sellingPrice)} · stock ${h.stock}`,
+        sub: `${h.shortCode != null ? `#${h.shortCode} · ` : ""}${h.code} · ${formatLKR(h.sellingPrice)} · stock ${h.stock}`,
         icon: Package,
         href: `/products/${h.id}`,
       })),

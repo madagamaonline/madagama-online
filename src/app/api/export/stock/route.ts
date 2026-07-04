@@ -23,6 +23,7 @@ export async function GET() {
 
   const csv = toCsv(
     [
+      "Sticker #",
       "Code",
       "Name",
       "Category",
@@ -42,6 +43,7 @@ export async function GET() {
       const price = toNum(p.sellingPrice);
       const marginPct = price > 0 ? Math.round(((price - cost) / price) * 100) : 0;
       return [
+        p.shortCode,
         p.code,
         p.name,
         p.category.name,

@@ -72,7 +72,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     <div className="mx-auto max-w-4xl">
       <PageHeader
         title={product.name}
-        subtitle={product.code}
+        subtitle={`#${product.shortCode} · ${product.code}`}
         action={
           <Link href={`/products/${product.id}/edit`}>
             <Button variant="outline">

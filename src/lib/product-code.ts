@@ -13,6 +13,15 @@ export function buildProductCode(
 }
 
 /**
+ * Parses a typed sticker short code: "123" or "#123" -> 123, else null.
+ * Capped at 9 digits so the value always fits in a Postgres int4.
+ */
+export function parseShortCode(q: string): number | null {
+  const m = /^#?(\d{1,9})$/.exec(q.trim());
+  return m ? Number(m[1]) : null;
+}
+
+/**
  * Atomically reserves the next sequence number for a subcategory and returns
  * the resulting product code. Must run inside a transaction so concurrent
  * product creation never produces duplicate codes.

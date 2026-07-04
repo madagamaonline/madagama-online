@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Tags, Pencil, Download, Percent } from "lucide-react";
+import { Plus, Tags, Pencil, Download, Percent, Sticker } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -14,6 +14,7 @@ import { formatLKR, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
+import { parseShortCode } from "@/lib/product-code";
 import { toggleProductActive } from "./actions";
 
 export const dynamic = "force-dynamic";
@@ -27,11 +28,13 @@ export default async function ProductsPage({
   const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
 
+  const shortCode = parseShortCode(query);
   const where: Prisma.ProductWhereInput = {
     ...productTaxableWhere(ntEnabled),
     ...(query
       ? {
           OR: [
+            ...(shortCode !== null ? [{ shortCode }] : []),
             { code: { contains: query, mode: "insensitive" } },
             { name: { contains: query, mode: "insensitive" } },
             { barcode: { contains: query, mode: "insensitive" } },
@@ -63,6 +66,11 @@ export default async function ProductsPage({
             <a href="/api/export/stock" className={buttonVariants({ variant: "outline" })}>
               <Download className="h-4 w-4" /> Export
             </a>
+            <Link href="/products/labels">
+              <Button variant="outline">
+                <Sticker className="h-4 w-4" /> Print labels
+              </Button>
+            </Link>
             {isAdmin && (
               <Link href="/products/pricing">
                 <Button variant="outline">
@@ -87,7 +95,7 @@ export default async function ProductsPage({
       <Card>
         <CardContent className="p-0">
           <div className="border-b border-border p-4">
-            <ListSearch placeholder="Search by code, name or barcode…" />
+            <ListSearch placeholder="Search by sticker # (e.g. 12), code, name or barcode…" />
           </div>
 
           {products.length === 0 ? (
@@ -98,6 +106,7 @@ export default async function ProductsPage({
             <Table>
               <THead>
                 <TR>
+                  <TH>#</TH>
                   <TH>Code</TH>
                   <TH>Name</TH>
                   <TH>Category</TH>
@@ -118,6 +127,11 @@ export default async function ProductsPage({
                   const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
                   return (
                     <TR key={p.id} className={p.active ? "" : "opacity-50"}>
+                      <TD className="font-mono text-sm font-bold">
+                        <Link href={`/products/${p.id}`} className="text-primary-ink hover:underline">
+                          #{p.shortCode}
+                        </Link>
+                      </TD>
                       <TD className="font-mono text-xs font-semibold">
                         <Link href={`/products/${p.id}`} className="text-primary hover:underline">
                           <Highlight text={p.code} query={query} />

@@ -30,6 +30,7 @@ import { QuickCustomerModal } from "@/components/quick-customer-modal";
 type ProductHit = {
   id: string;
   code: string;
+  shortCode?: number; // sticker code (#N) — optional so old localStorage drafts still load
   name: string;
   sellingPrice: number;
   costPrice: number; // weighted-average cost — shown so the cashier can judge discounts
@@ -452,6 +453,11 @@ export function NewSale({
                       }`}
                     >
                       <span>
+                        {h.shortCode != null && (
+                          <span className="mr-1 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs font-bold text-primary-ink">
+                            #{h.shortCode}
+                          </span>
+                        )}
                         <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
                         <span
                           className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
@@ -541,7 +547,12 @@ export function NewSale({
                           }`}
                         >
                           <td className="py-2 pr-2">
-                            <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
+                            <div className="font-mono text-xs font-semibold text-primary">
+                              {l.product.shortCode != null && (
+                                <span className="mr-1.5 font-bold text-primary-ink">#{l.product.shortCode}</span>
+                              )}
+                              {l.product.code}
+                            </div>
                             <div
                               className={`font-medium ${nonTaxableEnabled ? (l.product.taxable ? "text-success" : "text-danger") : ""}`}
                               title={nonTaxableEnabled ? (l.product.taxable ? "Taxable" : "Non-taxable") : undefined}

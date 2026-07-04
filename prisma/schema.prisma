@@ -103,6 +103,9 @@ model Subcategory {
 model Product {
   id                String      @id @default(cuid())
   code              String      @unique // e.g. AGR-TOOL-0001
+  // Short sticker code (#1, #2, …) — global sequence, printed on the physical
+  // item so the cashier can type just the number at the till.
+  shortCode         Int         @unique @default(autoincrement())
   name              String
   description       String?
   category          Category    @relation(fields: [categoryId], references: [id])

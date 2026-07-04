@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildProductCode } from "./product-code";
+import { buildProductCode, parseShortCode } from "./product-code";
 
 describe("buildProductCode", () => {
   it("zero-pads the sequence to 4 digits", () => {
@@ -10,5 +10,22 @@ describe("buildProductCode", () => {
 
   it("does not truncate sequences longer than 4 digits", () => {
     expect(buildProductCode("ELC", "PART", 12345)).toBe("ELC-PART-12345");
+  });
+});
+
+describe("parseShortCode", () => {
+  it("parses plain numbers and #-prefixed numbers", () => {
+    expect(parseShortCode("123")).toBe(123);
+    expect(parseShortCode("#123")).toBe(123);
+    expect(parseShortCode(" 7 ")).toBe(7);
+  });
+
+  it("rejects anything that is not a sticker code", () => {
+    expect(parseShortCode("")).toBeNull();
+    expect(parseShortCode("#")).toBeNull();
+    expect(parseShortCode("AGR-TOOL-0001")).toBeNull();
+    expect(parseShortCode("12a")).toBeNull();
+    expect(parseShortCode("1.5")).toBeNull();
+    expect(parseShortCode("1234567890")).toBeNull(); // >9 digits would overflow int4
   });
 });

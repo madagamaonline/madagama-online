@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PricingHelper } from "@/components/pricing-helper";
 
@@ -69,6 +70,10 @@ export function ProductForm({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
   const [categoryId, setCategoryId] = useState(initial.categoryId);
+  // Controlled so the searchable pickers drive it and switching category clears
+  // a now-invalid subcategory. Submitted via a hidden input (SearchSelect is a
+  // button, not a native form field).
+  const [subcategoryId, setSubcategoryId] = useState(initial.subcategoryId);
 
   // Controlled so the live pricing helper can react to edits and write back the
   // suggested selling price. Kept as strings to allow an empty target margin.
@@ -103,36 +108,35 @@ export function ProductForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="category">Category</Label>
-              <Select
-                id="category"
+              <SearchSelect
+                options={categories.map((c) => ({ value: c.id, label: c.name, hint: c.code }))}
                 value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                required
-              >
-                <option value="">Select category…</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
-              </Select>
+                onChange={(v) => {
+                  setCategoryId(v);
+                  // Drop a subcategory that no longer belongs to the new category.
+                  const stillValid = categories
+                    .find((c) => c.id === v)
+                    ?.subcategories.some((s) => s.id === subcategoryId);
+                  if (!stillValid) setSubcategoryId("");
+                }}
+                placeholder="Select category…"
+                searchPlaceholder="Search categories…"
+                emptyText="No categories match."
+              />
             </div>
             <div>
               <Label htmlFor="subcategoryId">Subcategory</Label>
-              <Select
-                id="subcategoryId"
-                name="subcategoryId"
-                defaultValue={initial.subcategoryId}
-                required
+              {/* SearchSelect is a button, not a form field — carry the value here. */}
+              <input type="hidden" name="subcategoryId" value={subcategoryId} />
+              <SearchSelect
+                options={subs.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+                value={subcategoryId}
+                onChange={setSubcategoryId}
                 disabled={!categoryId}
-              >
-                <option value="">Select subcategory…</option>
-                {subs.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name} ({s.code})
-                  </option>
-                ))}
-              </Select>
+                placeholder={categoryId ? "Select subcategory…" : "Select a category first"}
+                searchPlaceholder="Search subcategories…"
+                emptyText="No subcategories match."
+              />
             </div>
           </div>
 

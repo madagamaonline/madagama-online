@@ -38,6 +38,8 @@ export default async function ProductsPage({
             { code: { contains: query, mode: "insensitive" } },
             { name: { contains: query, mode: "insensitive" } },
             { barcode: { contains: query, mode: "insensitive" } },
+            { modelNumber: { contains: query, mode: "insensitive" } },
+            { serialNumber: { contains: query, mode: "insensitive" } },
           ],
         }
       : {}),
@@ -109,6 +111,7 @@ export default async function ProductsPage({
                   <TH>#</TH>
                   <TH>Code</TH>
                   <TH>Name</TH>
+                  <TH>Model</TH>
                   <TH>Category</TH>
                   <TH className="text-right">Cost (WAC)</TH>
                   <TH className="text-right">Price</TH>
@@ -145,6 +148,9 @@ export default async function ProductsPage({
                         >
                           <Highlight text={p.name} query={query} />
                         </Link>
+                      </TD>
+                      <TD className="font-mono text-xs text-muted">
+                        {p.modelNumber ? <Highlight text={p.modelNumber} query={query} /> : "—"}
                       </TD>
                       <TD className="text-muted">
                         {p.category.name} / {p.subcategory.name}

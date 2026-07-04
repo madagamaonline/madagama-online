@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
+import { SearchSelect } from "@/components/ui/search-select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
@@ -211,14 +212,14 @@ export function PurchaseForm({
           <CardContent className="space-y-4">
             <div>
               <Label>Supplier</Label>
-              <Select value={supplierId} onChange={(e) => setSupplierId(e.target.value)}>
-                <option value="">Select supplier…</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+              <SearchSelect
+                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                value={supplierId}
+                onChange={setSupplierId}
+                placeholder="Select supplier…"
+                searchPlaceholder="Search suppliers…"
+                emptyText="No suppliers match."
+              />
               <Link href="/suppliers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
                 + Add new supplier
               </Link>

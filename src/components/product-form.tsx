@@ -243,7 +243,6 @@ export function ProductForm({
                 defaultChecked={initial.taxable}
                 className="h-4 w-4 rounded border-border"
               />
-              Taxable item (goes in the Taxable bill book)
             </label>
           )}
 

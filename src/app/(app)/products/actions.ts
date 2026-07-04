@@ -29,6 +29,8 @@ const schema = z.object({
   quantityInStock: z.coerce.number().int().min(0),
   reorderLevel: z.coerce.number().int().min(0),
   barcode: z.string().optional(),
+  modelNumber: z.string().optional(),
+  serialNumber: z.string().optional(),
   primarySupplierId: z.string().optional(),
   description: z.string().optional(),
 });
@@ -44,6 +46,8 @@ function parse(formData: FormData) {
     quantityInStock: formData.get("quantityInStock") || 0,
     reorderLevel: formData.get("reorderLevel") || 0,
     barcode: formData.get("barcode") || undefined,
+    modelNumber: formData.get("modelNumber") || undefined,
+    serialNumber: formData.get("serialNumber") || undefined,
     primarySupplierId: formData.get("primarySupplierId") || undefined,
     description: formData.get("description") || undefined,
   });
@@ -83,6 +87,8 @@ export async function createProduct(
           reorderLevel: d.reorderLevel,
           taxable,
           barcode: d.barcode?.trim() || null,
+          modelNumber: d.modelNumber?.trim() || null,
+          serialNumber: d.serialNumber?.trim() || null,
           primarySupplierId: d.primarySupplierId || null,
         },
       });
@@ -144,6 +150,8 @@ export async function updateProduct(
         reorderLevel: d.reorderLevel,
         taxable,
         barcode: d.barcode?.trim() || null,
+        modelNumber: d.modelNumber?.trim() || null,
+        serialNumber: d.serialNumber?.trim() || null,
         primarySupplierId: d.primarySupplierId || null,
       },
     });

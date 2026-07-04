@@ -23,6 +23,8 @@ export async function GET(req: Request) {
         { code: { contains: q, mode: "insensitive" } },
         { name: { contains: q, mode: "insensitive" } },
         { barcode: { contains: q, mode: "insensitive" } },
+        { modelNumber: { contains: q, mode: "insensitive" } },
+        { serialNumber: { contains: q, mode: "insensitive" } },
       ],
     },
     take: 12,

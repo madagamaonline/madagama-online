@@ -55,6 +55,8 @@ export default async function EditProductPage({
           reorderLevel: product.reorderLevel,
           taxable: product.taxable,
           barcode: product.barcode ?? "",
+          modelNumber: product.modelNumber ?? "",
+          serialNumber: product.serialNumber ?? "",
           primarySupplierId: product.primarySupplierId ?? "",
           description: product.description ?? "",
         }}

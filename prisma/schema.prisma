@@ -121,6 +121,9 @@ model Product {
   reorderLevel      Int         @default(0)
   taxable           Boolean     @default(true)
   barcode           String?
+  // Manufacturer identifiers, mainly for electronics (searchable at the POS).
+  modelNumber       String?
+  serialNumber      String?
   primarySupplier   Supplier?   @relation(fields: [primarySupplierId], references: [id])
   primarySupplierId String?
   active            Boolean     @default(true)

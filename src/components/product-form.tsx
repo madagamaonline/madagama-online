@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { SearchSelect } from "@/components/ui/search-select";
 import { Textarea } from "@/components/ui/textarea";
 import { PricingHelper } from "@/components/pricing-helper";
@@ -29,6 +28,8 @@ export type ProductInitial = {
   reorderLevel: number;
   taxable: boolean;
   barcode: string;
+  modelNumber: string;
+  serialNumber: string;
   primarySupplierId: string;
   description: string;
 };
@@ -44,6 +45,8 @@ const empty: ProductInitial = {
   reorderLevel: 0,
   taxable: true,
   barcode: "",
+  modelNumber: "",
+  serialNumber: "",
   primarySupplierId: "",
   description: "",
 };
@@ -74,6 +77,7 @@ export function ProductForm({
   // a now-invalid subcategory. Submitted via a hidden input (SearchSelect is a
   // button, not a native form field).
   const [subcategoryId, setSubcategoryId] = useState(initial.subcategoryId);
+  const [supplierId, setSupplierId] = useState(initial.primarySupplierId);
 
   // Controlled so the live pricing helper can react to edits and write back the
   // suggested selling price. Kept as strings to allow an empty target margin.
@@ -103,6 +107,17 @@ export function ProductForm({
           <div>
             <Label htmlFor="name">Product name</Label>
             <Input id="name" name="name" defaultValue={initial.name} required />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="modelNumber">Model number (optional)</Label>
+              <Input id="modelNumber" name="modelNumber" defaultValue={initial.modelNumber} />
+            </div>
+            <div>
+              <Label htmlFor="serialNumber">Serial number (optional)</Label>
+              <Input id="serialNumber" name="serialNumber" defaultValue={initial.serialNumber} />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -219,14 +234,19 @@ export function ProductForm({
             </div>
             <div>
               <Label htmlFor="primarySupplierId">Primary supplier (optional)</Label>
-              <Select id="primarySupplierId" name="primarySupplierId" defaultValue={initial.primarySupplierId}>
-                <option value="">—</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </Select>
+              {/* SearchSelect is a button, not a form field — carry the value here. */}
+              <input type="hidden" name="primarySupplierId" value={supplierId} />
+              <SearchSelect
+                options={[
+                  { value: "", label: "— No supplier" },
+                  ...suppliers.map((s) => ({ value: s.id, label: s.name })),
+                ]}
+                value={supplierId}
+                onChange={setSupplierId}
+                placeholder="Select supplier…"
+                searchPlaceholder="Search suppliers…"
+                emptyText="No suppliers match."
+              />
             </div>
           </div>
 

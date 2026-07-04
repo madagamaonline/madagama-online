@@ -109,6 +109,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {low ? <Badge tone="red">{product.quantityInStock} low</Badge> : product.quantityInStock}
             </Row>
             <Row label="Reorder level">{product.reorderLevel}</Row>
+            <Row label="Model no.">{product.modelNumber ?? "—"}</Row>
+            <Row label="Serial no.">{product.serialNumber ?? "—"}</Row>
             <Row label="Supplier">{product.primarySupplier?.name ?? "—"}</Row>
             {ntEnabled && <Row label="Tax">{product.taxable ? "Taxable" : "Non-taxable"}</Row>}
           </CardContent>

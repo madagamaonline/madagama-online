@@ -123,6 +123,8 @@ export function ProductForm({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <Label htmlFor="category">Category</Label>
+              {/* SearchSelect is a button, not a form field — carry the value here. */}
+              <input type="hidden" name="categoryId" value={categoryId} />
               <SearchSelect
                 options={categories.map((c) => ({ value: c.id, label: c.name, hint: c.code }))}
                 value={categoryId}
@@ -140,15 +142,18 @@ export function ProductForm({
               />
             </div>
             <div>
-              <Label htmlFor="subcategoryId">Subcategory</Label>
+              <Label htmlFor="subcategoryId">Subcategory (optional)</Label>
               {/* SearchSelect is a button, not a form field — carry the value here. */}
               <input type="hidden" name="subcategoryId" value={subcategoryId} />
               <SearchSelect
-                options={subs.map((s) => ({ value: s.id, label: s.name, hint: s.code }))}
+                options={[
+                  { value: "", label: "— No subcategory" },
+                  ...subs.map((s) => ({ value: s.id, label: s.name, hint: s.code })),
+                ]}
                 value={subcategoryId}
                 onChange={setSubcategoryId}
                 disabled={!categoryId}
-                placeholder={categoryId ? "Select subcategory…" : "Select a category first"}
+                placeholder={categoryId ? "No subcategory" : "Select a category first"}
                 searchPlaceholder="Search subcategories…"
                 emptyText="No subcategories match."
               />

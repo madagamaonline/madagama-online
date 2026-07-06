@@ -88,7 +88,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <CardTitle>Details</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Category">{product.category.name} / {product.subcategory.name}</Row>
+            <Row label="Category">
+              {product.category.name}
+              {product.subcategory ? ` / ${product.subcategory.name}` : ""}
+            </Row>
             <Row label="Cost price">{formatLKR(cost)}</Row>
             <Row label="Selling price">{formatLKR(price)}</Row>
             <Row label="Margin">

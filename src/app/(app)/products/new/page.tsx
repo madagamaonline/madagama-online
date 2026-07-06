@@ -28,7 +28,7 @@ export default async function NewProductPage() {
       {categories.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-6 text-center">
           <p className="mb-3 text-sm text-muted">
-            You need at least one category and subcategory before adding products.
+            You need at least one category before adding products.
           </p>
           <Link href="/products/categories">
             <Button>Set up categories</Button>

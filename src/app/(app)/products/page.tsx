@@ -173,7 +173,8 @@ export default async function ProductsPage({
                         {p.modelNumber ? <Highlight text={p.modelNumber} query={query} /> : "—"}
                       </TD>
                       <TD className="text-muted">
-                        {p.category.name} / {p.subcategory.name}
+                        {p.category.name}
+                        {p.subcategory ? ` / ${p.subcategory.name}` : ""}
                       </TD>
                       <TD className="text-right text-muted">{formatLKR(cost)}</TD>
                       <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>

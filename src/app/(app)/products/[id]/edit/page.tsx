@@ -47,7 +47,7 @@ export default async function EditProductPage({
           code: product.code,
           name: product.name,
           categoryId: product.categoryId,
-          subcategoryId: product.subcategoryId,
+          subcategoryId: product.subcategoryId ?? "",
           costPrice: toNum(product.costPrice),
           sellingPrice: toNum(product.sellingPrice),
           targetMarginPct: product.targetMarginPct == null ? null : toNum(product.targetMarginPct),

@@ -2,14 +2,16 @@ import type { Prisma } from "@prisma/client";
 
 /**
  * Builds a human-readable product code: CATEGORY-SUBCATEGORY-NNNN
- * e.g. ("AGR", "TOOL", 1) -> "AGR-TOOL-0001"
+ * e.g. ("AGR", "TOOL", 1) -> "AGR-TOOL-0001". When there is no subcategory the
+ * middle segment is dropped: ("AGR", null, 1) -> "AGR-0001".
  */
 export function buildProductCode(
   categoryCode: string,
-  subcategoryCode: string,
+  subcategoryCode: string | null,
   seq: number,
 ): string {
-  return `${categoryCode}-${subcategoryCode}-${String(seq).padStart(4, "0")}`;
+  const prefix = subcategoryCode ? `${categoryCode}-${subcategoryCode}` : categoryCode;
+  return `${prefix}-${String(seq).padStart(4, "0")}`;
 }
 
 /**
@@ -22,18 +24,28 @@ export function parseShortCode(q: string): number | null {
 }
 
 /**
- * Atomically reserves the next sequence number for a subcategory and returns
- * the resulting product code. Must run inside a transaction so concurrent
+ * Atomically reserves the next sequence number and returns the resulting
+ * product code. Subcategorised products draw their sequence from the
+ * subcategory (CAT-SUB-NNNN); products with no subcategory draw it from the
+ * category itself (CAT-NNNN). Must run inside a transaction so concurrent
  * product creation never produces duplicate codes.
  */
 export async function nextProductCode(
   tx: Prisma.TransactionClient,
-  subcategoryId: string,
+  categoryId: string,
+  subcategoryId?: string | null,
 ): Promise<string> {
-  const sub = await tx.subcategory.update({
-    where: { id: subcategoryId },
+  if (subcategoryId) {
+    const sub = await tx.subcategory.update({
+      where: { id: subcategoryId },
+      data: { seq: { increment: 1 } },
+      include: { category: true },
+    });
+    return buildProductCode(sub.category.code, sub.code, sub.seq);
+  }
+  const cat = await tx.category.update({
+    where: { id: categoryId },
     data: { seq: { increment: 1 } },
-    include: { category: true },
   });
-  return buildProductCode(sub.category.code, sub.code, sub.seq);
+  return buildProductCode(cat.code, null, cat.seq);
 }

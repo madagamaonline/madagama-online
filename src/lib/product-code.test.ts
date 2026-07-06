@@ -11,6 +11,11 @@ describe("buildProductCode", () => {
   it("does not truncate sequences longer than 4 digits", () => {
     expect(buildProductCode("ELC", "PART", 12345)).toBe("ELC-PART-12345");
   });
+
+  it("drops the middle segment when there is no subcategory", () => {
+    expect(buildProductCode("AGR", null, 1)).toBe("AGR-0001");
+    expect(buildProductCode("ELC", null, 42)).toBe("ELC-0042");
+  });
 });
 
 describe("parseShortCode", () => {

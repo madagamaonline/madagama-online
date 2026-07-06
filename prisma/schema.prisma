@@ -82,6 +82,10 @@ model Category {
   name          String
   code          String        @unique // e.g. AGR, ELC
   description   String?
+  // Last sequence used for products filed directly under this category with no
+  // subcategory — produces codes like AGR-0001. Subcategorised products use
+  // Subcategory.seq instead.
+  seq           Int           @default(0)
   createdAt     DateTime      @default(now())
   subcategories Subcategory[]
   products      Product[]
@@ -110,8 +114,8 @@ model Product {
   description       String?
   category          Category    @relation(fields: [categoryId], references: [id])
   categoryId        String
-  subcategory       Subcategory @relation(fields: [subcategoryId], references: [id])
-  subcategoryId     String
+  subcategory       Subcategory? @relation(fields: [subcategoryId], references: [id])
+  subcategoryId     String?
   costPrice         Decimal     @default("0") @db.Decimal(12, 2)
   sellingPrice      Decimal     @default("0") @db.Decimal(12, 2)
   // Target gross margin (on selling price) for this product. Null = fall back

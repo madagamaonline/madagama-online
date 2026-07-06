@@ -47,7 +47,7 @@ export async function GET() {
         p.code,
         p.name,
         p.category.name,
-        p.subcategory.name,
+        p.subcategory?.name ?? "",
         cost,
         price,
         marginPct,

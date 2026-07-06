@@ -22,7 +22,9 @@ async function requireSessionState(): Promise<{ error: string } | null> {
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
-  subcategoryId: z.string().min(1, "Subcategory is required"),
+  categoryId: z.string().min(1, "Category is required"),
+  // Optional — products can sit directly under a category with no subcategory.
+  subcategoryId: z.string().optional(),
   costPrice: z.coerce.number().min(0),
   sellingPrice: z.coerce.number().min(0),
   targetMarginPct: z.coerce.number().min(0).max(99).optional(),
@@ -35,10 +37,27 @@ const schema = z.object({
   description: z.string().optional(),
 });
 
+/**
+ * Confirms the category exists and, if a subcategory was given, that it belongs
+ * to that category. Returns the ids to persist or an error message.
+ */
+async function resolveCategory(
+  categoryId: string,
+  subcategoryId: string | undefined,
+): Promise<{ categoryId: string; subcategoryId: string | null } | { error: string }> {
+  const category = await prisma.category.findUnique({ where: { id: categoryId } });
+  if (!category) return { error: "Invalid category" };
+  if (!subcategoryId) return { categoryId, subcategoryId: null };
+  const sub = await prisma.subcategory.findUnique({ where: { id: subcategoryId } });
+  if (!sub || sub.categoryId !== categoryId) return { error: "Invalid subcategory" };
+  return { categoryId, subcategoryId };
+}
+
 function parse(formData: FormData) {
   return schema.safeParse({
     name: formData.get("name"),
-    subcategoryId: formData.get("subcategoryId"),
+    categoryId: formData.get("categoryId"),
+    subcategoryId: formData.get("subcategoryId") || undefined,
     costPrice: formData.get("costPrice") || 0,
     sellingPrice: formData.get("sellingPrice") || 0,
     // Empty ⇒ undefined ⇒ stored as null (falls back to the global default).
@@ -66,20 +85,20 @@ export async function createProduct(
   // checkbox is hidden in the form, so coerce here too as a safety net.
   const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
 
-  const sub = await prisma.subcategory.findUnique({ where: { id: d.subcategoryId } });
-  if (!sub) return { error: "Invalid subcategory" };
+  const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
+  if ("error" in resolved) return { error: resolved.error };
   const session = await getSession();
 
   await prisma.$transaction(
     async (tx) => {
-      const code = await nextProductCode(tx, d.subcategoryId);
+      const code = await nextProductCode(tx, resolved.categoryId, resolved.subcategoryId);
       const product = await tx.product.create({
         data: {
           code,
           name: d.name.trim(),
           description: d.description?.trim() || null,
-          categoryId: sub.categoryId,
-          subcategoryId: d.subcategoryId,
+          categoryId: resolved.categoryId,
+          subcategoryId: resolved.subcategoryId,
           costPrice: d.costPrice,
           sellingPrice: d.sellingPrice,
           targetMarginPct: d.targetMarginPct ?? null,
@@ -124,8 +143,8 @@ export async function updateProduct(
   // taxable so an existing product can't be flipped to non-taxable.
   const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
 
-  const sub = await prisma.subcategory.findUnique({ where: { id: d.subcategoryId } });
-  if (!sub) return { error: "Invalid subcategory" };
+  const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
+  if ("error" in resolved) return { error: resolved.error };
   const session = await getSession();
 
   await prisma.$transaction(async (tx) => {
@@ -140,8 +159,8 @@ export async function updateProduct(
       data: {
         name: d.name.trim(),
         description: d.description?.trim() || null,
-        categoryId: sub.categoryId,
-        subcategoryId: d.subcategoryId,
+        categoryId: resolved.categoryId,
+        subcategoryId: resolved.subcategoryId,
         costPrice: d.costPrice,
         sellingPrice: d.sellingPrice,
         targetMarginPct: d.targetMarginPct ?? null,

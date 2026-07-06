@@ -19,12 +19,14 @@ import { toggleProductActive } from "./actions";
 
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 50;
+
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; page?: string }>;
 }) {
-  const { q } = await searchParams;
+  const { q, page } = await searchParams;
   const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
 
@@ -45,18 +47,33 @@ export default async function ProductsPage({
       : {}),
   };
 
+  const total = await prisma.product.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  // Clamp so a stale/out-of-range page (e.g. after a search narrows results)
+  // still lands on a real page instead of an empty table.
+  const currentPage = Math.min(Math.max(1, Number(page) || 1), totalPages);
+
   const [products, settings, session] = await Promise.all([
     prisma.product.findMany({
       where,
       orderBy: { code: "asc" },
       include: { category: true, subcategory: true },
-      take: 200,
+      skip: (currentPage - 1) * PAGE_SIZE,
+      take: PAGE_SIZE,
     }),
     getSettings(),
     getSession(),
   ]);
   const defaultTarget = toNum(settings?.defaultTargetMarginPct ?? 20);
   const isAdmin = session?.role === "ADMIN";
+
+  const pageHref = (p: number) => {
+    const sp = new URLSearchParams();
+    if (query) sp.set("q", query);
+    if (p > 1) sp.set("page", String(p));
+    const qs = sp.toString();
+    return qs ? `/products?${qs}` : "/products";
+  };
 
   return (
     <div>
@@ -97,7 +114,10 @@ export default async function ProductsPage({
       <Card>
         <CardContent className="p-0">
           <div className="border-b border-border p-4">
-            <ListSearch placeholder="Search by sticker # (e.g. 12), code, name or barcode…" />
+            <ListSearch
+              placeholder="Search by sticker # (e.g. 12), code, name or barcode…"
+              resetParams={["page"]}
+            />
           </div>
 
           {products.length === 0 ? (
@@ -193,6 +213,38 @@ export default async function ProductsPage({
                 })}
               </TBody>
             </Table>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3 text-sm">
+              <span className="text-muted">
+                Showing {(currentPage - 1) * PAGE_SIZE + 1}–
+                {Math.min(currentPage * PAGE_SIZE, total)} of {total}
+              </span>
+              <div className="flex items-center gap-2">
+                {currentPage > 1 ? (
+                  <Link href={pageHref(currentPage - 1)} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    Previous
+                  </Link>
+                ) : (
+                  <Button variant="outline" size="sm" disabled>
+                    Previous
+                  </Button>
+                )}
+                <span className="px-1 text-muted">
+                  Page {currentPage} of {totalPages}
+                </span>
+                {currentPage < totalPages ? (
+                  <Link href={pageHref(currentPage + 1)} className={buttonVariants({ variant: "outline", size: "sm" })}>
+                    Next
+                  </Link>
+                ) : (
+                  <Button variant="outline" size="sm" disabled>
+                    Next
+                  </Button>
+                )}
+              </div>
+            </div>
           )}
         </CardContent>
       </Card>

@@ -11,14 +11,17 @@ export const dynamic = "force-dynamic";
 
 // 4 × 45mm columns fit inside the global @page A4 14mm margins (182mm printable).
 const COLS = 4;
+// Guard against a bad stock count spraying thousands of stickers per product.
+const MAX_COPIES_PER_PRODUCT = 50;
 
 export default async function ProductLabelsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ category?: string; subcategory?: string; prices?: string }>;
+  searchParams: Promise<{ category?: string; subcategory?: string; prices?: string; perUnit?: string }>;
 }) {
-  const { category, subcategory, prices } = await searchParams;
+  const { category, subcategory, prices, perUnit } = await searchParams;
   const showPrices = prices !== "off";
+  const oneLabelPerUnit = perUnit === "on";
 
   const where: Prisma.ProductWhereInput = {
     active: true,
@@ -34,10 +37,20 @@ export default async function ProductLabelsPage({
     prisma.product.findMany({
       where,
       orderBy: { shortCode: "asc" },
-      select: { id: true, code: true, shortCode: true, name: true, sellingPrice: true },
+      select: { id: true, code: true, shortCode: true, name: true, sellingPrice: true, quantityInStock: true },
       take: 2000,
     }),
   ]);
+
+  // Expand each product into one label per unit in stock when requested; the
+  // stickers are identical (same sticker #), so the cashier can paste one on
+  // each physical item. Zero-stock products drop out in per-unit mode.
+  const labels = oneLabelPerUnit
+    ? products.flatMap((p) => {
+        const copies = Math.min(Math.max(p.quantityInStock, 0), MAX_COPIES_PER_PRODUCT);
+        return Array.from({ length: copies }, (_, i) => ({ ...p, key: `${p.id}-${i}` }));
+      })
+    : products.map((p) => ({ ...p, key: p.id }));
 
   return (
     <div>
@@ -89,11 +102,15 @@ export default async function ProductLabelsPage({
                 <input type="checkbox" name="prices" value="off" defaultChecked={!showPrices} />
                 <span className="text-xs font-medium text-muted">Hide prices</span>
               </label>
+              <label className="flex h-9 items-center gap-2">
+                <input type="checkbox" name="perUnit" value="on" defaultChecked={oneLabelPerUnit} />
+                <span className="text-xs font-medium text-muted">One label per stock unit</span>
+              </label>
               <Button type="submit" variant="outline">
                 Load labels
               </Button>
               <span className="text-xs text-muted">
-                {products.length} label{products.length === 1 ? "" : "s"} · {COLS} per row on A4 — cut
+                {labels.length} label{labels.length === 1 ? "" : "s"} · {COLS} per row on A4 — cut
                 along the dashed lines
               </span>
             </form>
@@ -101,18 +118,20 @@ export default async function ProductLabelsPage({
         </Card>
       </div>
 
-      {products.length === 0 ? (
+      {labels.length === 0 ? (
         <div className="no-print rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted">
-          No active products match this filter.
+          {oneLabelPerUnit
+            ? "No active products with stock match this filter."
+            : "No active products match this filter."}
         </div>
       ) : (
         <div
           className="print-area grid bg-surface"
           style={{ gridTemplateColumns: `repeat(${COLS}, 45mm)` }}
         >
-          {products.map((p) => (
+          {labels.map((p) => (
             <div
-              key={p.id}
+              key={p.key}
               className="flex flex-col justify-between border border-dashed border-border p-[2mm]"
               style={{ width: "45mm", height: "22mm", breakInside: "avoid", overflow: "hidden" }}
             >

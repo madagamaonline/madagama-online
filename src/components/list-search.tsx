@@ -14,10 +14,13 @@ export function ListSearch({
   placeholder,
   paramKey = "q",
   className,
+  resetParams,
 }: {
   placeholder?: string;
   paramKey?: string;
   className?: string;
+  /** Query params to clear whenever the search term changes (e.g. "page"). */
+  resetParams?: string[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -37,6 +40,8 @@ export function ListSearch({
       const v = value.trim();
       if (v) sp.set(paramKey, v);
       else sp.delete(paramKey);
+      // Clear dependent params (e.g. page) so a new search starts from the top.
+      resetParams?.forEach((p) => sp.delete(p));
       const qs = sp.toString();
       startTransition(() => router.replace(`${pathname}${qs ? `?${qs}` : ""}`, { scroll: false }));
     }, 250);

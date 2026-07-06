@@ -159,10 +159,11 @@ export default async function DashboardPage() {
     .sort((a, b) => a.days - b.days)
     .slice(0, 6);
 
-  const lowStockProducts = lowStockProductsRaw
+  const lowStockAll = lowStockProductsRaw
     .filter((p) => p.quantityInStock <= p.reorderLevel)
-    .sort((a, b) => a.quantityInStock - b.quantityInStock)
-    .slice(0, 5);
+    .sort((a, b) => a.quantityInStock - b.quantityInStock);
+  const lowStockProducts = lowStockAll.slice(0, 5);
+  const lowStockTotal = lowStockAll.length;
 
   const pct = (curr: number, prev: number) => (prev <= 0 ? (curr > 0 ? 100 : 0) : Math.round(((curr - prev) / prev) * 100));
   const todayVal = toNum(todaySales._sum.grandTotal);
@@ -366,6 +367,15 @@ export default async function DashboardPage() {
                 <ArrowRight className="h-4 w-4 shrink-0 text-clay/60" />
               </Link>
             ))}
+            {lowStockTotal > lowStockProducts.length && (
+              <Link
+                href="/reports"
+                className="flex items-center justify-center gap-1 pt-1 text-[12px] font-semibold text-muted transition-colors hover:text-foreground"
+              >
+                View all {lowStockTotal} low-stock items
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
           </div>
         </div>
       </div>

@@ -75,13 +75,23 @@ export default async function ProductsPage({
     return qs ? `/products?${qs}` : "/products";
   };
 
+  const rows = products.map((p) => {
+    const low = p.reorderLevel > 0 && p.quantityInStock <= p.reorderLevel;
+    const price = toNum(p.sellingPrice);
+    const cost = toNum(p.costPrice);
+    const marginPct = grossMarginPct(cost, price);
+    const target = p.targetMarginPct == null ? defaultTarget : toNum(p.targetMarginPct);
+    const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
+    return { p, low, cost, marginPct, target, belowTarget };
+  });
+
   return (
     <div>
       <PageHeader
         title="Products"
         subtitle="Stock items with auto-generated codes"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <a href="/api/export/stock" className={buttonVariants({ variant: "outline" })}>
               <Download className="h-4 w-4" /> Export
             </a>
@@ -125,99 +135,162 @@ export default async function ProductsPage({
               {query ? "No products match your search." : "No products yet. Add your first product."}
             </div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>#</TH>
-                  <TH>Code</TH>
-                  <TH>Name</TH>
-                  <TH>Model</TH>
-                  <TH>Category</TH>
-                  <TH className="text-right">Cost (WAC)</TH>
-                  <TH className="text-right">Price</TH>
-                  <TH className="text-right">Margin</TH>
-                  <TH className="text-right">Stock</TH>
-                  <TH></TH>
-                </TR>
-              </THead>
-              <TBody>
-                {products.map((p) => {
-                  const low = p.reorderLevel > 0 && p.quantityInStock <= p.reorderLevel;
-                  const price = toNum(p.sellingPrice);
-                  const cost = toNum(p.costPrice);
-                  const marginPct = grossMarginPct(cost, price);
-                  const target = p.targetMarginPct == null ? defaultTarget : toNum(p.targetMarginPct);
-                  const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
-                  return (
-                    <TR key={p.id} className={p.active ? "" : "opacity-50"}>
-                      <TD className="font-mono text-sm font-bold">
-                        <Link href={`/products/${p.id}`} className="text-primary-ink hover:underline">
-                          #{p.shortCode}
-                        </Link>
-                      </TD>
-                      <TD className="font-mono text-xs font-semibold">
-                        <Link href={`/products/${p.id}`} className="text-primary hover:underline">
-                          <Highlight text={p.code} query={query} />
-                        </Link>
-                      </TD>
-                      <TD className="font-medium">
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>#</TH>
+                      <TH>Code</TH>
+                      <TH>Name</TH>
+                      <TH>Model</TH>
+                      <TH>Category</TH>
+                      <TH className="text-right">Cost (WAC)</TH>
+                      <TH className="text-right">Price</TH>
+                      <TH className="text-right">Margin</TH>
+                      <TH className="text-right">Stock</TH>
+                      <TH></TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {rows.map(({ p, low, cost, marginPct, target, belowTarget }) => (
+                      <TR key={p.id} className={p.active ? "" : "opacity-50"}>
+                        <TD className="font-mono text-sm font-bold">
+                          <Link href={`/products/${p.id}`} className="text-primary-ink hover:underline">
+                            #{p.shortCode}
+                          </Link>
+                        </TD>
+                        <TD className="font-mono text-xs font-semibold">
+                          <Link href={`/products/${p.id}`} className="text-primary hover:underline">
+                            <Highlight text={p.code} query={query} />
+                          </Link>
+                        </TD>
+                        <TD className="font-medium">
+                          <Link
+                            href={`/products/${p.id}`}
+                            className={`hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
+                            title={ntEnabled ? (p.taxable ? "Taxable" : "Non-taxable") : undefined}
+                          >
+                            <Highlight text={p.name} query={query} />
+                          </Link>
+                        </TD>
+                        <TD className="font-mono text-xs text-muted">
+                          {p.modelNumber ? <Highlight text={p.modelNumber} query={query} /> : "—"}
+                        </TD>
+                        <TD className="text-muted">
+                          {p.category.name}
+                          {p.subcategory ? ` / ${p.subcategory.name}` : ""}
+                        </TD>
+                        <TD className="text-right text-muted">{formatLKR(cost)}</TD>
+                        <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>
+                        <TD className="text-right">
+                          <span className={marginPct < 0 ? "text-danger" : "text-muted"}>
+                            {marginPct.toFixed(0)}%
+                          </span>
+                          {belowTarget && (
+                            <Link href={`/products/${p.id}/edit`} title={`Below ${target.toFixed(0)}% target`}>
+                              <Badge tone="amber" className="ml-2">↓ target</Badge>
+                            </Link>
+                          )}
+                        </TD>
+                        <TD className="text-right">
+                          {low ? (
+                            <Badge tone="red">{p.quantityInStock} low</Badge>
+                          ) : (
+                            p.quantityInStock
+                          )}
+                        </TD>
+                        <TD className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Link href={`/products/${p.id}/edit`}>
+                              <Button variant="ghost" size="sm">
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </Link>
+                            <form action={toggleProductActive.bind(null, p.id, !p.active)}>
+                              <Button variant="ghost" size="sm" type="submit" className="text-muted">
+                                {p.active ? "Disable" : "Enable"}
+                              </Button>
+                            </form>
+                          </div>
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+
+              <div className="md:hidden">
+                {rows.map(({ p, low, marginPct, target, belowTarget }) => (
+                  <div
+                    key={p.id}
+                    className={`border-b border-border-subtle p-4 last:border-0 ${p.active ? "" : "opacity-50"}`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-x-2 font-mono text-xs">
+                          <Link href={`/products/${p.id}`} className="font-bold text-primary-ink hover:underline">
+                            #{p.shortCode}
+                          </Link>
+                          <Link href={`/products/${p.id}`} className="font-semibold text-primary hover:underline">
+                            <Highlight text={p.code} query={query} />
+                          </Link>
+                        </div>
                         <Link
                           href={`/products/${p.id}`}
-                          className={`hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
+                          className={`mt-0.5 block font-medium hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
                           title={ntEnabled ? (p.taxable ? "Taxable" : "Non-taxable") : undefined}
                         >
                           <Highlight text={p.name} query={query} />
                         </Link>
-                      </TD>
-                      <TD className="font-mono text-xs text-muted">
-                        {p.modelNumber ? <Highlight text={p.modelNumber} query={query} /> : "—"}
-                      </TD>
-                      <TD className="text-muted">
-                        {p.category.name}
-                        {p.subcategory ? ` / ${p.subcategory.name}` : ""}
-                      </TD>
-                      <TD className="text-right text-muted">{formatLKR(cost)}</TD>
-                      <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>
-                      <TD className="text-right">
-                        <span className={marginPct < 0 ? "text-danger" : "text-muted"}>
-                          {marginPct.toFixed(0)}%
-                        </span>
-                        {belowTarget && (
-                          <Link href={`/products/${p.id}/edit`} title={`Below ${target.toFixed(0)}% target`}>
-                            <Badge tone="amber" className="ml-2">↓ target</Badge>
-                          </Link>
-                        )}
-                      </TD>
-                      <TD className="text-right">
-                        {low ? (
-                          <Badge tone="red">{p.quantityInStock} low</Badge>
-                        ) : (
-                          p.quantityInStock
-                        )}
-                      </TD>
-                      <TD className="text-right">
-                        <div className="flex justify-end gap-2">
-                          <Link href={`/products/${p.id}/edit`}>
-                            <Button variant="ghost" size="sm">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                          <form action={toggleProductActive.bind(null, p.id, !p.active)}>
-                            <Button variant="ghost" size="sm" type="submit" className="text-muted">
-                              {p.active ? "Disable" : "Enable"}
-                            </Button>
-                          </form>
+                        <div className="mt-0.5 text-xs text-muted">
+                          {p.category.name}
+                          {p.subcategory ? ` / ${p.subcategory.name}` : ""}
+                          {p.modelNumber && (
+                            <>
+                              {" · "}
+                              <span className="font-mono">
+                                <Highlight text={p.modelNumber} query={query} />
+                              </span>
+                            </>
+                          )}
                         </div>
-                      </TD>
-                    </TR>
-                  );
-                })}
-              </TBody>
-            </Table>
+                      </div>
+                      <Link href={`/products/${p.id}/edit`} className="shrink-0">
+                        <Button variant="ghost" size="sm">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="font-medium">{formatLKR(p.sellingPrice)}</span>
+                      <span className={marginPct < 0 ? "text-danger" : "text-muted"}>
+                        {marginPct.toFixed(0)}% margin
+                      </span>
+                      {belowTarget && (
+                        <Link href={`/products/${p.id}/edit`} title={`Below ${target.toFixed(0)}% target`}>
+                          <Badge tone="amber">↓ target</Badge>
+                        </Link>
+                      )}
+                      {low ? (
+                        <Badge tone="red">{p.quantityInStock} low</Badge>
+                      ) : (
+                        <span className="text-muted">{p.quantityInStock} in stock</span>
+                      )}
+                      <form action={toggleProductActive.bind(null, p.id, !p.active)} className="ml-auto">
+                        <Button variant="ghost" size="sm" type="submit" className="text-muted">
+                          {p.active ? "Disable" : "Enable"}
+                        </Button>
+                      </form>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between gap-4 border-t border-border px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-border px-4 py-3 text-sm">
               <span className="text-muted">
                 Showing {(currentPage - 1) * PAGE_SIZE + 1}–
                 {Math.min(currentPage * PAGE_SIZE, total)} of {total}

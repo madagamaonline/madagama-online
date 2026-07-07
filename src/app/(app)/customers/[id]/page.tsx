@@ -4,6 +4,7 @@ import { Pencil, Phone, MapPin, CreditCard, FileText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatCard } from "@/components/stat-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -42,6 +43,9 @@ export default async function CustomerDetailPage({
     return { a, state };
   });
 
+  const activeCount = agreements.filter(({ state }) => !state.isSettled).length;
+  const totalOutstanding = agreements.reduce((s, { state }) => s + state.outstanding, 0);
+
   const nics = [
     { key: customer.nicFrontKey, label: "NIC Front" },
     { key: customer.nicBackKey, label: "NIC Back" },
@@ -67,6 +71,21 @@ export default async function CustomerDetailPage({
           </div>
         }
       />
+
+      {/* Outstanding balance up top — the main thing you check a customer for
+          on a phone. */}
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard
+          label="Outstanding balance"
+          value={formatLKR(totalOutstanding)}
+          tone={totalOutstanding > 0 ? "amber" : "default"}
+        />
+        <StatCard
+          label="Active agreements"
+          value={String(activeCount)}
+          tone={activeCount ? "blue" : "default"}
+        />
+      </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">
@@ -115,26 +134,21 @@ export default async function CustomerDetailPage({
                 No credit agreements.
               </div>
             ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Invoice</TH>
-                    <TH className="text-right">Principal</TH>
-                    <TH className="text-right">Outstanding</TH>
-                    <TH>Status</TH>
-                  </TR>
-                </THead>
-                <TBody>
+              <>
+                <div className="md:hidden">
                   {agreements.map(({ a, state }) => (
-                    <TR key={a.id}>
-                      <TD className="font-medium">
-                        <Link href={`/credit/${a.id}`} className="text-primary hover:underline">
-                          {a.invoice.invoiceNumber}
-                        </Link>
-                      </TD>
-                      <TD className="text-right">{formatLKR(state.principal)}</TD>
-                      <TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD>
-                      <TD>
+                    <Link
+                      key={a.id}
+                      href={`/credit/${a.id}`}
+                      className="block border-b border-border-subtle p-4 last:border-0"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <span className="font-medium text-primary">{a.invoice.invoiceNumber}</span>
+                          <div className="mt-0.5 text-xs text-muted">
+                            Principal {formatLKR(state.principal)}
+                          </div>
+                        </div>
                         {state.isSettled ? (
                           <Badge tone="green">Settled</Badge>
                         ) : state.isOverdue ? (
@@ -142,11 +156,49 @@ export default async function CustomerDetailPage({
                         ) : (
                           <Badge tone="amber">In grace</Badge>
                         )}
-                      </TD>
-                    </TR>
+                      </div>
+                      <div className="mt-2 text-sm font-medium">
+                        {formatLKR(state.outstanding)} outstanding
+                      </div>
+                    </Link>
                   ))}
-                </TBody>
-              </Table>
+                </div>
+
+                <div className="hidden md:block">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>Invoice</TH>
+                        <TH className="text-right">Principal</TH>
+                        <TH className="text-right">Outstanding</TH>
+                        <TH>Status</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {agreements.map(({ a, state }) => (
+                        <TR key={a.id}>
+                          <TD className="font-medium">
+                            <Link href={`/credit/${a.id}`} className="text-primary hover:underline">
+                              {a.invoice.invoiceNumber}
+                            </Link>
+                          </TD>
+                          <TD className="text-right">{formatLKR(state.principal)}</TD>
+                          <TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD>
+                          <TD>
+                            {state.isSettled ? (
+                              <Badge tone="green">Settled</Badge>
+                            ) : state.isOverdue ? (
+                              <Badge tone="red">Overdue</Badge>
+                            ) : (
+                              <Badge tone="amber">In grace</Badge>
+                            )}
+                          </TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

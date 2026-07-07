@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Hanken_Grotesk, Space_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -17,6 +17,29 @@ const spaceMono = Space_Mono({
 export const metadata: Metadata = {
   title: "Madagama Pvt Ltd",
   description: "Retail & credit management system",
+  applicationName: "Madagama",
+  appleWebApp: {
+    capable: true,
+    title: "Madagama",
+    statusBarStyle: "default",
+  },
+  icons: {
+    apple: "/icons/apple-touch-icon.png",
+  },
+};
+
+// `themeColor` / viewport settings live in the dedicated `viewport` export in
+// this Next version (Next warns if they sit in `metadata`). `viewportFit:
+// "cover"` lets content extend under the iOS notch/home-indicator so our
+// safe-area padding on the mobile tab bar takes effect.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#eef1f6" },
+    { media: "(prefers-color-scheme: dark)", color: "#12151b" },
+  ],
 };
 
 // Applies the saved (or system) theme before first paint to avoid a flash of

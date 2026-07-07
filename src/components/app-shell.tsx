@@ -34,6 +34,7 @@ import { UserSwitcher } from "@/components/user-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
+import { Pwa } from "@/components/pwa";
 
 type NavItem = { href: string; label: string; icon: React.ElementType };
 type NavGroup = { title: string; items: NavItem[] };
@@ -119,6 +120,25 @@ export function AppShell({
         )}
       >
         <Icon className={cn("h-[18px] w-[18px] shrink-0", active ? "text-primary-ink" : "text-faint")} />
+        {item.label}
+      </Link>
+    );
+  }
+
+  function mobileTab(item: NavItem) {
+    const Icon = item.icon;
+    const active = isActive(item.href);
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={() => setOpen(false)}
+        className={cn(
+          "flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+          active ? "text-primary-ink" : "text-faint",
+        )}
+      >
+        <Icon className="h-[22px] w-[22px]" />
         {item.label}
       </Link>
     );
@@ -215,21 +235,49 @@ export function AppShell({
             </button>
             <ThemeToggle />
             <UserSwitcher currentUser={{ id: user.id, name: user.name, role: user.role }} />
-            <div className="text-right">
+            {/* Name/business block + avatar are redundant with the switcher and
+                overflow the narrow mobile header — desktop only. */}
+            <div className="hidden text-right lg:block">
               <p className="text-[13px] font-semibold leading-tight text-foreground">{user.name}</p>
               <p className="text-[11px] leading-tight text-faint">{businessName}</p>
             </div>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary-ink">
+            <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary-ink lg:flex">
               {user.name.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>
-        <main className="flex-1 px-5 py-6 lg:px-6">
+        <main className="flex-1 px-5 pt-6 pb-24 lg:px-6 lg:py-6">
           <div key={pathname} className="animate-page-in">
             {children}
           </div>
         </main>
       </div>
+
+      {/* Mobile bottom tab bar — the primary "feels like an app" navigation on
+          phones. Hidden at lg where the sidebar takes over. */}
+      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+        {mobileTab({ href: "/dashboard", label: "Home", icon: LayoutDashboard })}
+        {mobileTab({ href: "/reminders", label: "Reminders", icon: Bell })}
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent("madagama:command-palette"))}
+          className="flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
+          aria-label="Search"
+        >
+          <Search className="h-[22px] w-[22px]" />
+          Search
+        </button>
+        {mobileTab({ href: "/credit", label: "Credit", icon: CreditCard })}
+        <button
+          onClick={() => setOpen(true)}
+          className="flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
+          aria-label="More"
+        >
+          <Menu className="h-[22px] w-[22px]" />
+          More
+        </button>
+      </nav>
+
+      <Pwa />
       <CommandPalette />
     </div>
     </ConfirmProvider>

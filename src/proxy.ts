@@ -7,7 +7,11 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // (which MINTS tickets) is deliberately NOT here, so it stays session-gated.
 // `/api/health` is public so external uptime monitors can ping it without a
 // session — it only ever returns a status flag, never any data.
-const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron", "/api/health", "/scan-upload", "/api/scan-upload"];
+// `/manifest.webmanifest` and `/sw.js` are public so the browser can fetch them
+// pre-login (e.g. on the login page) to keep the app installable — neither
+// exposes any data. The proxy `matcher` already skips image assets, so the PWA
+// icons under `/icons` don't need listing here.
+const PUBLIC_PREFIXES = ["/login", "/api/auth/login", "/api/cron", "/api/health", "/scan-upload", "/api/scan-upload", "/manifest.webmanifest", "/sw.js"];
 
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;

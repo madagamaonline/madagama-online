@@ -159,26 +159,47 @@ export default async function CreditDetailPage({
             {a.payments.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-muted">No payments yet.</div>
             ) : (
-              <Table>
-                <THead>
-                  <TR>
-                    <TH>Date</TH>
-                    <TH>Method</TH>
-                    <TH>Note</TH>
-                    <TH className="text-right">Amount</TH>
-                  </TR>
-                </THead>
-                <TBody>
+              <>
+                <div className="md:hidden">
                   {a.payments.map((p) => (
-                    <TR key={p.id}>
-                      <TD>{formatDateTime(p.paidDate)}</TD>
-                      <TD>{p.method}</TD>
-                      <TD className="text-muted">{p.note ?? "—"}</TD>
-                      <TD className="text-right font-medium">{formatLKR(p.amount)}</TD>
-                    </TR>
+                    <div key={p.id} className="border-b border-border-subtle p-4 last:border-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-sm">{formatDateTime(p.paidDate)}</div>
+                          <div className="mt-0.5 text-xs text-muted">
+                            {p.method}
+                            {p.note ? ` · ${p.note}` : ""}
+                          </div>
+                        </div>
+                        <span className="font-medium">{formatLKR(p.amount)}</span>
+                      </div>
+                    </div>
                   ))}
-                </TBody>
-              </Table>
+                </div>
+
+                <div className="hidden md:block">
+                  <Table>
+                    <THead>
+                      <TR>
+                        <TH>Date</TH>
+                        <TH>Method</TH>
+                        <TH>Note</TH>
+                        <TH className="text-right">Amount</TH>
+                      </TR>
+                    </THead>
+                    <TBody>
+                      {a.payments.map((p) => (
+                        <TR key={p.id}>
+                          <TD>{formatDateTime(p.paidDate)}</TD>
+                          <TD>{p.method}</TD>
+                          <TD className="text-muted">{p.note ?? "—"}</TD>
+                          <TD className="text-right font-medium">{formatLKR(p.amount)}</TD>
+                        </TR>
+                      ))}
+                    </TBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

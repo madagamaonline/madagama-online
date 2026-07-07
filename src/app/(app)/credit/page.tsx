@@ -102,34 +102,20 @@ export default async function CreditPage() {
           {rows.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">No credit agreements yet.</div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Invoice</TH>
-                  <TH>Customer</TH>
-                  <TH className="text-right">Principal</TH>
-                  <TH className="text-right">Outstanding</TH>
-                  <TH>Grace ends</TH>
-                  <TH className="text-right">Overdue</TH>
-                  <TH>Status</TH>
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="md:hidden">
                 {rows.map(({ a, state }) => (
-                  <TR key={a.id}>
-                    <TD className="font-medium">
-                      <Link href={`/credit/${a.id}`} className="text-primary hover:underline">
-                        {a.invoice.invoiceNumber}
-                      </Link>
-                    </TD>
-                    <TD>{a.customer.name}</TD>
-                    <TD className="text-right">{formatLKR(state.principal)}</TD>
-                    <TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD>
-                    <TD className="text-muted">{formatDate(state.graceEndDate)}</TD>
-                    <TD className="text-right text-muted">
-                      {!state.isSettled && state.isOverdue ? `${daysOverdueOf(state.graceEndDate)}d` : "—"}
-                    </TD>
-                    <TD>
+                  <div key={a.id} className="border-b border-border-subtle p-4 last:border-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link href={`/credit/${a.id}`} className="font-medium text-primary hover:underline">
+                          {a.invoice.invoiceNumber}
+                        </Link>
+                        <div className="mt-0.5 text-sm">{a.customer.name}</div>
+                        <div className="mt-0.5 text-xs text-muted">
+                          Principal {formatLKR(state.principal)} · Grace ends {formatDate(state.graceEndDate)}
+                        </div>
+                      </div>
                       {state.isSettled ? (
                         <Badge tone="green">Settled</Badge>
                       ) : state.isOverdue ? (
@@ -137,11 +123,60 @@ export default async function CreditPage() {
                       ) : (
                         <Badge tone="amber">In grace</Badge>
                       )}
-                    </TD>
-                  </TR>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                      <span className="font-medium">{formatLKR(state.outstanding)} outstanding</span>
+                      {!state.isSettled && state.isOverdue && (
+                        <span className="text-danger">{daysOverdueOf(state.graceEndDate)}d overdue</span>
+                      )}
+                    </div>
+                  </div>
                 ))}
-              </TBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Invoice</TH>
+                      <TH>Customer</TH>
+                      <TH className="text-right">Principal</TH>
+                      <TH className="text-right">Outstanding</TH>
+                      <TH>Grace ends</TH>
+                      <TH className="text-right">Overdue</TH>
+                      <TH>Status</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {rows.map(({ a, state }) => (
+                      <TR key={a.id}>
+                        <TD className="font-medium">
+                          <Link href={`/credit/${a.id}`} className="text-primary hover:underline">
+                            {a.invoice.invoiceNumber}
+                          </Link>
+                        </TD>
+                        <TD>{a.customer.name}</TD>
+                        <TD className="text-right">{formatLKR(state.principal)}</TD>
+                        <TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD>
+                        <TD className="text-muted">{formatDate(state.graceEndDate)}</TD>
+                        <TD className="text-right text-muted">
+                          {!state.isSettled && state.isOverdue ? `${daysOverdueOf(state.graceEndDate)}d` : "—"}
+                        </TD>
+                        <TD>
+                          {state.isSettled ? (
+                            <Badge tone="green">Settled</Badge>
+                          ) : state.isOverdue ? (
+                            <Badge tone="red">Overdue</Badge>
+                          ) : (
+                            <Badge tone="amber">In grace</Badge>
+                          )}
+                        </TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

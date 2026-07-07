@@ -127,39 +127,68 @@ export default async function QuotationsPage({
               {query || stat ? "No quotations match." : "No quotations yet."}
             </div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Quotation #</TH>
-                  <TH>Date</TH>
-                  <TH>Customer</TH>
-                  <TH>Status</TH>
-                  <TH className="text-right">Total</TH>
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="md:hidden">
                 {quotations.map((qt) => {
                   const name = qt.customer?.name ?? qt.customerName ?? "—";
                   return (
-                    <TR key={qt.id}>
-                      <TD className="font-medium">
-                        <Link href={`/quotations/${qt.id}`} className="text-primary hover:underline">
-                          <Highlight text={qt.quotationNumber} query={query} />
-                        </Link>
-                      </TD>
-                      <TD className="text-muted">{formatDate(qt.createdAt)}</TD>
-                      <TD>
-                        <Highlight text={name} query={query} />
-                      </TD>
-                      <TD>
+                    <div key={qt.id} className="border-b border-border-subtle p-4 last:border-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/quotations/${qt.id}`} className="font-medium text-primary hover:underline">
+                            <Highlight text={qt.quotationNumber} query={query} />
+                          </Link>
+                          <div className="mt-0.5 text-sm">
+                            <Highlight text={name} query={query} />
+                          </div>
+                          <div className="mt-0.5 text-xs text-muted">{formatDate(qt.createdAt)}</div>
+                        </div>
+                        <span className="shrink-0 font-medium">{formatLKR(qt.grandTotal)}</span>
+                      </div>
+                      <div className="mt-2">
                         <Badge tone={quotationStatusTone[qt.status]}>{quotationStatusLabel[qt.status]}</Badge>
-                      </TD>
-                      <TD className="text-right font-medium">{formatLKR(qt.grandTotal)}</TD>
-                    </TR>
+                      </div>
+                    </div>
                   );
                 })}
-              </TBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Quotation #</TH>
+                      <TH>Date</TH>
+                      <TH>Customer</TH>
+                      <TH>Status</TH>
+                      <TH className="text-right">Total</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {quotations.map((qt) => {
+                      const name = qt.customer?.name ?? qt.customerName ?? "—";
+                      return (
+                        <TR key={qt.id}>
+                          <TD className="font-medium">
+                            <Link href={`/quotations/${qt.id}`} className="text-primary hover:underline">
+                              <Highlight text={qt.quotationNumber} query={query} />
+                            </Link>
+                          </TD>
+                          <TD className="text-muted">{formatDate(qt.createdAt)}</TD>
+                          <TD>
+                            <Highlight text={name} query={query} />
+                          </TD>
+                          <TD>
+                            <Badge tone={quotationStatusTone[qt.status]}>{quotationStatusLabel[qt.status]}</Badge>
+                          </TD>
+                          <TD className="text-right font-medium">{formatLKR(qt.grandTotal)}</TD>
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

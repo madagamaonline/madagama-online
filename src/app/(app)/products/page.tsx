@@ -136,7 +136,7 @@ export default async function ProductsPage({
             </div>
           ) : (
             <>
-              <div className="hidden md:block">
+              <div className="hidden lg:block">
                 <Table>
                   <THead>
                     <TR>
@@ -220,7 +220,7 @@ export default async function ProductsPage({
                 </Table>
               </div>
 
-              <div className="md:hidden">
+              <div className="lg:hidden">
                 {rows.map(({ p, low, marginPct, target, belowTarget }) => (
                   <div
                     key={p.id}

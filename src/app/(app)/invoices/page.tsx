@@ -125,48 +125,83 @@ export default async function InvoicesPage({
               {query || cat || cashierId ? "No invoices match." : "No invoices yet."}
             </div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Invoice #</TH>
-                  <TH>Date</TH>
-                  <TH>Customer</TH>
-                  <TH>Cashier</TH>
-                  {ntEnabled && <TH>Category</TH>}
-                  <TH>Type</TH>
-                  <TH>Status</TH>
-                  <TH className="text-right">Total</TH>
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="md:hidden">
                 {invoices.map((inv) => (
-                  <TR key={inv.id}>
-                    <TD className="font-medium">
-                      <Link href={`/invoices/${inv.id}`} className="text-primary hover:underline">
-                        <Highlight text={inv.invoiceNumber} query={query} />
-                      </Link>
-                    </TD>
-                    <TD className="text-muted">{formatDate(inv.createdAt)}</TD>
-                    <TD>{inv.customer?.name ? <Highlight text={inv.customer.name} query={query} /> : "Walk-in"}</TD>
-                    <TD className="text-muted">{inv.createdBy?.name ?? "—"}</TD>
-                    {ntEnabled && (
-                      <TD>
+                  <div key={inv.id} className="border-b border-border-subtle p-4 last:border-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link href={`/invoices/${inv.id}`} className="font-medium text-primary hover:underline">
+                          <Highlight text={inv.invoiceNumber} query={query} />
+                        </Link>
+                        <div className="mt-0.5 text-sm">
+                          {inv.customer?.name ? <Highlight text={inv.customer.name} query={query} /> : "Walk-in"}
+                        </div>
+                        <div className="mt-0.5 text-xs text-muted">
+                          {formatDate(inv.createdAt)}
+                          {inv.createdBy?.name ? ` · ${inv.createdBy.name}` : ""}
+                        </div>
+                      </div>
+                      <span className="shrink-0 font-medium">{formatLKR(inv.grandTotal)}</span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {ntEnabled && (
                         <Badge tone={inv.taxCategory === "TAXABLE" ? "blue" : "gray"}>
                           {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
                         </Badge>
-                      </TD>
-                    )}
-                    <TD>
+                      )}
                       <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
-                    </TD>
-                    <TD>
                       <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
-                    </TD>
-                    <TD className="text-right font-medium">{formatLKR(inv.grandTotal)}</TD>
-                  </TR>
+                    </div>
+                  </div>
                 ))}
-              </TBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Invoice #</TH>
+                      <TH>Date</TH>
+                      <TH>Customer</TH>
+                      <TH>Cashier</TH>
+                      {ntEnabled && <TH>Category</TH>}
+                      <TH>Type</TH>
+                      <TH>Status</TH>
+                      <TH className="text-right">Total</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {invoices.map((inv) => (
+                      <TR key={inv.id}>
+                        <TD className="font-medium">
+                          <Link href={`/invoices/${inv.id}`} className="text-primary hover:underline">
+                            <Highlight text={inv.invoiceNumber} query={query} />
+                          </Link>
+                        </TD>
+                        <TD className="text-muted">{formatDate(inv.createdAt)}</TD>
+                        <TD>{inv.customer?.name ? <Highlight text={inv.customer.name} query={query} /> : "Walk-in"}</TD>
+                        <TD className="text-muted">{inv.createdBy?.name ?? "—"}</TD>
+                        {ntEnabled && (
+                          <TD>
+                            <Badge tone={inv.taxCategory === "TAXABLE" ? "blue" : "gray"}>
+                              {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
+                            </Badge>
+                          </TD>
+                        )}
+                        <TD>
+                          <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
+                        </TD>
+                        <TD>
+                          <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                        </TD>
+                        <TD className="text-right font-medium">{formatLKR(inv.grandTotal)}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -66,32 +66,58 @@ export default async function CustomersPage({
               {query ? "No customers match." : "No customers yet."}
             </div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Name</TH>
-                  <TH>Phone</TH>
-                  <TH>NIC</TH>
-                  <TH>Credit agreements</TH>
-                  <TH>Added</TH>
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="md:hidden">
                 {customers.map((c) => (
-                  <TR key={c.id}>
-                    <TD className="font-medium">
-                      <Link href={`/customers/${c.id}`} className="text-primary hover:underline">
-                        {c.name}
-                      </Link>
-                    </TD>
-                    <TD>{c.phone}</TD>
-                    <TD className="text-muted">{c.nic ?? "—"}</TD>
-                    <TD>{c._count.creditAgreements}</TD>
-                    <TD className="text-muted">{formatDate(c.createdAt)}</TD>
-                  </TR>
+                  <div key={c.id} className="border-b border-border-subtle p-4 last:border-0">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link href={`/customers/${c.id}`} className="font-medium text-primary hover:underline">
+                          {c.name}
+                        </Link>
+                        <div className="mt-0.5 text-sm">{c.phone}</div>
+                        <div className="mt-0.5 text-xs text-muted">
+                          {c.nic ? `NIC ${c.nic} · ` : ""}
+                          Added {formatDate(c.createdAt)}
+                        </div>
+                      </div>
+                      <span className="shrink-0 text-xs text-muted">
+                        {c._count.creditAgreements} credit
+                      </span>
+                    </div>
+                  </div>
                 ))}
-              </TBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Name</TH>
+                      <TH>Phone</TH>
+                      <TH>NIC</TH>
+                      <TH>Credit agreements</TH>
+                      <TH>Added</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {customers.map((c) => (
+                      <TR key={c.id}>
+                        <TD className="font-medium">
+                          <Link href={`/customers/${c.id}`} className="text-primary hover:underline">
+                            {c.name}
+                          </Link>
+                        </TD>
+                        <TD>{c.phone}</TD>
+                        <TD className="text-muted">{c.nic ?? "—"}</TD>
+                        <TD>{c._count.creditAgreements}</TD>
+                        <TD className="text-muted">{formatDate(c.createdAt)}</TD>
+                      </TR>
+                    ))}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

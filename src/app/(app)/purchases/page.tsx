@@ -49,43 +49,75 @@ export default async function PurchasesPage() {
           {purchases.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">No purchases yet.</div>
           ) : (
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Date</TH>
-                  <TH>Supplier</TH>
-                  <TH>Ref</TH>
-                  <TH>Type</TH>
-                  <TH>Due</TH>
-                  <TH className="text-right">Total</TH>
-                  <TH className="text-right">Balance</TH>
-                  <TH>Status</TH>
-                </TR>
-              </THead>
-              <TBody>
+            <>
+              <div className="md:hidden">
                 {purchases.map((p) => {
                   const bal = Math.max(0, toNum(p.total) - toNum(p.amountPaid));
                   return (
-                    <TR key={p.id}>
-                      <TD>
-                        <Link href={`/purchases/${p.id}`} className="text-primary hover:underline">
-                          {formatDate(p.date)}
-                        </Link>
-                      </TD>
-                      <TD>{p.supplier.name}</TD>
-                      <TD className="text-muted">{p.supplierInvoiceNo ?? "—"}</TD>
-                      <TD>{p.type}</TD>
-                      <TD className="text-muted">{p.creditDueDate ? formatDate(p.creditDueDate) : "—"}</TD>
-                      <TD className="text-right">{formatLKR(p.total)}</TD>
-                      <TD className="text-right font-medium">{formatLKR(bal)}</TD>
-                      <TD>
+                    <div key={p.id} className="border-b border-border-subtle p-4 last:border-0">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <Link href={`/purchases/${p.id}`} className="font-medium text-primary hover:underline">
+                            {formatDate(p.date)}
+                          </Link>
+                          <div className="mt-0.5 text-sm">{p.supplier.name}</div>
+                          <div className="mt-0.5 text-xs text-muted">
+                            {p.supplierInvoiceNo ? `Ref ${p.supplierInvoiceNo} · ` : ""}
+                            {p.type}
+                            {p.creditDueDate ? ` · Due ${formatDate(p.creditDueDate)}` : ""}
+                          </div>
+                        </div>
                         <Badge tone={statusTone[p.status]}>{p.status}</Badge>
-                      </TD>
-                    </TR>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+                        <span className="text-muted">{formatLKR(p.total)} total</span>
+                        <span className="font-medium">{formatLKR(bal)} balance</span>
+                      </div>
+                    </div>
                   );
                 })}
-              </TBody>
-            </Table>
+              </div>
+
+              <div className="hidden md:block">
+                <Table>
+                  <THead>
+                    <TR>
+                      <TH>Date</TH>
+                      <TH>Supplier</TH>
+                      <TH>Ref</TH>
+                      <TH>Type</TH>
+                      <TH>Due</TH>
+                      <TH className="text-right">Total</TH>
+                      <TH className="text-right">Balance</TH>
+                      <TH>Status</TH>
+                    </TR>
+                  </THead>
+                  <TBody>
+                    {purchases.map((p) => {
+                      const bal = Math.max(0, toNum(p.total) - toNum(p.amountPaid));
+                      return (
+                        <TR key={p.id}>
+                          <TD>
+                            <Link href={`/purchases/${p.id}`} className="text-primary hover:underline">
+                              {formatDate(p.date)}
+                            </Link>
+                          </TD>
+                          <TD>{p.supplier.name}</TD>
+                          <TD className="text-muted">{p.supplierInvoiceNo ?? "—"}</TD>
+                          <TD>{p.type}</TD>
+                          <TD className="text-muted">{p.creditDueDate ? formatDate(p.creditDueDate) : "—"}</TD>
+                          <TD className="text-right">{formatLKR(p.total)}</TD>
+                          <TD className="text-right font-medium">{formatLKR(bal)}</TD>
+                          <TD>
+                            <Badge tone={statusTone[p.status]}>{p.status}</Badge>
+                          </TD>
+                        </TR>
+                      );
+                    })}
+                  </TBody>
+                </Table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

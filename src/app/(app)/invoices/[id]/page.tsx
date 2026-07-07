@@ -76,9 +76,11 @@ export default async function InvoiceViewPage({
             <p className="text-sm text-muted">{formatDateTime(invoice.createdAt)}</p>
             <div className="mt-1 flex justify-end gap-2">
               {ntEnabled && (
-                <Badge tone={invoice.taxCategory === "TAXABLE" ? "blue" : "gray"}>
-                  {CATEGORY_LABEL[invoice.taxCategory]}
-                </Badge>
+                <span className="no-print">
+                  <Badge tone={invoice.taxCategory === "TAXABLE" ? "blue" : "gray"}>
+                    {CATEGORY_LABEL[invoice.taxCategory]}
+                  </Badge>
+                </span>
               )}
               <Badge tone={invoice.type === "CREDIT" ? "amber" : "green"}>{invoice.type}</Badge>
             </div>

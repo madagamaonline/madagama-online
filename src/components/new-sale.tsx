@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { formatLKR } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
@@ -52,6 +53,7 @@ type ParkedSale = {
   discount: number;
   customerId: string;
   soldBy: string;
+  notes: string;
   ts: number;
 };
 
@@ -74,6 +76,7 @@ export function NewSale({
   const [tendered, setTendered] = useState(0);
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<CreatedInvoice[] | null>(null);
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
@@ -125,7 +128,7 @@ export function NewSale({
 
   // Restore a held draft + the recent-invoices strip on mount (client only).
   useEffect(() => {
-    let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string } | null = null;
+    let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string; notes?: string } | null = null;
     let recentList: RecentInvoice[] | null = null;
     let parkedList: ParkedSale[] | null = null;
     try {
@@ -144,6 +147,7 @@ export function NewSale({
         setDiscount(draft.discount || 0);
         setCustomerId(draft.customerId || "");
         setSoldBy(draft.soldBy || "");
+        setNotes(draft.notes || "");
         setResumed(true);
       }
       if (recentList) setRecent(recentList);
@@ -158,14 +162,14 @@ export function NewSale({
     if (!hydrated.current) return;
     try {
       if (cart.length) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy }));
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy, notes }));
       } else {
         localStorage.removeItem(DRAFT_KEY);
       }
     } catch {
       /* ignore */
     }
-  }, [cart, discount, customerId, soldBy]);
+  }, [cart, discount, customerId, soldBy, notes]);
 
   useEffect(() => {
     const q = query.trim();
@@ -252,6 +256,7 @@ export function NewSale({
     setTendered(0);
     setCustomerId("");
     setSoldBy("");
+    setNotes("");
     setError("");
     setResumed(false);
   }
@@ -276,6 +281,7 @@ export function NewSale({
       discount,
       customerId,
       soldBy,
+      notes,
       ts: Date.now(),
     };
     persistParked([entry, ...parked]);
@@ -290,6 +296,7 @@ export function NewSale({
     setDiscount(entry.discount || 0);
     setCustomerId(entry.customerId || "");
     setSoldBy(entry.soldBy || "");
+    setNotes(entry.notes || "");
     setTendered(0);
     setResumed(true);
     persistParked(parked.filter((p) => p.id !== id));
@@ -335,6 +342,7 @@ export function NewSale({
         discount: discount || 0,
         customerId: customerId || null,
         soldByEmployeeId: soldBy || null,
+        notes: notes.trim() || null,
       });
       if (!res.ok) {
         setError(res.error);
@@ -361,6 +369,7 @@ export function NewSale({
       setTendered(0);
       setCustomerId("");
       setSoldBy("");
+      setNotes("");
       setResumed(false);
     });
   }
@@ -648,6 +657,16 @@ export function NewSale({
                   </option>
                 ))}
               </Select>
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. 6-month warranty on batteries…"
+                className="min-h-[60px]"
+              />
+              <p className="mt-1 text-[11px] text-muted">Prints on the invoice.</p>
             </div>
 
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">

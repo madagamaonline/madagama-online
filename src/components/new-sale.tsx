@@ -22,7 +22,7 @@ import { NumberInput } from "@/components/ui/number-input";
 import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { formatLKR } from "@/lib/utils";
+import { formatLKR, round2 } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
 import { createCashInvoice, type CreatedInvoice } from "@/app/(app)/invoices/actions";
@@ -695,10 +695,22 @@ export function NewSale({
                   placeholder="0.00"
                 />
               </div>
-              <div className="flex justify-between border-t border-border pt-2 text-lg font-semibold">
+              <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-lg font-semibold">
                 <span>Total</span>
-                <span>{formatLKR(totals.grandTotal)}</span>
+                <NumberInput
+                  value={totals.grandTotal || ""}
+                  onValueChange={(c) => {
+                    // Typing the agreed final price back-fills the discount.
+                    const pay = Number(c);
+                    setDiscount(c === "" || pay >= totals.subtotal ? 0 : round2(totals.subtotal - pay));
+                  }}
+                  className="h-10 w-32 text-right text-lg font-semibold"
+                  placeholder="0.00"
+                />
               </div>
+              <p className="text-right text-[11px] font-normal text-muted">
+                Type the agreed price in Total — the discount fills in automatically.
+              </p>
             </div>
 
             {/* Cash tendered + change */}

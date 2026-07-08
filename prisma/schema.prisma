@@ -735,6 +735,11 @@ model SalesReturnItem {
   qty       Int
   unitPrice Decimal     @db.Decimal(12, 2)
   lineTotal Decimal     @db.Decimal(12, 2)
+  // Product cost captured from the original sale (the invoice item's costSnapshot)
+  // so the returned goods are credited back to COGS at the same cost they were
+  // charged out at. Null on rows created before this field existed — reports fall
+  // back to the product's current cost, matching InvoiceItem.costSnapshot.
+  costSnapshot Decimal? @db.Decimal(12, 2)
 
   @@index([returnId])
 }

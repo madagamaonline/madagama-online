@@ -97,7 +97,7 @@ export default async function ReportsPage() {
     prisma.salesReturn.aggregate({ _sum: { totalRefund: true }, where: { date: { gte: monthStart } } }),
     prisma.salesReturnItem.findMany({
       where: { return: { date: { gte: monthStart } } },
-      select: { qty: true, product: { select: { costPrice: true } } },
+      select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } },
     }),
   ]);
 
@@ -169,10 +169,12 @@ export default async function ReportsPage() {
   );
   // Customer returns: refunds reduce revenue, and the restocked goods give
   // their cost back (they'll be counted again when re-sold), so both sides of
-  // the gross-profit equation are corrected.
+  // the gross-profit equation are corrected. Credit the cost captured at the
+  // original sale (costSnapshot) so it matches how COGS above is valued; fall
+  // back to current cost for returns created before snapshots existed.
   const refunds = toNum(refundAgg._sum.totalRefund ?? 0);
   const returnedCogs = round2(
-    returnedItems.reduce((s, it) => s + it.qty * toNum(it.product?.costPrice ?? 0), 0),
+    returnedItems.reduce((s, it) => s + it.qty * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0), 0),
   );
   const expenses = toNum(expenseAgg._sum.amount ?? 0);
   const payroll = round2(payrollLines.reduce((s, l) => s + l.netPay, 0));

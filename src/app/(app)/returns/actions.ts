@@ -51,6 +51,32 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           : null;
         const openAgreement = agreement && agreement.status !== "SETTLED" ? agreement : null;
 
+        // Capture the cost each returned product was sold at, so profit reports
+        // credit the restock back to COGS at the same cost it was charged out at
+        // (matching InvoiceItem.costSnapshot). Keyed by productId from the
+        // original invoice; falls back to the product's current cost when the
+        // return isn't linked to an invoice or the sale predates cost snapshots.
+        const saleCostByProduct = new Map<string, number>();
+        if (d.invoiceId) {
+          const originalItems = await tx.invoiceItem.findMany({
+            where: { invoiceId: d.invoiceId, productId: { in: d.lines.map((l) => l.productId) } },
+            select: { productId: true, costSnapshot: true },
+          });
+          for (const it of originalItems) {
+            if (it.productId && it.costSnapshot != null) {
+              saleCostByProduct.set(it.productId, toNum(it.costSnapshot));
+            }
+          }
+        }
+        const productCosts = new Map(
+          (
+            await tx.product.findMany({
+              where: { id: { in: d.lines.map((l) => l.productId) } },
+              select: { id: true, costPrice: true },
+            })
+          ).map((p) => [p.id, toNum(p.costPrice)]),
+        );
+
         const created = await tx.salesReturn.create({
           data: {
             invoiceId: d.invoiceId || null,
@@ -64,6 +90,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
                 qty: l.qty,
                 unitPrice: l.unitPrice,
                 lineTotal: round2(l.qty * l.unitPrice),
+                costSnapshot: saleCostByProduct.get(l.productId) ?? productCosts.get(l.productId) ?? null,
               })),
             },
           },

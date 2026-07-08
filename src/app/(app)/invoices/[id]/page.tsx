@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, Undo2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PrintButton } from "@/components/print-button";
+import { InvoicePrintControls } from "@/components/invoice-print-controls";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
 import { returnMethodLabel } from "@/lib/returns";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
@@ -64,7 +64,7 @@ export default async function InvoiceViewPage({
               <Undo2 className="h-4 w-4" /> Return items
             </Button>
           </Link>
-          <PrintButton label="Print Invoice" />
+          <InvoicePrintControls />
         </div>
       </div>
 
@@ -74,7 +74,8 @@ export default async function InvoiceViewPage({
         </div>
       )}
 
-      <div className="print-area rounded-xl border border-border bg-surface p-8 shadow-sm">
+      {/* A4 layout */}
+      <div className="print-area print-a4 rounded-xl border border-border bg-surface p-8 shadow-sm">
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
           <div>
@@ -168,6 +169,65 @@ export default async function InvoiceViewPage({
           <p className="mt-6 border-t border-border pt-4 text-sm text-muted">{invoice.notes}</p>
         )}
         <p className="mt-8 text-center text-xs text-muted">Thank you for your business!</p>
+      </div>
+
+      {/* 80mm thermal receipt layout (hidden unless "80mm" is selected) */}
+      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-mono text-[11px] leading-tight text-black shadow-sm">
+        <div className="text-center">
+          <p className="text-sm font-bold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
+          {setting?.address && <p>{setting.address}</p>}
+          {setting?.phone && <p>Tel: {setting.phone}</p>}
+        </div>
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <div className="flex justify-between">
+          <span>INVOICE</span>
+          <span className="font-semibold">{invoice.invoiceNumber}</span>
+        </div>
+        <div className="flex justify-between">
+          <span>{formatDateTime(invoice.createdAt)}</span>
+          <span>{invoice.type}</span>
+        </div>
+        <p className="mt-1">Bill To: {invoice.customer?.name ?? "Walk-in Customer"}</p>
+        {invoice.soldBy?.name && <p>Served By: {invoice.soldBy.name}</p>}
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        {invoice.items.map((it) => (
+          <div key={it.id} className="mb-1.5">
+            <p className="break-words">{it.nameSnapshot}</p>
+            <div className="flex justify-between">
+              <span>
+                {it.qty} × {formatLKR(it.unitPrice)}
+              </span>
+              <span>{formatLKR(it.lineTotal)}</span>
+            </div>
+          </div>
+        ))}
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <div className="flex justify-between">
+          <span>Subtotal</span>
+          <span>{formatLKR(invoice.subtotal)}</span>
+        </div>
+        {toNum(invoice.discount) > 0 && (
+          <div className="flex justify-between">
+            <span>Discount</span>
+            <span>− {formatLKR(invoice.discount)}</span>
+          </div>
+        )}
+        <div className="mt-1 flex justify-between border-t border-black pt-1 text-xs font-bold">
+          <span>TOTAL</span>
+          <span>{formatLKR(invoice.grandTotal)}</span>
+        </div>
+
+        {invoice.notes && <p className="mt-2 break-words">{invoice.notes}</p>}
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <p className="text-center">Thank you for your business!</p>
       </div>
 
       {invoice.returns.length > 0 && (

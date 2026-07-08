@@ -91,6 +91,26 @@ input[type="number"] {
   .no-print {
     display: none !important;
   }
+  /* When thermal is selected, its named page governs paper size/margins. */
+  [data-print-mode="thermal"] .print-thermal {
+    page: thermal;
+  }
+}
+
+/* 80mm thermal receipt — only rendered on the invoice page when selected.
+   Other .print-area pages never set data-print-mode, so they stay on A4. */
+@page thermal {
+  size: 72mm auto;
+  margin: 3mm 2mm;
+}
+.print-thermal {
+  display: none;
+}
+[data-print-mode="thermal"] .print-a4 {
+  display: none;
+}
+[data-print-mode="thermal"] .print-thermal {
+  display: block;
 }
 
 /* Premium scrollbar thin style */

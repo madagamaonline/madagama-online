@@ -56,6 +56,7 @@ export default async function InvoicesPage({
       include: {
         customer: { select: { name: true } },
         createdBy: { select: { name: true } },
+        _count: { select: { returns: true } },
       },
       take: 100,
     }),
@@ -152,6 +153,7 @@ export default async function InvoicesPage({
                       )}
                       <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
                       <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                      {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
                     </div>
                   </div>
                 ))}
@@ -193,7 +195,10 @@ export default async function InvoicesPage({
                           <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
                         </TD>
                         <TD>
-                          <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                          <span className="flex flex-wrap items-center gap-1">
+                            <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                            {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
+                          </span>
                         </TD>
                         <TD className="text-right font-medium">{formatLKR(inv.grandTotal)}</TD>
                       </TR>

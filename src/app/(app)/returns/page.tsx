@@ -4,17 +4,9 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDateTime } from "@/lib/utils";
+import { returnMethodLabel } from "@/lib/returns";
 
 export const dynamic = "force-dynamic";
-
-const methodLabel = (method: string) =>
-  method === "CREDIT_BALANCE"
-    ? "Credited to balance"
-    : method === "CREDIT_NOTE"
-      ? "Credit note"
-      : method === "EXCHANGE"
-        ? "Exchange"
-        : "Cash";
 
 export default async function ReturnsPage() {
   const returns = await prisma.salesReturn.findMany({
@@ -58,7 +50,7 @@ export default async function ReturnsPage() {
                       <span className="shrink-0 font-medium">{formatLKR(r.totalRefund)}</span>
                     </div>
                     <div className="mt-2 text-sm text-muted">
-                      {r._count.items} item{r._count.items === 1 ? "" : "s"} · {methodLabel(r.method)}
+                      {r._count.items} item{r._count.items === 1 ? "" : "s"} · {returnMethodLabel(r.method)}
                       {r.reason ? ` · ${r.reason}` : ""}
                     </div>
                   </div>
@@ -92,7 +84,7 @@ export default async function ReturnsPage() {
                           )}
                         </TD>
                         <TD className="text-right">{r._count.items}</TD>
-                        <TD>{methodLabel(r.method)}</TD>
+                        <TD>{returnMethodLabel(r.method)}</TD>
                         <TD className="text-muted">{r.reason ?? "—"}</TD>
                         <TD className="text-muted">{r.createdBy?.name ?? "—"}</TD>
                         <TD className="text-right font-medium">{formatLKR(r.totalRefund)}</TD>

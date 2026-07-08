@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PrintButton } from "@/components/print-button";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
+import { returnMethodLabel } from "@/lib/returns";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 
 const CATEGORY_LABEL = { TAXABLE: "TAXABLE", NON_TAXABLE: "NON-TAXABLE" } as const;
@@ -29,6 +30,13 @@ export default async function InvoiceViewPage({
         items: true,
         customer: true,
         soldBy: { select: { name: true } },
+        returns: {
+          orderBy: { createdAt: "asc" },
+          include: {
+            items: { include: { product: { select: { name: true, code: true } } } },
+            createdBy: { select: { name: true } },
+          },
+        },
       },
     }),
     prisma.setting.findUnique({ where: { id: 1 } }),
@@ -37,6 +45,10 @@ export default async function InvoiceViewPage({
 
   // When non-taxable is off, a non-taxable invoice has no traces — even by URL.
   if (!invoice || (!ntEnabled && invoice.taxCategory === "NON_TAXABLE")) notFound();
+
+  const soldQty = invoice.items.reduce((s, it) => s + it.qty, 0);
+  const returnedQty = invoice.returns.reduce((s, r) => s + r.items.reduce((a, it) => a + it.qty, 0), 0);
+  const totalRefunded = invoice.returns.reduce((s, r) => s + toNum(r.totalRefund), 0);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -83,6 +95,11 @@ export default async function InvoiceViewPage({
                 </span>
               )}
               <Badge tone={invoice.type === "CREDIT" ? "amber" : "green"}>{invoice.type}</Badge>
+              {returnedQty > 0 && (
+                <span className="no-print">
+                  <Badge tone="red">{returnedQty >= soldQty ? "RETURNED" : "PARTIALLY RETURNED"}</Badge>
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -152,6 +169,44 @@ export default async function InvoiceViewPage({
         )}
         <p className="mt-8 text-center text-xs text-muted">Thank you for your business!</p>
       </div>
+
+      {invoice.returns.length > 0 && (
+        <div className="no-print mt-4 rounded-xl border border-border bg-surface p-5 shadow-sm">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 text-sm font-semibold">
+              <Undo2 className="h-4 w-4 text-danger" /> Returns against this invoice
+            </h3>
+            <span className="text-sm text-muted">
+              Total refunded: <span className="font-semibold text-foreground">{formatLKR(totalRefunded)}</span>
+            </span>
+          </div>
+          <div className="divide-y divide-border">
+            {invoice.returns.map((r) => (
+              <div key={r.id} className="py-3 text-sm first:pt-0 last:pb-0">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-muted">
+                    {formatDateTime(r.createdAt)} · {returnMethodLabel(r.method)}
+                    {r.createdBy?.name ? ` · by ${r.createdBy.name}` : ""}
+                  </span>
+                  <span className="font-medium">{formatLKR(r.totalRefund)}</span>
+                </div>
+                <ul className="mt-1 space-y-0.5">
+                  {r.items.map((it) => (
+                    <li key={it.id} className="text-muted">
+                      {it.qty} × {it.product.name}{" "}
+                      <span className="font-mono text-xs">({it.product.code})</span> @ {formatLKR(it.unitPrice)}
+                    </li>
+                  ))}
+                </ul>
+                {r.reason && <p className="mt-1 text-xs text-muted">Reason: {r.reason}</p>}
+              </div>
+            ))}
+          </div>
+          <Link href="/returns" className="mt-3 inline-block text-xs font-semibold text-primary hover:underline">
+            View all returns →
+          </Link>
+        </div>
+      )}
     </div>
   );
 }

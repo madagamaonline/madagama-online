@@ -117,9 +117,15 @@ export default async function DashboardPage() {
       where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null } },
       include: { supplier: { select: { name: true } } },
     }),
-    prisma.salesReturn.aggregate({ _sum: { totalRefund: true }, where: { date: { gte: startToday } } }),
+    // Refunds follow the same tax filter as today's sales so the profit figure
+    // stays consistent when the non-taxable switch is off. The invoice relation
+    // is optional, so the filter is only added when narrowing.
+    prisma.salesReturn.aggregate({
+      _sum: { totalRefund: true },
+      where: { date: { gte: startToday }, ...(ntEnabled ? {} : { invoice: taxF }) },
+    }),
     prisma.salesReturnItem.findMany({
-      where: { return: { date: { gte: startToday } } },
+      where: { return: { date: { gte: startToday }, ...(ntEnabled ? {} : { invoice: taxF }) } },
       select: { qty: true, product: { select: { costPrice: true } } },
     }),
   ]);

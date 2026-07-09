@@ -59,7 +59,7 @@ export default async function CustomerStatementPage({
             <ArrowLeft className="h-4 w-4" /> Back
           </Button>
         </Link>
-        <PrintButton label="Print Statement" />
+        <PrintButton label="Print / Save PDF" />
       </div>
 
       <div className="print-area rounded-xl border border-border bg-surface p-8 shadow-sm">

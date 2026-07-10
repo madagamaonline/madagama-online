@@ -29,7 +29,17 @@ export async function GET(req: Request) {
     },
     take: 12,
     orderBy: { code: "asc" },
-    select: { id: true, code: true, shortCode: true, name: true, sellingPrice: true, costPrice: true, taxable: true, quantityInStock: true },
+    select: {
+      id: true,
+      code: true,
+      shortCode: true,
+      name: true,
+      modelNumber: true,
+      sellingPrice: true,
+      costPrice: true,
+      taxable: true,
+      quantityInStock: true,
+    },
   });
 
   // The exact sticker-code hit belongs at the top of the dropdown.
@@ -43,6 +53,7 @@ export async function GET(req: Request) {
       code: p.code,
       shortCode: p.shortCode,
       name: p.name,
+      modelNumber: p.modelNumber,
       sellingPrice: toNum(p.sellingPrice),
       costPrice: toNum(p.costPrice),
       taxable: p.taxable,

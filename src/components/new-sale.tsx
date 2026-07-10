@@ -33,6 +33,7 @@ type ProductHit = {
   code: string;
   shortCode?: number; // sticker code (#N) — optional so old localStorage drafts still load
   name: string;
+  modelNumber?: string | null; // optional so previously saved drafts still load
   sellingPrice: number;
   costPrice: number; // weighted-average cost — shown so the cashier can judge discounts
   taxable: boolean;
@@ -461,23 +462,26 @@ export function NewSale({
                         i === activeIdx ? "bg-input" : "hover:bg-input"
                       }`}
                     >
-                      <span>
-                        {h.shortCode != null && (
-                          <span className="mr-1 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs font-bold text-primary-ink">
-                            #{h.shortCode}
+                      <span className="min-w-0">
+                        <span className="block">
+                          {h.shortCode != null && (
+                            <span className="mr-1 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs font-bold text-primary-ink">
+                              #{h.shortCode}
+                            </span>
+                          )}
+                          <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
+                          <span
+                            className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
+                            title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
+                          >
+                            {h.name}
                           </span>
-                        )}
-                        <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
-                        <span
-                          className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
-                          title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
-                        >
-                          {h.name}
                         </span>
-                        <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
-                        {h.costPrice > 0 && (
-                          <span className="ml-2 text-xs text-muted">WAC: {formatLKR(h.costPrice)}</span>
-                        )}
+                        <span className="block text-xs text-muted">
+                          {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
+                          <span>stock: {h.stock}</span>
+                          {h.costPrice > 0 && <span className="ml-2">WAC: {formatLKR(h.costPrice)}</span>}
+                        </span>
                       </span>
                       <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
                     </button>
@@ -568,6 +572,9 @@ export function NewSale({
                             >
                               {l.product.name}
                             </div>
+                            {l.product.modelNumber && (
+                              <div className="text-xs text-muted">Model: {l.product.modelNumber}</div>
+                            )}
                             {hasCost && (
                               <div className="text-xs text-muted">
                                 WAC {formatLKR(l.product.costPrice)} · margin{" "}

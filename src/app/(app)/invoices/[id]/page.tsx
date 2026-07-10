@@ -136,7 +136,12 @@ export default async function InvoiceViewPage({
             {invoice.items.map((it) => (
               <tr key={it.id} className="border-b border-border">
                 <td className="py-2 pr-2 font-mono text-xs">{it.codeSnapshot}</td>
-                <td className="py-2 pr-2">{it.nameSnapshot}</td>
+                <td className="py-2 pr-2">
+                  <div>{it.nameSnapshot}</div>
+                  {it.modelNumberSnapshot && (
+                    <div className="text-xs text-muted">Model: {it.modelNumberSnapshot}</div>
+                  )}
+                </td>
                 <td className="px-2 text-right">{it.qty}</td>
                 <td className="px-2 text-right">{formatLKR(it.unitPrice)}</td>
                 <td className="py-2 pl-2 text-right">{formatLKR(it.lineTotal)}</td>
@@ -197,6 +202,9 @@ export default async function InvoiceViewPage({
         {invoice.items.map((it) => (
           <div key={it.id} className="mb-1.5">
             <p className="break-words">{it.nameSnapshot}</p>
+            {it.modelNumberSnapshot && (
+              <p className="break-words text-[10px]">Model: {it.modelNumberSnapshot}</p>
+            )}
             <div className="flex justify-between">
               <span>
                 {it.qty} × {formatLKR(it.unitPrice)}

@@ -78,7 +78,15 @@ export async function createCreditSale(
 
   const products = await prisma.product.findMany({
     where: { id: { in: data.lines.map((l) => l.productId) } },
-    select: { id: true, code: true, name: true, taxable: true, quantityInStock: true, costPrice: true },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      modelNumber: true,
+      taxable: true,
+      quantityInStock: true,
+      costPrice: true,
+    },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -139,6 +147,7 @@ export async function createCreditSale(
                   productId: p.id,
                   nameSnapshot: p.name,
                   codeSnapshot: p.code,
+                  modelNumberSnapshot: p.modelNumber,
                   qty: line.qty,
                   unitPrice: line.unitPrice,
                   lineTotal: line.qty * line.unitPrice,

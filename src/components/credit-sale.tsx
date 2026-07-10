@@ -22,6 +22,7 @@ type ProductHit = {
   code: string;
   shortCode?: number; // sticker code (#N) — optional so old handed-over carts still load
   name: string;
+  modelNumber?: string | null; // optional so old handed-over carts still load
   sellingPrice: number;
   taxable: boolean;
   stock: number;
@@ -246,20 +247,25 @@ export function CreditSale({
                         i === activeIdx ? "bg-input" : "hover:bg-input"
                       }`}
                     >
-                      <span>
-                        {h.shortCode != null && (
-                          <span className="mr-1 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs font-bold text-primary-ink">
-                            #{h.shortCode}
+                      <span className="min-w-0">
+                        <span className="block">
+                          {h.shortCode != null && (
+                            <span className="mr-1 rounded bg-primary-soft px-1.5 py-0.5 font-mono text-xs font-bold text-primary-ink">
+                              #{h.shortCode}
+                            </span>
+                          )}
+                          <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
+                          <span
+                            className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
+                            title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
+                          >
+                            {h.name}
                           </span>
-                        )}
-                        <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
-                        <span
-                          className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
-                          title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
-                        >
-                          {h.name}
                         </span>
-                        <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
+                        <span className="block text-xs text-muted">
+                          {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
+                          <span>stock: {h.stock}</span>
+                        </span>
                       </span>
                       <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
                     </button>
@@ -291,6 +297,9 @@ export function CreditSale({
                         >
                           {l.product.name}
                         </div>
+                        {l.product.modelNumber && (
+                          <div className="text-xs text-muted">Model: {l.product.modelNumber}</div>
+                        )}
                       </td>
                       <td className="px-2">
                         <Input

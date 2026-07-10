@@ -40,7 +40,6 @@ type Computed = {
   productId: string;
   code: string;
   name: string;
-  modelNumber: string | null;
   qty: number;
   unitPrice: number;
   costSnapshot: number;
@@ -62,7 +61,6 @@ export async function createCashInvoice(
       id: true,
       code: true,
       name: true,
-      modelNumber: true,
       taxable: true,
       quantityInStock: true,
       costPrice: true,
@@ -96,7 +94,6 @@ export async function createCashInvoice(
       productId: p.id,
       code: p.code,
       name: p.name,
-      modelNumber: p.modelNumber,
       qty: line.qty,
       unitPrice: line.unitPrice,
       costSnapshot: toNum(p.costPrice),
@@ -153,7 +150,6 @@ export async function createCashInvoice(
                     productId: it.productId,
                     nameSnapshot: it.name,
                     codeSnapshot: it.code,
-                    modelNumberSnapshot: it.modelNumber,
                     qty: it.qty,
                     unitPrice: it.unitPrice,
                     lineTotal: round2(it.qty * it.unitPrice),

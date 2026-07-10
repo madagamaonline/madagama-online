@@ -27,7 +27,7 @@ export default async function InvoiceViewPage({
     prisma.invoice.findUnique({
       where: { id },
       include: {
-        items: true,
+        items: { include: { product: { select: { modelNumber: true } } } },
         customer: true,
         soldBy: { select: { name: true } },
         returns: {
@@ -138,8 +138,8 @@ export default async function InvoiceViewPage({
                 <td className="py-2 pr-2 font-mono text-xs">{it.codeSnapshot}</td>
                 <td className="py-2 pr-2">
                   <div>{it.nameSnapshot}</div>
-                  {it.modelNumberSnapshot && (
-                    <div className="text-xs text-muted">Model: {it.modelNumberSnapshot}</div>
+                  {it.product?.modelNumber && (
+                    <div className="text-xs text-muted">Model: {it.product.modelNumber}</div>
                   )}
                 </td>
                 <td className="px-2 text-right">{it.qty}</td>
@@ -202,8 +202,8 @@ export default async function InvoiceViewPage({
         {invoice.items.map((it) => (
           <div key={it.id} className="mb-1.5">
             <p className="break-words">{it.nameSnapshot}</p>
-            {it.modelNumberSnapshot && (
-              <p className="break-words text-[10px]">Model: {it.modelNumberSnapshot}</p>
+            {it.product?.modelNumber && (
+              <p className="break-words text-[10px]">Model: {it.product.modelNumber}</p>
             )}
             <div className="flex justify-between">
               <span>

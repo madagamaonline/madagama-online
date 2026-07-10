@@ -304,7 +304,6 @@ model InvoiceItem {
   productId    String?
   nameSnapshot String
   codeSnapshot String?
-  modelNumberSnapshot String?
   qty          Int
   unitPrice    Decimal  @db.Decimal(12, 2)
   lineTotal    Decimal  @db.Decimal(12, 2)

@@ -74,6 +74,8 @@ export function NewSale({
   const [activeIdx, setActiveIdx] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [discount, setDiscount] = useState(0);
+  const [totalInput, setTotalInput] = useState("");
+  const totalEditing = useRef(false);
   const [tendered, setTendered] = useState(0);
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
@@ -330,6 +332,14 @@ export function NewSale({
     discount || 0,
   );
   const change = tendered > 0 ? tendered - totals.grandTotal : 0;
+
+  // Keep the agreed total editable while its keystrokes are being used to
+  // calculate the discount. Once editing ends, or when the cart/discount is
+  // changed elsewhere, show the calculated total again.
+  useEffect(() => {
+    if (totalEditing.current) return;
+    setTotalInput(cart.length > 0 ? String(totals.grandTotal) : "");
+  }, [cart.length, totals.grandTotal]);
 
   function completeSale() {
     setError("");
@@ -705,9 +715,17 @@ export function NewSale({
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-lg font-semibold">
                 <span>Total</span>
                 <NumberInput
-                  value={totals.grandTotal || ""}
+                  value={totalInput}
+                  onFocus={() => {
+                    totalEditing.current = true;
+                  }}
+                  onBlur={() => {
+                    totalEditing.current = false;
+                    setTotalInput(cart.length > 0 ? String(totals.grandTotal) : "");
+                  }}
                   onValueChange={(c) => {
                     // Typing the agreed final price back-fills the discount.
+                    setTotalInput(c);
                     const pay = Number(c);
                     setDiscount(c === "" || pay >= totals.subtotal ? 0 : round2(totals.subtotal - pay));
                   }}

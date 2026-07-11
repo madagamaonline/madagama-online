@@ -2,8 +2,10 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionUser } from "@/lib/auth";
+import { validatePaymentAmount } from "@/lib/financial-guards";
 import { logStockMovement } from "@/lib/stock";
 import { logPriceChange } from "@/lib/price-change";
 import { weightedAvgCost } from "@/lib/pricing";
@@ -48,7 +50,7 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
   const total = round2(d.lines.reduce((s, l) => s + l.qty * l.costPrice, 0));
   const amountPaid = d.type === "CASH" ? total : round2(Math.min(d.amountPaid, total));
   const status = statusFor(total, amountPaid);
-  const session = await getSession();
+  const session = await requireActionUser();
 
   try {
     const purchase = await prisma.$transaction(
@@ -147,23 +149,42 @@ export async function recordPurchasePayment(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid payment" };
 
-  const purchase = await prisma.purchase.findUnique({ where: { id: purchaseId } });
-  if (!purchase) return { error: "Purchase not found" };
+  await requireActionUser();
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const purchase = await tx.purchase.findUnique({ where: { id: purchaseId } });
+          if (!purchase) return { error: "Purchase not found" };
+          const outstanding = round2(toNum(purchase.total) - toNum(purchase.amountPaid));
+          const paymentError = validatePaymentAmount(parsed.data.amount, outstanding);
+          if (paymentError) return { error: paymentError };
 
-  const newPaid = round2(toNum(purchase.amountPaid) + parsed.data.amount);
-  const status = statusFor(toNum(purchase.total), newPaid);
-
-  await prisma.$transaction([
-    prisma.purchasePayment.create({
-      data: {
-        purchaseId,
-        amount: parsed.data.amount,
-        paidDate: parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date(),
-        note: parsed.data.note?.trim() || null,
-      },
-    }),
-    prisma.purchase.update({ where: { id: purchaseId }, data: { amountPaid: newPaid, status } }),
-  ]);
+          const newPaid = round2(toNum(purchase.amountPaid) + parsed.data.amount);
+          await tx.purchasePayment.create({
+            data: {
+              purchaseId,
+              amount: parsed.data.amount,
+              paidDate: parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date(),
+              note: parsed.data.note?.trim() || null,
+            },
+          });
+          await tx.purchase.update({
+            where: { id: purchaseId },
+            data: { amountPaid: newPaid, status: statusFor(toNum(purchase.total), newPaid) },
+          });
+          return { error: null };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
+      );
+      if (result.error) return { error: result.error };
+      break;
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034" && attempt < 2) continue;
+      console.error("recordPurchasePayment failed", e);
+      return { error: "Could not record the payment. Please try again." };
+    }
+  }
 
   revalidatePath(`/purchases/${purchaseId}`);
   revalidatePath("/purchases");

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireActionAdmin } from "@/lib/auth";
 
 export type SupplierFormState = { error?: string };
 
@@ -29,6 +30,7 @@ export async function createSupplier(
   _prev: SupplierFormState,
   formData: FormData,
 ): Promise<SupplierFormState> {
+  await requireActionAdmin();
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -50,6 +52,7 @@ export async function updateSupplier(
   _prev: SupplierFormState,
   formData: FormData,
 ): Promise<SupplierFormState> {
+  await requireActionAdmin();
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -68,6 +71,7 @@ export async function updateSupplier(
 }
 
 export async function deleteSupplier(id: string): Promise<SupplierFormState> {
+  await requireActionAdmin();
   // A supplier with purchase records can't be removed (purchases require a
   // supplier) — block it so history stays intact.
   const purchaseCount = await prisma.purchase.count({ where: { supplierId: id } });

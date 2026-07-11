@@ -1,0 +1,48 @@
+import { describe, expect, it } from "vitest";
+import {
+  assertUniqueProductLines,
+  isRecentDuplicatePayment,
+  remainingReturnableByProduct,
+  validatePaymentAmount,
+} from "./financial-guards";
+
+describe("financial workflow guards", () => {
+  it("rejects duplicate product lines", () => {
+    expect(() => assertUniqueProductLines([{ productId: "a" }, { productId: "a" }])).toThrow(
+      "DUPLICATE_PRODUCT",
+    );
+  });
+
+  it("calculates remaining returnable quantities", () => {
+    const remaining = remainingReturnableByProduct(
+      [{ productId: "a", qty: 3, unitPrice: 250 }],
+      [{ productId: "a", qty: 1 }],
+    );
+    expect(remaining.get("a")).toEqual({ qty: 2, unitPrice: 250 });
+  });
+
+  it("rejects settled and excessive payments", () => {
+    expect(validatePaymentAmount(10, 0)).toBe("This balance is already settled.");
+    expect(validatePaymentAmount(101, 100)).toContain("exceeds");
+    expect(validatePaymentAmount(100, 100)).toBeNull();
+  });
+
+  it("detects an identical payment repeated by the same operator within 30 seconds", () => {
+    const now = new Date("2026-07-11T10:00:00.000Z");
+    const paidDate = new Date("2026-07-11T00:00:00.000Z");
+    expect(
+      isRecentDuplicatePayment(
+        [{
+          amount: 500,
+          paidDate,
+          method: "CASH",
+          note: null,
+          recordedByUserId: "u1",
+          createdAt: new Date(now.getTime() - 5_000),
+        }],
+        { amount: 500, paidDate, method: "CASH", note: null, recordedByUserId: "u1" },
+        now,
+      ),
+    ).toBe(true);
+  });
+});

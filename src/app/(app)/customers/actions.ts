@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { requireActionUser } from "@/lib/auth";
 import { validateLkPhone } from "@/lib/phone";
 
 export type CustomerFormState = { error?: string; duplicate?: boolean };
@@ -43,6 +44,7 @@ export async function createCustomer(
   _prev: CustomerFormState,
   formData: FormData,
 ): Promise<CustomerFormState> {
+  await requireActionUser();
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -81,6 +83,7 @@ export async function updateCustomer(
   _prev: CustomerFormState,
   formData: FormData,
 ): Promise<CustomerFormState> {
+  await requireActionUser();
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
@@ -124,6 +127,7 @@ export async function quickCreateCustomer(data: {
   nic?: string;
   confirmDuplicate?: boolean;
 }): Promise<QuickCustomerResult> {
+  await requireActionUser();
   if (!data.name.trim() || !data.phone.trim()) {
     return { ok: false, error: "Name and phone are required" };
   }

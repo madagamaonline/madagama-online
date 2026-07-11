@@ -2,8 +2,13 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionUser } from "@/lib/auth";
+import {
+  assertUniqueProductLines,
+  remainingReturnableByProduct,
+} from "@/lib/financial-guards";
 import { logStockMovement } from "@/lib/stock";
 import { computeCreditState } from "@/lib/credit";
 import { round2, toNum } from "@/lib/utils";
@@ -15,8 +20,8 @@ const lineSchema = z.object({
 });
 
 const inputSchema = z.object({
-  invoiceId: z.string().optional().nullable(),
-  method: z.string().optional().nullable(),
+  invoiceId: z.string().min(1, "An invoice is required"),
+  method: z.enum(["CASH", "CREDIT_NOTE", "EXCHANGE"]).optional().nullable(),
   reason: z.string().optional().nullable(),
   lines: z.array(lineSchema).min(1, "Select at least one item to return"),
 });
@@ -26,16 +31,57 @@ export type CreateReturnResult =
   | { ok: true; id: string; creditedToBalance: number }
   | { ok: false; error: string };
 
+class ReturnValidationError extends Error {}
+
 export async function createReturn(input: CreateReturnInput): Promise<CreateReturnResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
   const d = parsed.data;
-  const session = await getSession();
-  const total = round2(d.lines.reduce((s, l) => s + l.qty * l.unitPrice, 0));
+  try {
+    assertUniqueProductLines(d.lines);
+  } catch {
+    return { ok: false, error: "Each product may appear only once in a return." };
+  }
+  const session = await requireActionUser();
 
   try {
     const result = await prisma.$transaction(
       async (tx) => {
+        const invoice = await tx.invoice.findUnique({
+          where: { id: d.invoiceId },
+          select: {
+            items: {
+              select: { productId: true, qty: true, unitPrice: true, costSnapshot: true },
+            },
+            returns: {
+              select: { items: { select: { productId: true, qty: true } } },
+            },
+          },
+        });
+        if (!invoice) throw new ReturnValidationError("Invoice not found.");
+
+        const remaining = remainingReturnableByProduct(
+          invoice.items.map((item) => ({
+            productId: item.productId,
+            qty: item.qty,
+            unitPrice: toNum(item.unitPrice),
+          })),
+          invoice.returns.flatMap((ret) => ret.items),
+        );
+        const returnLines = d.lines.map((line) => {
+          const allowed = remaining.get(line.productId);
+          if (!allowed || allowed.qty <= 0) {
+            throw new ReturnValidationError("One of the selected products is not returnable on this invoice.");
+          }
+          if (line.qty > allowed.qty) {
+            throw new ReturnValidationError(
+              `Return quantity exceeds the ${allowed.qty} unit(s) remaining for one item.`,
+            );
+          }
+          return { ...line, unitPrice: allowed.unitPrice };
+        });
+        const total = round2(returnLines.reduce((sum, line) => sum + line.qty * line.unitPrice, 0));
+
         // If the invoice is a credit sale with an unsettled agreement, the
         // refund is applied to the customer's outstanding balance (capped at
         // what they still owe) instead of being handed out as cash. It goes
@@ -43,12 +89,10 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         // interest-first allocation, invoice status, and settlement logic all
         // stay authoritative.
         let creditedToBalance = 0;
-        const agreement = d.invoiceId
-          ? await tx.creditAgreement.findUnique({
-              where: { invoiceId: d.invoiceId },
-              include: { payments: true },
-            })
-          : null;
+        const agreement = await tx.creditAgreement.findUnique({
+          where: { invoiceId: d.invoiceId },
+          include: { payments: true },
+        });
         const openAgreement = agreement && agreement.status !== "SETTLED" ? agreement : null;
 
         // Capture the cost each returned product was sold at, so profit reports
@@ -57,21 +101,15 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         // original invoice; falls back to the product's current cost when the
         // return isn't linked to an invoice or the sale predates cost snapshots.
         const saleCostByProduct = new Map<string, number>();
-        if (d.invoiceId) {
-          const originalItems = await tx.invoiceItem.findMany({
-            where: { invoiceId: d.invoiceId, productId: { in: d.lines.map((l) => l.productId) } },
-            select: { productId: true, costSnapshot: true },
-          });
-          for (const it of originalItems) {
-            if (it.productId && it.costSnapshot != null) {
-              saleCostByProduct.set(it.productId, toNum(it.costSnapshot));
-            }
+        for (const item of invoice.items) {
+          if (item.productId && item.costSnapshot != null) {
+            saleCostByProduct.set(item.productId, toNum(item.costSnapshot));
           }
         }
         const productCosts = new Map(
           (
             await tx.product.findMany({
-              where: { id: { in: d.lines.map((l) => l.productId) } },
+              where: { id: { in: returnLines.map((l) => l.productId) } },
               select: { id: true, costPrice: true },
             })
           ).map((p) => [p.id, toNum(p.costPrice)]),
@@ -79,13 +117,13 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
 
         const created = await tx.salesReturn.create({
           data: {
-            invoiceId: d.invoiceId || null,
+            invoiceId: d.invoiceId,
             totalRefund: total,
             method: openAgreement ? "CREDIT_BALANCE" : d.method?.trim() || "CASH",
             reason: d.reason?.trim() || null,
             createdByUserId: session?.id ?? null,
             items: {
-              create: d.lines.map((l) => ({
+              create: returnLines.map((l) => ({
                 productId: l.productId,
                 qty: l.qty,
                 unitPrice: l.unitPrice,
@@ -146,7 +184,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         }
 
         // Restock returned items and log the movement.
-        for (const l of d.lines) {
+        for (const l of returnLines) {
           const updated = await tx.product.update({
             where: { id: l.productId },
             data: { quantityInStock: { increment: l.qty } },
@@ -162,7 +200,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         }
         return { id: created.id, creditedToBalance };
       },
-      { timeout: 20000 },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
     );
 
     revalidatePath("/returns");
@@ -172,6 +210,10 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
     if (d.invoiceId) revalidatePath(`/invoices/${d.invoiceId}`);
     return { ok: true, id: result.id, creditedToBalance: result.creditedToBalance };
   } catch (e) {
+    if (e instanceof ReturnValidationError) return { ok: false, error: e.message };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2034") {
+      return { ok: false, error: "Another return was saved at the same time. Please try again." };
+    }
     console.error("createReturn failed", e);
     return { ok: false, error: "Could not save the return. Please try again." };
   }

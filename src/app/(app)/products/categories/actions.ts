@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireActionAdmin } from "@/lib/auth";
 
 export type ActionState = { error?: string; ok?: boolean };
 
@@ -19,6 +20,7 @@ export async function createCategory(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireActionAdmin();
   const parsed = catSchema.safeParse({
     name: formData.get("name"),
     code: formData.get("code"),
@@ -47,6 +49,7 @@ export async function createSubcategory(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireActionAdmin();
   const parsed = subSchema.safeParse({
     categoryId: formData.get("categoryId"),
     name: formData.get("name"),
@@ -78,6 +81,7 @@ export async function updateCategory(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireActionAdmin();
   const parsed = nameCodeSchema.safeParse({ name: formData.get("name"), code: formData.get("code") });
   if (!parsed.success) return { error: "Name and code are required." };
   const code = cleanCode(parsed.data.code);
@@ -93,6 +97,7 @@ export async function updateCategory(
 }
 
 export async function deleteCategory(id: string): Promise<ActionState> {
+  await requireActionAdmin();
   const [products, subs] = await Promise.all([
     prisma.product.count({ where: { categoryId: id } }),
     prisma.subcategory.count({ where: { categoryId: id } }),
@@ -109,6 +114,7 @@ export async function updateSubcategory(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
+  await requireActionAdmin();
   const parsed = nameCodeSchema.safeParse({ name: formData.get("name"), code: formData.get("code") });
   if (!parsed.success) return { error: "Name and code are required." };
   const code = cleanCode(parsed.data.code);
@@ -124,6 +130,7 @@ export async function updateSubcategory(
 }
 
 export async function deleteSubcategory(id: string): Promise<ActionState> {
+  await requireActionAdmin();
   const products = await prisma.product.count({ where: { subcategoryId: id } });
   if (products > 0) return { error: "Cannot delete — this subcategory still has products." };
   await prisma.subcategory.delete({ where: { id } });

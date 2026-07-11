@@ -5,8 +5,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { computePayroll, selectAdvancesToRecover } from "@/lib/payroll";
 import { round2, toNum } from "@/lib/utils";
+import { requireActionAdmin } from "@/lib/auth";
 
 export async function generatePayroll(month: string): Promise<void> {
+  await requireActionAdmin();
   if (!/^\d{4}-\d{2}$/.test(month)) return;
   const lines = await computePayroll(month);
 

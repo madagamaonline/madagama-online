@@ -4,7 +4,13 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionUser } from "@/lib/auth";
+import {
+  assertUniqueProductLines,
+  isRecentDuplicatePayment,
+  validatePaymentAmount,
+} from "@/lib/financial-guards";
+import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { computeCreditState } from "@/lib/credit";
@@ -52,7 +58,12 @@ export async function createCreditSale(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
   }
   const data = parsed.data;
-  const session = await getSession();
+  try {
+    assertUniqueProductLines(data.lines);
+  } catch {
+    return { ok: false, error: "Each product may appear only once in a sale." };
+  }
+  const session = await requireActionUser();
 
   // Validate the guarantor's phone and make sure it isn't the customer's own
   // number (a common way to fake a guarantor).
@@ -77,7 +88,7 @@ export async function createCreditSale(
   const freeMonths = setting?.interestFreeMonths ?? 4;
 
   const products = await prisma.product.findMany({
-    where: { id: { in: data.lines.map((l) => l.productId) } },
+    where: { id: { in: data.lines.map((l) => l.productId) }, active: true },
     select: {
       id: true,
       code: true,
@@ -154,16 +165,17 @@ export async function createCreditSale(
               },
             },
           });
-          for (const { line } of computed) {
-            const updated = await tx.product.update({
-              where: { id: line.productId },
-              data: { quantityInStock: { decrement: line.qty } },
+          for (const { line, p } of [...computed].sort((a, b) => a.line.productId.localeCompare(b.line.productId))) {
+            const balanceAfter = await decrementStockForSale(tx, {
+              productId: line.productId,
+              productCode: p.code,
+              qty: line.qty,
             });
             await logStockMovement(tx, {
               productId: line.productId,
               type: "SALE",
               qty: -line.qty,
-              balanceAfter: updated.quantityInStock,
+              balanceAfter,
               refId: invoice.id,
               userId: session?.id ?? null,
             });
@@ -192,7 +204,7 @@ export async function createCreditSale(
           });
           return agreement.id;
         },
-        { timeout: 20000 },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
       );
 
       revalidatePath("/credit");
@@ -200,7 +212,14 @@ export async function createCreditSale(
       revalidatePath("/dashboard");
       return { ok: true, agreementId };
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 2) continue;
+      if (e instanceof StockConflictError) {
+        return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };
+      }
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === "P2002" || e.code === "P2034") &&
+        attempt < 2
+      ) continue;
       console.error("createCreditSale failed", e);
       return { ok: false, error: "Could not save the credit sale. Please try again." };
     }
@@ -230,8 +249,7 @@ export async function recordPayment(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid payment" };
 
-  const session = await getSession();
-  if (!session) return { error: "Your session has expired — please sign in again." };
+  const session = await requireActionUser();
 
   const paidDate = parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date();
 
@@ -250,31 +268,60 @@ export async function recordPayment(
           });
           if (!agreement) return { notFound: true as const };
 
+          const existingPayments = await tx.payment.findMany({ where: { agreementId } });
+          const agreementInput = {
+            principal: toNum(agreement.principal),
+            startDate: agreement.startDate,
+            interestRatePerMonth: toNum(agreement.interestRatePerMonth),
+            interestFreeMonths: agreement.interestFreeMonths,
+          };
+          const beforePayments = existingPayments.map((p) => ({
+            amount: toNum(p.amount),
+            paidDate: p.paidDate,
+          }));
+          const before = computeCreditState(agreementInput, beforePayments);
+          const paymentError = validatePaymentAmount(parsed.data.amount, before.outstanding);
+          if (paymentError) return { notFound: false as const, error: paymentError };
+
+          const method = parsed.data.method?.trim() || "CASH";
+          const note = parsed.data.note?.trim() || null;
+          if (
+            isRecentDuplicatePayment(
+              existingPayments.map((payment) => ({ ...payment, amount: toNum(payment.amount) })),
+              {
+                amount: parsed.data.amount,
+                paidDate,
+                method,
+                note,
+                recordedByUserId: session.id,
+              },
+            )
+          ) {
+            return {
+              notFound: false as const,
+              error: "This payment was already recorded. Refresh before trying again.",
+            };
+          }
+
           await tx.payment.create({
             data: {
               agreementId,
               amount: parsed.data.amount,
               paidDate,
-              method: parsed.data.method?.trim() || "CASH",
-              note: parsed.data.note?.trim() || null,
+              method,
+              note,
               recordedByUserId: session.id,
             },
           });
 
           // Re-read every payment from inside the transaction (authoritative —
           // includes the row we just wrote) rather than trusting a pre-read.
-          const payments = await tx.payment.findMany({ where: { agreementId } });
-          const allPayments = payments.map((p) => ({
-            amount: toNum(p.amount),
-            paidDate: p.paidDate,
-          }));
+          const allPayments = [
+            ...beforePayments,
+            { amount: parsed.data.amount, paidDate },
+          ];
           const state = computeCreditState(
-            {
-              principal: toNum(agreement.principal),
-              startDate: agreement.startDate,
-              interestRatePerMonth: toNum(agreement.interestRatePerMonth),
-              interestFreeMonths: agreement.interestFreeMonths,
-            },
+            agreementInput,
             allPayments,
           );
 
@@ -292,12 +339,13 @@ export async function recordPayment(
               data: { status: "SETTLED" },
             });
           }
-          return { notFound: false as const };
+          return { notFound: false as const, error: null };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
       );
 
       if (result.notFound) return { error: "Agreement not found" };
+      if (result.error) return { error: result.error };
 
       revalidatePath(`/credit/${agreementId}`);
       revalidatePath("/credit");
@@ -318,6 +366,7 @@ export async function recordPayment(
 export type ReminderResult = { ok: boolean; message: string };
 
 export async function sendReminderNow(agreementId: string): Promise<ReminderResult> {
+  await requireActionUser();
   const a = await prisma.creditAgreement.findUnique({
     where: { id: agreementId },
     include: { customer: { select: { name: true, phone: true } }, payments: true, invoice: { select: { invoiceNumber: true } } },

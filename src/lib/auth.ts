@@ -2,6 +2,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
+import { roleCanAccess } from "./authorization";
 import {
   SESSION_COOKIE,
   signSession,
@@ -26,6 +27,20 @@ export async function requireUser(): Promise<SessionUser> {
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "ADMIN") redirect("/dashboard");
+  return user;
+}
+
+/** Authenticate a directly-invokable Server Action without redirect control flow. */
+export async function requireActionUser(): Promise<SessionUser> {
+  const user = await getSession();
+  if (!user) throw new Error("Unauthorized");
+  return user;
+}
+
+/** Authorize an ADMIN-only Server Action. */
+export async function requireActionAdmin(): Promise<SessionUser> {
+  const user = await requireActionUser();
+  if (!roleCanAccess(user.role, "ADMIN")) throw new Error("Forbidden");
   return user;
 }
 

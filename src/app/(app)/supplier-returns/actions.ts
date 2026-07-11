@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionUser } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
 import { round2, toNum } from "@/lib/utils";
 
@@ -35,7 +35,7 @@ export async function createSupplierReturn(
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid data" };
   const d = parsed.data;
-  const session = await getSession();
+  const session = await requireActionUser();
   const total = round2(d.lines.reduce((s, l) => s + l.qty * l.unitCost, 0));
 
   const purchase = await prisma.purchase.findUnique({
@@ -84,7 +84,7 @@ export async function createSupplierReturn(
             method: d.method,
             appliedToPayable,
             reason: d.reason?.trim() || null,
-            createdByUserId: session?.id ?? null,
+            createdByUserId: session.id,
             items: {
               create: d.lines.map((l) => ({
                 productId: l.productId,
@@ -107,7 +107,7 @@ export async function createSupplierReturn(
             qty: -l.qty, // signed: stock out
             balanceAfter: updated.quantityInStock,
             refId: created.id,
-            userId: session?.id ?? null,
+            userId: session.id,
           });
         }
         return created;

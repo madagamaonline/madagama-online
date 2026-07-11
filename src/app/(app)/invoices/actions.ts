@@ -4,7 +4,9 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma, type TaxCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionUser } from "@/lib/auth";
+import { assertUniqueProductLines } from "@/lib/financial-guards";
+import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
 import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
@@ -53,10 +55,15 @@ export async function createCashInvoice(
     return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid sale data" };
   }
   const data = parsed.data;
-  const session = await getSession();
+  try {
+    assertUniqueProductLines(data.lines);
+  } catch {
+    return { ok: false, error: "Each product may appear only once in a sale." };
+  }
+  const session = await requireActionUser();
 
   const products = await prisma.product.findMany({
-    where: { id: { in: data.lines.map((l) => l.productId) } },
+    where: { id: { in: data.lines.map((l) => l.productId) }, active: true },
     select: {
       id: true,
       code: true,
@@ -158,16 +165,17 @@ export async function createCashInvoice(
                 },
               },
             });
-            for (const it of g.items) {
-              const updated = await tx.product.update({
-                where: { id: it.productId },
-                data: { quantityInStock: { decrement: it.qty } },
+            for (const it of [...g.items].sort((a, b) => a.productId.localeCompare(b.productId))) {
+              const balanceAfter = await decrementStockForSale(tx, {
+                productId: it.productId,
+                productCode: it.code,
+                qty: it.qty,
               });
               await logStockMovement(tx, {
                 productId: it.productId,
                 type: "SALE",
                 qty: -it.qty,
-                balanceAfter: updated.quantityInStock,
+                balanceAfter,
                 refId: inv.id,
                 userId: session?.id ?? null,
               });
@@ -176,7 +184,7 @@ export async function createCashInvoice(
           }
           return out;
         },
-        { timeout: 20000 },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
       );
 
       revalidatePath("/invoices");
@@ -184,7 +192,14 @@ export async function createCashInvoice(
       revalidatePath("/dashboard");
       return { ok: true, invoices: created };
     } catch (e) {
-      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002" && attempt < 2) {
+      if (e instanceof StockConflictError) {
+        return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };
+      }
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        (e.code === "P2002" || e.code === "P2034") &&
+        attempt < 2
+      ) {
         continue; // retry invoice number
       }
       console.error("createCashInvoice failed", e);

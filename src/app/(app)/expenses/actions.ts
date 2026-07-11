@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { requireActionAdmin } from "@/lib/auth";
 
 export type ExpenseState = { error?: string; ok?: boolean };
 
@@ -17,6 +18,7 @@ export async function createExpense(
   _prev: ExpenseState,
   formData: FormData,
 ): Promise<ExpenseState> {
+  await requireActionAdmin();
   const parsed = schema.safeParse({
     category: formData.get("category"),
     amount: formData.get("amount"),
@@ -41,6 +43,7 @@ export async function createExpense(
 }
 
 export async function deleteExpense(id: string) {
+  await requireActionAdmin();
   await prisma.expense.delete({ where: { id } });
   revalidatePath("/expenses");
   revalidatePath("/reports");

@@ -33,7 +33,7 @@ export function ReturnForm({
   const isCredit = creditOutstanding != null;
   const router = useRouter();
   const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [method, setMethod] = useState("CASH");
+  const [method, setMethod] = useState<"CASH" | "CREDIT_NOTE" | "EXCHANGE">("CASH");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
@@ -104,7 +104,11 @@ export function ReturnForm({
           {!isCredit && (
             <div>
               <Label htmlFor="method">Refund method</Label>
-              <Select id="method" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <Select
+                id="method"
+                value={method}
+                onChange={(e) => setMethod(e.target.value as "CASH" | "CREDIT_NOTE" | "EXCHANGE")}
+              >
                 <option value="CASH">Cash</option>
                 <option value="CREDIT_NOTE">Credit note</option>
                 <option value="EXCHANGE">Exchange</option>

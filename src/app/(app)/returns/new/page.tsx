@@ -40,6 +40,7 @@ export default async function NewReturnPage({
     where: { id: invoiceId },
     include: {
       items: true,
+      returns: { include: { items: { select: { productId: true, qty: true } } } },
       customer: { select: { name: true } },
       creditAgreement: { include: { payments: true } },
     },
@@ -62,14 +63,21 @@ export default async function NewReturnPage({
         ).outstanding
       : null;
 
-  // Only items still linked to a product can be restocked.
+  const returnedByProduct = new Map<string, number>();
+  for (const ret of invoice.returns) {
+    for (const item of ret.items) {
+      returnedByProduct.set(item.productId, (returnedByProduct.get(item.productId) ?? 0) + item.qty);
+    }
+  }
+
+  // Only items still linked to a product and not already fully returned can be restocked.
   const lines: ReturnLine[] = invoice.items
-    .filter((it) => it.productId)
+    .filter((it) => it.productId && it.qty > (returnedByProduct.get(it.productId) ?? 0))
     .map((it) => ({
       productId: it.productId as string,
       code: it.codeSnapshot ?? "",
       name: it.nameSnapshot,
-      sold: it.qty,
+      sold: it.qty - (returnedByProduct.get(it.productId as string) ?? 0),
       unitPrice: toNum(it.unitPrice),
     }));
 

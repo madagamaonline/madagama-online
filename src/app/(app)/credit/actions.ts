@@ -8,6 +8,7 @@ import { requireActionUser } from "@/lib/auth";
 import {
   assertUniqueProductLines,
   isRecentDuplicatePayment,
+  validateDownPaymentAmount,
   validatePaymentAmount,
 } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
@@ -43,6 +44,8 @@ const inputSchema = z.object({
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   allowDuplicatePhone: z.boolean().optional(),
+  downPayment: z.coerce.number().min(0, "Enter a valid down payment").default(0),
+  downPaymentMethod: z.enum(["CASH", "BANK", "CHEQUE", "CARD"]).default("CASH"),
 });
 
 export type CreateCreditSaleInput = z.input<typeof inputSchema>;
@@ -132,18 +135,20 @@ export async function createCreditSale(
     computed.map((c) => ({ qty: c.line.qty, unitPrice: c.line.unitPrice })),
     data.discount,
   );
+  const downPaymentError = validateDownPaymentAmount(data.downPayment, totals.grandTotal);
+  if (downPaymentError) return { ok: false, error: downPaymentError };
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const agreementId = await prisma.$transaction(
         async (tx) => {
+          const startedAt = new Date();
           const invoiceNumber = await generateInvoiceNumber(tx, taxCategory);
           const invoice = await tx.invoice.create({
             data: {
               invoiceNumber,
               type: "CREDIT",
               taxCategory,
-              status: "CREDIT",
               customerId: data.customerId,
               soldByEmployeeId: data.soldByEmployeeId || null,
               createdByUserId: session?.id ?? null,
@@ -151,7 +156,8 @@ export async function createCreditSale(
               subtotal: totals.subtotal,
               discount: totals.discount,
               grandTotal: totals.grandTotal,
-              amountPaid: 0,
+              amountPaid: data.downPayment,
+              status: data.downPayment > 0 ? "PARTIAL" : "CREDIT",
               items: {
                 create: computed.map(({ line, p }) => ({
                   productId: p.id,
@@ -196,12 +202,24 @@ export async function createCreditSale(
               customerId: data.customerId,
               guarantorId: guarantor.id,
               principal: totals.grandTotal,
-              startDate: new Date(),
+              startDate: startedAt,
               interestRatePerMonth: interestRate,
               interestFreeMonths: freeMonths,
               status: "ACTIVE",
             },
           });
+          if (data.downPayment > 0) {
+            await tx.payment.create({
+              data: {
+                agreementId: agreement.id,
+                amount: data.downPayment,
+                paidDate: startedAt,
+                method: data.downPaymentMethod,
+                note: "Down payment",
+                recordedByUserId: session.id,
+              },
+            });
+          }
           return agreement.id;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },

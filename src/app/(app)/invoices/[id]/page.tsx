@@ -93,14 +93,14 @@ export default async function InvoiceViewPage({
         {/* Header */}
         <div className="flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-xl font-bold">{setting?.businessName ?? "Madagama Pvt Ltd"}</h1>
-            {setting?.address && <p className="text-sm text-muted">{setting.address}</p>}
-            {setting?.phone && <p className="text-sm text-muted">Tel: {setting.phone}</p>}
+            <h1 className="text-[22px] font-bold">{setting?.businessName ?? "Madagama Pvt Ltd"}</h1>
+            {setting?.address && <p className="text-[15px] text-muted">{setting.address}</p>}
+            {setting?.phone && <p className="text-[15px] text-muted">Tel: {setting.phone}</p>}
           </div>
           <div className="text-right">
-            <h2 className="text-lg font-semibold">INVOICE</h2>
-            <p className="text-sm font-medium">{invoice.invoiceNumber}</p>
-            <p className="text-sm text-muted">{formatDateTime(invoice.createdAt)}</p>
+            <h2 className="text-xl font-semibold">INVOICE</h2>
+            <p className="text-[15px] font-medium">{invoice.invoiceNumber}</p>
+            <p className="text-[15px] text-muted">{formatDateTime(invoice.createdAt)}</p>
             <div className="mt-1 flex justify-end gap-2">
               {ntEnabled && (
                 <span className="no-print">
@@ -121,7 +121,7 @@ export default async function InvoiceViewPage({
         </div>
 
         {/* Bill to */}
-        <div className="flex flex-wrap justify-between gap-4 py-6 text-sm">
+        <div className="flex flex-wrap justify-between gap-4 py-6 text-[15px]">
           <div>
             <p className="mb-1 font-medium text-muted">Bill To</p>
             <p className="font-medium">{invoice.customer?.name ?? "Walk-in Customer"}</p>
@@ -137,7 +137,7 @@ export default async function InvoiceViewPage({
         </div>
 
         {/* Items */}
-        <table className="w-full text-sm">
+        <table className="w-full text-[15px]">
           <thead>
             <tr className="border-y border-border text-left text-muted">
               <th className="py-2 pr-2 font-medium">Code</th>
@@ -150,11 +150,11 @@ export default async function InvoiceViewPage({
           <tbody>
             {invoice.items.map((it) => (
               <tr key={it.id} className="border-b border-border">
-                <td className="py-2 pr-2 font-mono text-xs">{it.codeSnapshot}</td>
+                <td className="py-2 pr-2 font-mono text-[13px]">{it.codeSnapshot}</td>
                 <td className="py-2 pr-2">
                   <div>{it.nameSnapshot}</div>
                   {it.product?.modelNumber && (
-                    <div className="text-xs text-muted">Model: {it.product.modelNumber}</div>
+                    <div className="text-[13px] text-muted">Model: {it.product.modelNumber}</div>
                   )}
                 </td>
                 <td className="px-2 text-right">{it.qty}</td>
@@ -167,7 +167,7 @@ export default async function InvoiceViewPage({
 
         {/* Totals */}
         <div className="mt-6 flex justify-end">
-          <div className="w-64 space-y-1.5 text-sm">
+          <div className="w-64 space-y-1.5 text-[15px]">
             <div className="flex justify-between">
               <span className="text-muted">Subtotal</span>
               <span>{formatLKR(invoice.subtotal)}</span>
@@ -178,7 +178,7 @@ export default async function InvoiceViewPage({
                 <span>− {formatLKR(invoice.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
+            <div className="flex justify-between border-t border-border pt-2 text-lg font-semibold">
               <span>Total</span>
               <span>{formatLKR(invoice.grandTotal)}</span>
             </div>
@@ -186,16 +186,16 @@ export default async function InvoiceViewPage({
         </div>
 
         {invoice.notes && (
-          <p className="mt-6 border-t border-border pt-4 text-sm text-muted">{invoice.notes}</p>
+          <p className="mt-6 border-t border-border pt-4 text-[15px] text-muted">{invoice.notes}</p>
         )}
-        <p className="mt-8 text-center text-xs text-muted">Thank you for your business!</p>
+        <p className="mt-8 text-center text-sm text-muted">Thank you for your business!</p>
       </div>
 
       {/* 80mm thermal receipt layout (hidden unless "80mm" is selected) */}
-      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[11px] font-normal leading-tight text-black shadow-sm">
+      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[12px] font-normal leading-tight text-black shadow-sm">
         {invoice.voidedAt && <div className="mb-2 border-y-2 border-black py-1 text-center text-base font-black tracking-[0.15em]">VOIDED</div>}
         <div className="text-center">
-          <p className="text-sm font-semibold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
+          <p className="text-[15px] font-semibold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
           {setting?.address && <p>{setting.address}</p>}
           {setting?.phone && <p>Tel: {setting.phone}</p>}
         </div>
@@ -219,7 +219,7 @@ export default async function InvoiceViewPage({
           <div key={it.id} className="mb-1.5">
             <p className="break-words">{it.nameSnapshot}</p>
             {it.product?.modelNumber && (
-              <p className="break-words text-[10px]">Model: {it.product.modelNumber}</p>
+              <p className="break-words text-[11px]">Model: {it.product.modelNumber}</p>
             )}
             <div className="flex justify-between">
               <span>
@@ -242,7 +242,7 @@ export default async function InvoiceViewPage({
             <span>− {formatLKR(invoice.discount)}</span>
           </div>
         )}
-        <div className="mt-1 flex justify-between border-t border-black pt-1 text-xs font-semibold">
+        <div className="mt-1 flex justify-between border-t border-black pt-1 text-[13px] font-semibold">
           <span>TOTAL</span>
           <span>{formatLKR(invoice.grandTotal)}</span>
         </div>

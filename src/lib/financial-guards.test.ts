@@ -3,6 +3,7 @@ import {
   assertUniqueProductLines,
   isRecentDuplicatePayment,
   remainingReturnableByProduct,
+  validateDownPaymentAmount,
   validatePaymentAmount,
 } from "./financial-guards";
 
@@ -25,6 +26,14 @@ describe("financial workflow guards", () => {
     expect(validatePaymentAmount(10, 0)).toBe("This balance is already settled.");
     expect(validatePaymentAmount(101, 100)).toContain("exceeds");
     expect(validatePaymentAmount(100, 100)).toBeNull();
+  });
+
+  it("validates a down payment against the full sale total", () => {
+    expect(validateDownPaymentAmount(30_000, 90_000)).toBeNull();
+    expect(validateDownPaymentAmount(0, 90_000)).toBeNull();
+    expect(validateDownPaymentAmount(-1, 90_000)).toContain("valid down payment");
+    expect(validateDownPaymentAmount(90_001, 90_000)).toContain("exceeds");
+    expect(validateDownPaymentAmount(90_000, 90_000)).toContain("cash sale");
   });
 
   it("detects an identical payment repeated by the same operator within 30 seconds", () => {

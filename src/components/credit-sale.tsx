@@ -52,6 +52,10 @@ export function CreditSale({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [removing, setRemoving] = useState<Set<string>>(() => new Set());
   const [discount, setDiscount] = useState(0);
+  const [totalInput, setTotalInput] = useState("");
+  const totalEditing = useRef(false);
+  const [downPayment, setDownPayment] = useState(0);
+  const [downPaymentMethod, setDownPaymentMethod] = useState<"CASH" | "BANK" | "CHEQUE" | "CARD">("CASH");
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
   const [g, setG] = useState({ name: "", nic: "", phone: "", address: "", nicFrontKey: "", nicBackKey: "" });
@@ -191,6 +195,14 @@ export function CreditSale({
   const hasNonTaxable = cart.some((l) => !l.product.taxable);
   const mixed = hasTaxable && hasNonTaxable;
   const category = hasTaxable ? "TAXABLE" : "NON_TAXABLE";
+  const remainingCredit = round2(Math.max(0, totals.grandTotal - downPayment));
+
+  // Keep the field independently editable while focused so clearing it does
+  // not immediately replace the draft with the calculated selling price.
+  useEffect(() => {
+    if (totalEditing.current) return;
+    setTotalInput(cart.length > 0 ? String(totals.grandTotal) : "");
+  }, [cart.length, totals.grandTotal]);
 
   function submit() {
     setError("");
@@ -198,6 +210,12 @@ export function CreditSale({
     if (mixed) return setError("A credit sale must be all taxable or all non-taxable items. Please make two separate credit sales.");
     if (!customerId) return setError("Select a customer.");
     if (!g.name || !g.nic || !g.phone) return setError("Guarantor name, NIC and phone are required.");
+    if (downPayment < 0 || downPayment > totals.grandTotal) {
+      return setError("Down payment cannot exceed the total sale price.");
+    }
+    if (downPayment > 0 && round2(downPayment) === round2(totals.grandTotal)) {
+      return setError("Use a cash sale when the customer pays the full amount.");
+    }
     startTransition(async () => {
       const res = await createCreditSale({
         lines: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
@@ -207,6 +225,8 @@ export function CreditSale({
         guarantor: g,
         notes: notes || null,
         allowDuplicatePhone,
+        downPayment,
+        downPaymentMethod,
       });
       if (!res.ok) {
         setError(res.error);
@@ -457,11 +477,19 @@ export function CreditSale({
                 />
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-lg font-semibold">
-                <span>Total (on credit)</span>
+                <span>Total sale price</span>
                 <NumberInput
-                  value={totals.grandTotal || ""}
+                  value={totalInput}
+                  onFocus={() => {
+                    totalEditing.current = true;
+                  }}
+                  onBlur={() => {
+                    totalEditing.current = false;
+                    setTotalInput(cart.length > 0 ? String(totals.grandTotal) : "");
+                  }}
                   onValueChange={(c) => {
                     // Typing the agreed final price back-fills the discount.
+                    setTotalInput(c);
                     const pay = Number(c);
                     setDiscount(c === "" || pay >= totals.subtotal ? 0 : round2(totals.subtotal - pay));
                   }}
@@ -472,6 +500,39 @@ export function CreditSale({
               <p className="text-right text-[11px] font-normal text-muted">
                 Type the agreed price in Total — the discount fills in automatically.
               </p>
+              <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+                <span className="text-muted">Down payment</span>
+                <NumberInput
+                  value={downPayment || ""}
+                  onValueChange={(c) => setDownPayment(Math.max(0, Number(c)))}
+                  className="h-9 w-32 text-right"
+                  placeholder="0.00"
+                />
+              </div>
+              {downPayment > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted">Payment method</span>
+                  <Select
+                    value={downPaymentMethod}
+                    onChange={(e) => setDownPaymentMethod(e.target.value as typeof downPaymentMethod)}
+                    className="h-9 w-40"
+                  >
+                    <option value="CASH">Cash</option>
+                    <option value="BANK">Bank transfer</option>
+                    <option value="CHEQUE">Cheque</option>
+                    <option value="CARD">Card</option>
+                  </Select>
+                </div>
+              )}
+              <div className="flex items-center justify-between border-t border-border pt-2 font-semibold">
+                <span>Remaining on credit</span>
+                <span>{formatLKR(remainingCredit)}</span>
+              </div>
+              {downPayment > 0 && (
+                <p className="text-right text-[11px] font-normal text-muted">
+                  The down payment will be recorded as the first payment.
+                </p>
+              )}
             </div>
 
             <div className="rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">

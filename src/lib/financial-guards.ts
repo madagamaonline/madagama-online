@@ -41,6 +41,17 @@ export function validatePaymentAmount(amount: number, outstanding: number): stri
   return null;
 }
 
+export function validateDownPaymentAmount(amount: number, saleTotal: number): string | null {
+  if (!Number.isFinite(amount) || amount < 0) return "Enter a valid down payment.";
+  if (round2(amount) > round2(saleTotal)) {
+    return `Down payment exceeds the sale total of LKR ${round2(saleTotal).toFixed(2)}.`;
+  }
+  if (round2(amount) > 0 && round2(amount) === round2(saleTotal)) {
+    return "Down payment must be less than the sale total. Use a cash sale when the customer pays in full.";
+  }
+  return null;
+}
+
 export function isRecentDuplicatePayment(
   existing: {
     amount: number;

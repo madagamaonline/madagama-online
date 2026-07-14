@@ -27,6 +27,7 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
   const cashInvoices = await prisma.invoice.findMany({
     where: {
       type: "CASH",
+      voidedAt: null,
       createdAt: {
         gte: startTime,
       },
@@ -40,6 +41,7 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
   const cashPayments = await prisma.payment.findMany({
     where: {
       method: "CASH",
+      agreement: { status: { not: "VOIDED" }, invoice: { voidedAt: null } },
       createdAt: {
         gte: startTime,
       },

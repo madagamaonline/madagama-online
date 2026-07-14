@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CheckCircle2, ReceiptText } from "lucide-react";
+import { Ban, CheckCircle2, ReceiptText } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,11 +37,12 @@ export default async function CreditDetailPage({
     include: {
       customer: true,
       guarantor: true,
-      invoice: { select: { id: true, invoiceNumber: true } },
+      invoice: { select: { id: true, invoiceNumber: true, voidedAt: true } },
       payments: { orderBy: { paidDate: "desc" } },
     },
   });
   if (!a) notFound();
+  const isVoided = a.status === "VOIDED" || Boolean(a.invoice.voidedAt);
 
   const state = computeCreditState(
     {
@@ -77,12 +78,21 @@ export default async function CreditDetailPage({
         </div>
       )}
 
+      {isVoided && (
+        <div className="mb-4 border-l-4 border-danger bg-danger-soft px-4 py-4 text-danger-ink">
+          <p className="flex items-center gap-2 font-bold"><Ban className="h-5 w-5" /> VOIDED CREDIT AGREEMENT</p>
+          <p className="mt-1 text-sm">The source invoice was voided. Payments and reminders are disabled; this page remains available for audit.</p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Balance */}
         <Card className="lg:col-span-2">
           <CardHeader className="flex items-center justify-between">
             <CardTitle>Balance</CardTitle>
-            {state.isSettled ? (
+            {isVoided ? (
+              <Badge tone="red">Voided</Badge>
+            ) : state.isSettled ? (
               <Badge tone="green">Settled</Badge>
             ) : state.isOverdue ? (
               <Badge tone="red">Overdue</Badge>
@@ -112,7 +122,9 @@ export default async function CreditDetailPage({
             <CardTitle>Record Payment</CardTitle>
           </CardHeader>
           <CardContent>
-            {state.isSettled ? (
+            {isVoided ? (
+              <p className="text-sm text-muted">This agreement is voided. No further financial activity is allowed.</p>
+            ) : state.isSettled ? (
               <p className="text-sm text-muted">This agreement is fully settled.</p>
             ) : (
               <div className="space-y-4">

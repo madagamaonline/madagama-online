@@ -47,11 +47,22 @@ export default async function NewReturnPage({
   });
   if (!invoice) notFound();
 
+  if (invoice.voidedAt) {
+    return (
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-4">
+          <Link href={`/invoices/${invoice.id}`}><Button variant="outline"><ArrowLeft className="h-4 w-4" /> Back to invoice</Button></Link>
+        </div>
+        <Card><CardContent className="py-10 text-center text-sm text-muted">This invoice is voided. Its stock was already restored, so it cannot receive a return.</CardContent></Card>
+      </div>
+    );
+  }
+
   // For a credit sale that is still owed on, the refund is credited against the
   // customer's balance instead of paid out — tell the form so it can say so.
   const agreement = invoice.creditAgreement;
   const creditOutstanding =
-    agreement && agreement.status !== "SETTLED"
+    agreement && agreement.status !== "SETTLED" && agreement.status !== "VOIDED"
       ? computeCreditState(
           {
             principal: toNum(agreement.principal),

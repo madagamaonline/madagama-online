@@ -19,6 +19,7 @@ const typeTone = {
   OPENING: "gray",
   PURCHASE: "green",
   SALE: "blue",
+  SALE_VOID: "red",
   RETURN: "amber",
   SUPPLIER_RETURN: "red",
   ADJUSTMENT: "amber",

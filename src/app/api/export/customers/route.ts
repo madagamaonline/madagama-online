@@ -12,7 +12,7 @@ export async function GET() {
   }
   const customers = await prisma.customer.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { creditAgreements: true } } },
+    include: { _count: { select: { creditAgreements: { where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } } } } } },
     take: 5000,
   });
 

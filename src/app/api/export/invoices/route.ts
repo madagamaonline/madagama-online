@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 import { toNum } from "@/lib/utils";
-import { nonTaxableEnabled, invoiceTaxableWhere } from "@/lib/tax-mode";
+import { nonTaxableEnabled, activeInvoiceWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export async function GET() {
   // the Category column entirely — no NT traces in the file.
   const ntEnabled = await nonTaxableEnabled();
   const invoices = await prisma.invoice.findMany({
-    where: { ...invoiceTaxableWhere(ntEnabled) },
+    where: { ...activeInvoiceWhere(ntEnabled) },
     orderBy: { createdAt: "desc" },
     include: {
       customer: { select: { name: true } },

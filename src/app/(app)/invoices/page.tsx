@@ -129,7 +129,7 @@ export default async function InvoicesPage({
             <>
               <div className="md:hidden">
                 {invoices.map((inv) => (
-                  <div key={inv.id} className="border-b border-border-subtle p-4 last:border-0">
+                  <div key={inv.id} className={cn("border-b border-border-subtle p-4 last:border-0", inv.voidedAt && "bg-danger-soft/30")}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <Link href={`/invoices/${inv.id}`} className="font-medium text-primary hover:underline">
@@ -143,7 +143,7 @@ export default async function InvoicesPage({
                           {inv.createdBy?.name ? ` · ${inv.createdBy.name}` : ""}
                         </div>
                       </div>
-                      <span className="shrink-0 font-medium">{formatLKR(inv.grandTotal)}</span>
+                      <span className={cn("shrink-0 font-medium", inv.voidedAt && "line-through")}>{formatLKR(inv.grandTotal)}</span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       {ntEnabled && (
@@ -153,6 +153,7 @@ export default async function InvoicesPage({
                       )}
                       <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
                       <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                      {inv.voidedAt && <Badge tone="red">VOIDED · AUDIT ONLY</Badge>}
                       {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
                     </div>
                   </div>
@@ -175,7 +176,7 @@ export default async function InvoicesPage({
                   </THead>
                   <TBody>
                     {invoices.map((inv) => (
-                      <TR key={inv.id}>
+                      <TR key={inv.id} className={inv.voidedAt ? "bg-danger-soft/30" : undefined}>
                         <TD className="font-medium">
                           <Link href={`/invoices/${inv.id}`} className="text-primary hover:underline">
                             <Highlight text={inv.invoiceNumber} query={query} />
@@ -197,10 +198,11 @@ export default async function InvoicesPage({
                         <TD>
                           <span className="flex flex-wrap items-center gap-1">
                             <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                            {inv.voidedAt && <Badge tone="red">VOIDED</Badge>}
                             {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
                           </span>
                         </TD>
-                        <TD className="text-right font-medium">{formatLKR(inv.grandTotal)}</TD>
+                        <TD className={cn("text-right font-medium", inv.voidedAt && "line-through")}>{formatLKR(inv.grandTotal)}</TD>
                       </TR>
                     ))}
                   </TBody>

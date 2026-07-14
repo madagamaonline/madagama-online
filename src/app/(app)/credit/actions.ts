@@ -265,8 +265,12 @@ export async function recordPayment(
         async (tx) => {
           const agreement = await tx.creditAgreement.findUnique({
             where: { id: agreementId },
+            include: { invoice: { select: { voidedAt: true } } },
           });
           if (!agreement) return { notFound: true as const };
+          if (agreement.status === "VOIDED" || agreement.invoice.voidedAt) {
+            return { notFound: false as const, error: "This credit agreement is voided and cannot receive payments." };
+          }
 
           const existingPayments = await tx.payment.findMany({ where: { agreementId } });
           const agreementInput = {
@@ -369,9 +373,12 @@ export async function sendReminderNow(agreementId: string): Promise<ReminderResu
   await requireActionUser();
   const a = await prisma.creditAgreement.findUnique({
     where: { id: agreementId },
-    include: { customer: { select: { name: true, phone: true } }, payments: true, invoice: { select: { invoiceNumber: true } } },
+    include: { customer: { select: { name: true, phone: true } }, payments: true, invoice: { select: { invoiceNumber: true, voidedAt: true } } },
   });
   if (!a) return { ok: false, message: "Agreement not found" };
+  if (a.status === "VOIDED" || a.invoice.voidedAt) {
+    return { ok: false, message: "This credit agreement is voided and cannot receive reminders." };
+  }
 
   const setting = await prisma.setting.findUnique({ where: { id: 1 } });
   const state = computeCreditState(

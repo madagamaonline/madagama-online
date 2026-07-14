@@ -28,7 +28,7 @@ import { computeCreditState } from "@/lib/credit";
 import { Badge } from "@/components/ui/badge";
 import { SalesChart } from "@/components/sales-chart";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
-import { nonTaxableEnabled, invoiceTaxableWhere, productTaxableWhere } from "@/lib/tax-mode";
+import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -47,7 +47,7 @@ export default async function DashboardPage() {
   // the layout) so this awaits with no extra DB round-trip. When off, every sales
   // figure below is filtered to taxable-only.
   const ntEnabled = await nonTaxableEnabled();
-  const taxF = invoiceTaxableWhere(ntEnabled); // {} or { taxCategory: "TAXABLE" }
+  const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled); // {} or { taxable: true }
 
   const [

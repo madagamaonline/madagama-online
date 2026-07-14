@@ -23,6 +23,7 @@ export default async function CustomerDetailPage({
     where: { id },
     include: {
       creditAgreements: {
+        where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } },
         orderBy: { createdAt: "desc" },
         include: { invoice: { select: { invoiceNumber: true } }, payments: true },
       },

@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 
 export default async function CreditPage() {
   const agreements = await prisma.creditAgreement.findMany({
+    where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } },
     orderBy: { createdAt: "desc" },
     include: {
       customer: { select: { name: true, phone: true } },

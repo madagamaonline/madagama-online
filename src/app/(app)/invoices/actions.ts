@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma, type TaxCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireActionUser } from "@/lib/auth";
+import { requireActionAdmin, requireActionUser } from "@/lib/auth";
 import { assertUniqueProductLines } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
@@ -12,6 +12,7 @@ import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -207,4 +208,66 @@ export async function createCashInvoice(
     }
   }
   return { ok: false, error: "Could not generate an invoice number. Please try again." };
+}
+
+export type VoidInvoiceResult = { ok: true } | { ok: false; error: string };
+
+/** Reverse an accidental sale without deleting its accounting history. */
+export async function voidInvoice(input: {
+  invoiceId: string;
+  reason: string;
+}): Promise<VoidInvoiceResult> {
+  const parsed = voidInvoiceSchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid void request." };
+  }
+
+  let admin;
+  try {
+    admin = await requireActionAdmin();
+  } catch {
+    return { ok: false, error: "Only an administrator can void an invoice." };
+  }
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          await applyInvoiceVoid(tx, {
+            invoiceId: parsed.data.invoiceId,
+            reason: parsed.data.reason,
+            adminId: admin.id,
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
+      );
+
+      for (const path of [
+        `/invoices/${parsed.data.invoiceId}`,
+        "/invoices",
+        "/products",
+        "/dashboard",
+        "/reports",
+        "/credit",
+        "/customers",
+        "/reminders",
+        "/shift-report",
+      ]) {
+        revalidatePath(path);
+      }
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof VoidInvoiceError) return { ok: false, error: error.message };
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2034" &&
+        attempt < 2
+      ) {
+        continue;
+      }
+      console.error("voidInvoice failed", error);
+      return { ok: false, error: "Could not void the invoice. Please try again." };
+    }
+  }
+  return { ok: false, error: "The invoice changed at the same time. Please try again." };
 }

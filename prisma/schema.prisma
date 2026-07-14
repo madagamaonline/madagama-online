@@ -32,6 +32,7 @@ model User {
   updatedAt    DateTime @updatedAt
 
   invoicesCreated  Invoice[]         @relation("InvoiceCreatedBy")
+  invoicesVoided   Invoice[]         @relation("InvoiceVoidedBy")
   paymentsRecorded Payment[]         @relation("PaymentRecordedBy")
   stockMovements   StockMovement[]
   salesReturns     SalesReturn[]
@@ -282,6 +283,10 @@ model Invoice {
   createdBy        User?         @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
   createdByUserId  String?
   createdAt        DateTime      @default(now())
+  voidedAt         DateTime?
+  voidReason       String?
+  voidedBy         User?         @relation("InvoiceVoidedBy", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  voidedByUserId   String?
 
   items           InvoiceItem[]
   creditAgreement CreditAgreement?
@@ -294,6 +299,8 @@ model Invoice {
   @@index([status])
   @@index([soldByEmployeeId])
   @@index([createdByUserId])
+  @@index([voidedAt])
+  @@index([voidedByUserId])
 }
 
 model InvoiceItem {
@@ -391,6 +398,7 @@ enum CreditStatus {
   ACTIVE
   SETTLED
   DEFAULTED
+  VOIDED
 }
 
 model CreditAgreement {
@@ -660,6 +668,7 @@ enum StockMovementType {
   OPENING
   PURCHASE
   SALE
+  SALE_VOID // reversal of an accidental sale — stock in
   RETURN // customer return — stock in
   SUPPLIER_RETURN // returned to supplier — stock out
   ADJUSTMENT

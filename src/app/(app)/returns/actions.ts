@@ -50,6 +50,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         const invoice = await tx.invoice.findUnique({
           where: { id: d.invoiceId },
           select: {
+            voidedAt: true,
             items: {
               select: { productId: true, qty: true, unitPrice: true, costSnapshot: true },
             },
@@ -59,6 +60,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           },
         });
         if (!invoice) throw new ReturnValidationError("Invoice not found.");
+        if (invoice.voidedAt) throw new ReturnValidationError("A voided invoice cannot receive returns.");
 
         const remaining = remainingReturnableByProduct(
           invoice.items.map((item) => ({
@@ -93,7 +95,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           where: { invoiceId: d.invoiceId },
           include: { payments: true },
         });
-        const openAgreement = agreement && agreement.status !== "SETTLED" ? agreement : null;
+        const openAgreement = agreement && agreement.status !== "SETTLED" && agreement.status !== "VOIDED" ? agreement : null;
 
         // Capture the cost each returned product was sold at, so profit reports
         // credit the restock back to COGS at the same cost it was charged out at

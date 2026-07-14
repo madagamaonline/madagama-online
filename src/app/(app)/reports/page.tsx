@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { computePayroll } from "@/lib/payroll";
 import { computeCreditState } from "@/lib/credit";
 import { getSettings } from "@/lib/settings";
-import { nonTaxableEnabled, invoiceTaxableWhere, productTaxableWhere } from "@/lib/tax-mode";
+import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
 import { PageHeader } from "@/components/page-header";
 import { PrintButton } from "@/components/print-button";
 import { StatCard } from "@/components/stat-card";
@@ -87,7 +87,7 @@ export default async function ReportsPage({
   // Non-taxable kill-switch — when off, every figure is taxable-only (cached read,
   // no extra round-trip).
   const ntEnabled = await nonTaxableEnabled();
-  const taxF = invoiceTaxableWhere(ntEnabled);
+  const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled);
   const settings = await getSettings(); // cached — for the print letterhead
 

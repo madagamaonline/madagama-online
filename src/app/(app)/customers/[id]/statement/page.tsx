@@ -20,6 +20,7 @@ export default async function CustomerStatementPage({
       where: { id },
       include: {
         creditAgreements: {
+          where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } },
           orderBy: { startDate: "asc" },
           include: { invoice: { select: { invoiceNumber: true } }, payments: { orderBy: { paidDate: "asc" } } },
         },

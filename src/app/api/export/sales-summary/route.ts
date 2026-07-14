@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { toNum, round2 } from "@/lib/utils";
-import { nonTaxableEnabled, invoiceTaxableWhere } from "@/lib/tax-mode";
+import { nonTaxableEnabled, activeInvoiceWhere } from "@/lib/tax-mode";
 import { businessStartOfDay, businessStartOfMonth, businessMonthKey, businessDayKey, addDays } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ export async function GET(req: Request) {
   const rowsEnd = monthEnd > now ? addDays(businessStartOfDay(now), 1) : monthEnd;
 
   const ntEnabled = await nonTaxableEnabled();
-  const taxF = invoiceTaxableWhere(ntEnabled);
+  const taxF = activeInvoiceWhere(ntEnabled);
 
   const [invoices, returns] = await Promise.all([
     prisma.invoice.findMany({

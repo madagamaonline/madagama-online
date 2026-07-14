@@ -100,7 +100,7 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
 
   // --- Customer credit reminders ---
   const agreements = await prisma.creditAgreement.findMany({
-    where: { status: "ACTIVE" },
+    where: { status: "ACTIVE", invoice: { voidedAt: null } },
     include: {
       customer: { select: { name: true, phone: true } },
       payments: true,

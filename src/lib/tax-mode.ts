@@ -34,3 +34,9 @@ export function productTaxableWhere(enabled: boolean): Prisma.ProductWhereInput 
 export function invoiceTaxableWhere(enabled: boolean): Prisma.InvoiceWhereInput {
   return enabled ? {} : { taxCategory: "TAXABLE" };
 }
+
+/** Financial/operational reads must ignore voided invoices. Audit reads should
+ * deliberately use invoiceTaxableWhere instead so voids remain discoverable. */
+export function activeInvoiceWhere(enabled: boolean): Prisma.InvoiceWhereInput {
+  return { ...invoiceTaxableWhere(enabled), voidedAt: null };
+}

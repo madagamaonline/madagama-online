@@ -31,7 +31,7 @@ export default async function CustomersPage({
   const customers = await prisma.customer.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { creditAgreements: true } } },
+    include: { _count: { select: { creditAgreements: { where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } } } } } },
     take: 200,
   });
 

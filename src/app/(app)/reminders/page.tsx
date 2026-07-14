@@ -29,7 +29,7 @@ export default async function RemindersPage() {
 
   const [agreements, purchases] = await Promise.all([
     prisma.creditAgreement.findMany({
-      where: { status: "ACTIVE" },
+      where: { status: "ACTIVE", invoice: { voidedAt: null } },
       include: {
         customer: { select: { name: true, phone: true } },
         invoice: { select: { invoiceNumber: true } },

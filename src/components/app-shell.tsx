@@ -27,6 +27,7 @@ import {
   Bell,
   Search,
   FileText,
+  MessageSquareText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -55,6 +56,7 @@ const NAV: NavGroup[] = [
       { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },
       { href: "/services", label: "Service Jobs", icon: Wrench },
+      { href: "/requests", label: "Customer Requests", icon: MessageSquareText },
       { href: "/customers", label: "Customers", icon: Users },
       { href: "/credit", label: "Credit", icon: CreditCard },
     ],

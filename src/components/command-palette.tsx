@@ -27,6 +27,7 @@ import {
   CornerDownLeft,
   Loader2,
   FileText,
+  MessageSquareText,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const ACTIONS: Cmd[] = [
   { id: "a-quote", group: "Actions", label: "New Quotation", sub: "Prepare a price quote", icon: FileText, href: "/quotations/new" },
   { id: "a-product", group: "Actions", label: "New Product", sub: "Add a stock item", icon: PackagePlus, href: "/products/new" },
   { id: "a-customer", group: "Actions", label: "New Customer", sub: "Add a customer", icon: UserPlus, href: "/customers/new" },
+  { id: "a-request", group: "Actions", label: "New Customer Request", sub: "Record a product inquiry or import request", icon: MessageSquareText, href: "/requests/new" },
   { id: "a-purchase", group: "Actions", label: "New Purchase", sub: "Record a supplier purchase", icon: Truck, href: "/purchases/new" },
   { id: "a-expense", group: "Actions", label: "Add Expense", sub: "Record an expense", icon: Receipt, href: "/expenses" },
 ];
@@ -49,6 +51,7 @@ const PAGES: Cmd[] = [
   { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
   { id: "p-ret", group: "Go to", label: "Returns", icon: Undo2, href: "/returns" },
   { id: "p-svc", group: "Go to", label: "Service Jobs", icon: Wrench, href: "/services" },
+  { id: "p-req", group: "Go to", label: "Customer Requests", icon: MessageSquareText, href: "/requests" },
   { id: "p-cust", group: "Go to", label: "Customers", icon: Users, href: "/customers" },
   { id: "p-cred", group: "Go to", label: "Credit", icon: CreditCard, href: "/credit" },
   { id: "p-prod", group: "Go to", label: "Products", icon: Package, href: "/products" },

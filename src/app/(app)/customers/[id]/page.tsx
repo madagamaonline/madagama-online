@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Phone, MapPin, CreditCard, FileText } from "lucide-react";
+import { Pencil, Phone, MapPin, CreditCard, FileText, MessageSquarePlus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { computeCreditState } from "@/lib/credit";
 import { formatLKR, toNum } from "@/lib/utils";
+import { requestNumber, requestStatusLabel, requestStatusTone } from "@/lib/customer-requests";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ export default async function CustomerDetailPage({
         where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } },
         orderBy: { createdAt: "desc" },
         include: { invoice: { select: { invoiceNumber: true } }, payments: true },
+      },
+      customerRequests: {
+        orderBy: { createdAt: "desc" },
+        take: 20,
+        include: { assignedTo: { select: { name: true } } },
       },
     },
   });
@@ -59,6 +65,11 @@ export default async function CustomerDetailPage({
         subtitle="Customer details"
         action={
           <div className="flex gap-2">
+            <Link href={`/requests/new?customerId=${customer.id}`}>
+              <Button>
+                <MessageSquarePlus className="h-4 w-4" /> New Request
+              </Button>
+            </Link>
             <Link href={`/customers/${customer.id}/statement`}>
               <Button variant="outline">
                 <FileText className="h-4 w-4" /> Statement
@@ -204,6 +215,30 @@ export default async function CustomerDetailPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle>Product requests and inquiries</CardTitle>
+          <Link href={`/requests/new?customerId=${customer.id}`} className="text-xs font-medium text-primary hover:underline">+ Add request</Link>
+        </CardHeader>
+        <CardContent className="p-0">
+          {customer.customerRequests.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-muted">No requests recorded for this customer.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {customer.customerRequests.map((request) => (
+                <Link key={request.id} href={`/requests/${request.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-border-subtle/50">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{request.title}</p>
+                    <p className="mt-0.5 text-xs text-muted">{requestNumber(request.requestNumber)} · Qty {request.quantity} · {request.assignedTo.name}</p>
+                  </div>
+                  <Badge tone={requestStatusTone(request.status)}>{requestStatusLabel(request.status)}</Badge>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

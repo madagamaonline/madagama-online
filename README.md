@@ -13,7 +13,8 @@ JWT cookie auth (jose) · text.lk SMS · recharts.
 - **Cash sales** — fast POS billing, VAT-inclusive 18% (configurable), printable tax invoices, auto stock decrement.
 - **Credit sales** — guarantor + NIC uploads, 4-month interest-free then 2%/month on the remaining balance (non-compounding), flexible payments, live balances, overdue tracking.
 - **Suppliers & purchases** — stock-in (GRN), supplier credit with due dates and payments.
-- **SMS reminders** — text.lk, sent by a daily Vercel cron (customer dues + interest warnings, supplier credit alerts).
+- **Customer requests** — track product/import inquiries from first note through searching, ordering, arrival, customer contact, and completion.
+- **SMS reminders** — text.lk, sent by a daily Vercel cron (request follow-ups, customer dues + interest warnings, supplier credit alerts).
 - **Payroll** — daily attendance, ad-hoc commissions, monthly salary sheets.
 - **Finance** — expenses, profit report, daily/monthly sales-trend charts.
 - **Settings** — business details, VAT %, interest rate & grace period, SMS config.

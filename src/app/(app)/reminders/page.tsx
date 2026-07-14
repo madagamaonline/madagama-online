@@ -1,14 +1,18 @@
 import Link from "next/link";
+import { Plus } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { SendReminderButton } from "@/components/send-reminder-button";
 import { computeCreditState } from "@/lib/credit";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
+import { ACTIVE_REQUEST_STATUSES, requestNumber, requestStatusLabel, requestStatusTone } from "@/lib/customer-requests";
+import { businessStartOfDay } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +31,7 @@ function badgeTone(u: Urgency): "red" | "amber" | "gray" {
 export default async function RemindersPage() {
   const now = new Date();
 
-  const [agreements, purchases] = await Promise.all([
+  const [agreements, purchases, customerRequests] = await Promise.all([
     prisma.creditAgreement.findMany({
       where: { status: "ACTIVE", invoice: { voidedAt: null } },
       include: {
@@ -42,7 +46,23 @@ export default async function RemindersPage() {
       include: { supplier: { select: { id: true, name: true } } },
       take: 500,
     }),
+    prisma.customerRequest.findMany({
+      where: { status: { in: ACTIVE_REQUEST_STATUSES }, followUpAt: { not: null } },
+      include: {
+        customer: { select: { name: true } },
+        assignedTo: { select: { name: true } },
+      },
+      orderBy: [{ followUpAt: "asc" }, { priority: "desc" }],
+      take: 100,
+    }),
   ]);
+
+  const requestRows = customerRequests
+    .map((request) => ({
+      ...request,
+      days: Math.round((request.followUpAt!.getTime() - businessStartOfDay(now).getTime()) / 86_400_000),
+    }))
+    .filter((request) => request.days <= 7);
 
   // ---- Receivables (customers owe you) ----
   type CustRow = {
@@ -126,7 +146,38 @@ export default async function RemindersPage() {
 
   return (
     <div>
-      <PageHeader title="Reminders" subtitle="Money to collect and bills to pay — by urgency" />
+      <PageHeader
+        title="Reminders"
+        subtitle="Customer follow-ups, money to collect, and bills to pay"
+        action={<Link href="/requests/new"><Button><Plus className="h-4 w-4" /> New request</Button></Link>}
+      />
+
+      <Card className="mb-4">
+        <CardHeader className="flex items-center justify-between gap-3">
+          <CardTitle>Customer requests to follow up</CardTitle>
+          <Link href="/requests" className="text-xs font-medium text-primary hover:underline">View all requests</Link>
+        </CardHeader>
+        <CardContent className="p-0">
+          {requestRows.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-muted">No customer-request reminders due in the next 7 days.</div>
+          ) : (
+            <div className="divide-y divide-border">
+              {requestRows.map((request) => (
+                <Link key={request.id} href={`/requests/${request.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-border-subtle/50">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{request.title}</p>
+                    <p className="mt-0.5 text-xs text-muted">{requestNumber(request.requestNumber)} · {request.customer?.name ?? request.contactName ?? request.contactPhone ?? "Walk-in"} · {request.assignedTo.name}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                    <Badge tone={request.days < 0 ? "red" : "amber"}>{dueLabel(request.days)}</Badge>
+                    <Badge tone={requestStatusTone(request.status)}>{requestStatusLabel(request.status)}</Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Collect — overdue" value={formatLKR(recvOverdue)} tone={recvOverdue ? "red" : "default"} />

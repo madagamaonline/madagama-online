@@ -5,6 +5,8 @@ import { prisma } from "./prisma";
 import { computeCreditState } from "./credit";
 import { sendSms, type SmsResult } from "./sms";
 import { toNum, formatLKR } from "./utils";
+import { ACTIVE_REQUEST_STATUSES, requestNumber } from "./customer-requests";
+import { businessDayKey } from "./dates";
 
 /** Run `tasks` with at most `size` in flight at once (keeps the cron under the
  *  serverless time limit without a p-limit dependency). */
@@ -51,6 +53,7 @@ export type ReminderSummary = {
   failed: number;
   customers: number;
   suppliers: number;
+  requests: number;
 };
 
 export async function runReminders(now: Date = new Date()): Promise<ReminderSummary> {
@@ -97,6 +100,33 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
     seenKeys.add(t.dedupeKey); // guard against duplicate keys within this run
     tasks.push(t);
   };
+
+  // --- Internal customer-request follow-ups ---
+  // These go to the configured shop/admin phone, not to the customer. A request
+  // remains visible in-app regardless of whether SMS is enabled or configured.
+  const customerRequests = adminPhone
+    ? await prisma.customerRequest.findMany({
+        where: {
+          status: { in: ACTIVE_REQUEST_STATUSES },
+          remindBySms: true,
+          followUpAt: { lte: now },
+        },
+        include: {
+          customer: { select: { name: true } },
+          assignedTo: { select: { name: true } },
+        },
+      })
+    : [];
+  for (const request of customerRequests) {
+    const customer = request.customer?.name ?? request.contactName ?? request.contactPhone ?? "walk-in customer";
+    queue({
+      type: "CUSTOMER_REQUEST",
+      refId: request.id,
+      dedupeKey: `customer-request:${request.id}:${businessDayKey(request.followUpAt!)}`,
+      recipient: adminPhone!,
+      message: `${business} reminder: ${requestNumber(request.requestNumber)} ${request.title} for ${customer}. Assigned to ${request.assignedTo.name}.`,
+    });
+  }
 
   // --- Customer credit reminders ---
   const agreements = await prisma.creditAgreement.findMany({
@@ -179,5 +209,12 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
     else failed++;
   });
 
-  return { sent, skipped, failed, customers: agreements.length, suppliers: adminPhone ? 1 : 0 };
+  return {
+    sent,
+    skipped,
+    failed,
+    customers: agreements.length,
+    suppliers: adminPhone ? 1 : 0,
+    requests: customerRequests.length,
+  };
 }

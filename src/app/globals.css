@@ -107,8 +107,7 @@ input[type="number"] {
 @page thermal {
   /* The roll height comes from the XP-Q80B driver. Its 80mm paper has a
      72mm printable area, which is enforced on .print-thermal above. The
-     Print button replaces this fallback height with the receipt's measured
-     height before opening the dialog. */
+     Print button uses an isolated document with the receipt's exact height. */
   size: 80mm 120mm;
   margin: 4mm;
 }

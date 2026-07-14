@@ -7,40 +7,116 @@ import { cn } from "@/lib/utils";
 
 type Mode = "a4" | "thermal";
 
-const THERMAL_PAGE_STYLE_ID = "thermal-print-page-size";
-
-function prepareThermalPage() {
+async function printThermalReceipt() {
   const receipt = document.querySelector<HTMLElement>(".print-thermal");
-  if (!receipt) return;
+  if (!receipt) throw new Error("Thermal receipt was not found.");
 
-  // Measure a hidden copy at the XP-Q80B's real printable width. The extra
-  // 8mm accounts for the 4mm top and bottom page margins.
-  const copy = receipt.cloneNode(true) as HTMLElement;
-  Object.assign(copy.style, {
-    display: "block",
+  // Print from an isolated document so the hidden application shell cannot
+  // create blank A4 pages around the receipt.
+  const frame = document.createElement("iframe");
+  frame.title = "Thermal receipt print";
+  frame.setAttribute("aria-hidden", "true");
+  Object.assign(frame.style, {
     position: "fixed",
-    left: "-10000px",
-    top: "0",
+    right: "0",
+    bottom: "0",
+    width: "0",
+    height: "0",
+    border: "0",
+  });
+  document.body.appendChild(frame);
+
+  const printWindow = frame.contentWindow;
+  const printDocument = frame.contentDocument;
+  if (!printWindow || !printDocument) {
+    frame.remove();
+    throw new Error("Could not create the thermal print document.");
+  }
+
+  printDocument.open();
+  printDocument.write("<!doctype html><html><head></head><body></body></html>");
+  printDocument.close();
+
+  const base = printDocument.createElement("base");
+  base.href = window.location.origin;
+  printDocument.head.appendChild(base);
+
+  const stylesheetLoads: Promise<void>[] = [];
+  document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((source) => {
+    const link = source.cloneNode(true) as HTMLLinkElement;
+    stylesheetLoads.push(new Promise((resolve) => {
+      link.addEventListener("load", () => resolve(), { once: true });
+      link.addEventListener("error", () => resolve(), { once: true });
+    }));
+    printDocument.head.appendChild(link);
+  });
+  document.querySelectorAll<HTMLStyleElement>("style").forEach((source) => {
+    printDocument.head.appendChild(source.cloneNode(true));
+  });
+
+  printDocument.body.appendChild(receipt.cloneNode(true));
+
+  // Do not wait indefinitely if a stylesheet is served from cache without a
+  // load event. The receipt-specific rules below still provide safe sizing.
+  await Promise.race([
+    Promise.all(stylesheetLoads),
+    new Promise<void>((resolve) => window.setTimeout(resolve, 1500)),
+  ]);
+  await printDocument.fonts?.ready;
+
+  const isolatedStyle = printDocument.createElement("style");
+  isolatedStyle.textContent = `
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 80mm !important;
+      min-height: 0 !important;
+      background: white !important;
+    }
+    .print-thermal {
+      display: block !important;
+      position: static !important;
+      page: auto !important;
+      box-sizing: border-box !important;
+      width: 72mm !important;
+      max-width: 72mm !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      visibility: visible !important;
+    }
+    .print-thermal * {
+      visibility: visible !important;
+    }
+  `;
+  printDocument.head.appendChild(isolatedStyle);
+
+  const isolatedReceipt = printDocument.querySelector<HTMLElement>(".print-thermal");
+  if (!isolatedReceipt) {
+    frame.remove();
+    throw new Error("Could not prepare the thermal receipt.");
+  }
+  Object.assign(isolatedReceipt.style, {
     width: "72mm",
     maxWidth: "72mm",
     height: "auto",
     margin: "0",
     padding: "0",
-    visibility: "hidden",
   });
-  document.body.appendChild(copy);
 
-  const contentHeightMm = Math.ceil(copy.scrollHeight * 25.4 / 96);
-  copy.remove();
-
+  const contentHeightMm = Math.ceil(isolatedReceipt.scrollHeight * 25.4 / 96);
   const pageHeightMm = Math.max(60, contentHeightMm + 8);
-  let style = document.getElementById(THERMAL_PAGE_STYLE_ID) as HTMLStyleElement | null;
-  if (!style) {
-    style = document.createElement("style");
-    style.id = THERMAL_PAGE_STYLE_ID;
-    document.head.appendChild(style);
-  }
-  style.textContent = `@page thermal { size: 80mm ${pageHeightMm}mm; margin: 4mm; }`;
+  isolatedStyle.textContent += `
+    @page {
+      size: 80mm ${pageHeightMm}mm;
+      margin: 4mm;
+    }
+  `;
+
+  const cleanup = () => frame.remove();
+  printWindow.addEventListener("afterprint", cleanup, { once: true });
+  window.setTimeout(cleanup, 300_000);
+  printWindow.focus();
+  printWindow.print();
 }
 
 /**
@@ -58,17 +134,18 @@ export function InvoicePrintControls() {
     document.documentElement.dataset.printMode = mode;
     return () => {
       delete document.documentElement.dataset.printMode;
-      document.getElementById(THERMAL_PAGE_STYLE_ID)?.remove();
     };
   }, [mode]);
 
   function printInvoice() {
     if (mode === "thermal") {
-      prepareThermalPage();
+      void printThermalReceipt().catch((error: unknown) => {
+        console.error(error);
+        window.alert("Could not prepare the 80mm receipt. Please try again.");
+      });
     } else {
-      document.getElementById(THERMAL_PAGE_STYLE_ID)?.remove();
+      window.print();
     }
-    window.print();
   }
 
   const options: { value: Mode; label: string }[] = [

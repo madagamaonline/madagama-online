@@ -7,6 +7,42 @@ import { cn } from "@/lib/utils";
 
 type Mode = "a4" | "thermal";
 
+const THERMAL_PAGE_STYLE_ID = "thermal-print-page-size";
+
+function prepareThermalPage() {
+  const receipt = document.querySelector<HTMLElement>(".print-thermal");
+  if (!receipt) return;
+
+  // Measure a hidden copy at the XP-Q80B's real printable width. The extra
+  // 8mm accounts for the 4mm top and bottom page margins.
+  const copy = receipt.cloneNode(true) as HTMLElement;
+  Object.assign(copy.style, {
+    display: "block",
+    position: "fixed",
+    left: "-10000px",
+    top: "0",
+    width: "72mm",
+    maxWidth: "72mm",
+    height: "auto",
+    margin: "0",
+    padding: "0",
+    visibility: "hidden",
+  });
+  document.body.appendChild(copy);
+
+  const contentHeightMm = Math.ceil(copy.scrollHeight * 25.4 / 96);
+  copy.remove();
+
+  const pageHeightMm = Math.max(60, contentHeightMm + 8);
+  let style = document.getElementById(THERMAL_PAGE_STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement("style");
+    style.id = THERMAL_PAGE_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  style.textContent = `@page thermal { size: 80mm ${pageHeightMm}mm; margin: 4mm; }`;
+}
+
 /**
  * Print controls for the invoice view. Lets the user pick a paper layout
  * (A4 or 80mm thermal receipt) before printing. The choice is reflected as
@@ -22,8 +58,18 @@ export function InvoicePrintControls() {
     document.documentElement.dataset.printMode = mode;
     return () => {
       delete document.documentElement.dataset.printMode;
+      document.getElementById(THERMAL_PAGE_STYLE_ID)?.remove();
     };
   }, [mode]);
+
+  function printInvoice() {
+    if (mode === "thermal") {
+      prepareThermalPage();
+    } else {
+      document.getElementById(THERMAL_PAGE_STYLE_ID)?.remove();
+    }
+    window.print();
+  }
 
   const options: { value: Mode; label: string }[] = [
     { value: "a4", label: "A4" },
@@ -51,7 +97,7 @@ export function InvoicePrintControls() {
           </button>
         ))}
       </div>
-      <Button variant="outline" onClick={() => window.print()}>
+      <Button variant="outline" onClick={printInvoice}>
         <Printer className="h-4 w-4" /> Print Invoice
       </Button>
     </div>

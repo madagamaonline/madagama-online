@@ -106,8 +106,10 @@ input[type="number"] {
    Other .print-area pages never set data-print-mode, so they stay on A4. */
 @page thermal {
   /* The roll height comes from the XP-Q80B driver. Its 80mm paper has a
-     72mm printable area, which is enforced on .print-thermal above. */
-  size: auto;
+     72mm printable area, which is enforced on .print-thermal above. The
+     Print button replaces this fallback height with the receipt's measured
+     height before opening the dialog. */
+  size: 80mm 120mm;
   margin: 4mm;
 }
 .print-thermal {

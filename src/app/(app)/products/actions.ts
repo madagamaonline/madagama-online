@@ -4,14 +4,33 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { getSession, requireActionUser } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
 import { logPriceChange } from "@/lib/price-change";
 import { nextProductCode } from "@/lib/product-code";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { toNum } from "@/lib/utils";
+import { validateQuickProduct } from "@/lib/quick-product";
 
 export type ProductFormState = { error?: string };
+
+export type QuickCreateProductInput = {
+  name: string;
+  categoryId: string;
+  subcategoryId?: string;
+  sellingPrice: number;
+  taxable: boolean;
+  modelNumber?: string;
+  barcode?: string;
+  primarySupplierId?: string;
+};
+
+export type QuickCreateProductResult =
+  | {
+      ok: true;
+      product: { id: string; code: string; name: string; costPrice: number; stock: number };
+    }
+  | { ok: false; error: string };
 
 /** Defense in depth: every product mutation needs a real signed-in user. */
 async function requireSessionState(): Promise<{ error: string } | null> {
@@ -70,6 +89,72 @@ function parse(formData: FormData) {
     primarySupplierId: formData.get("primarySupplierId") || undefined,
     description: formData.get("description") || undefined,
   });
+}
+
+/** Creates the minimum catalog record needed while receiving a purchase. */
+export async function quickCreateProduct(
+  input: QuickCreateProductInput,
+): Promise<QuickCreateProductResult> {
+  try {
+    await requireActionUser();
+    const parsed = validateQuickProduct(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid product details" };
+    }
+    const d = parsed.data;
+    const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
+    if ("error" in resolved) return { ok: false, error: resolved.error };
+
+    if (d.primarySupplierId) {
+      const supplier = await prisma.supplier.findUnique({
+        where: { id: d.primarySupplierId },
+        select: { id: true },
+      });
+      if (!supplier) return { ok: false, error: "The selected supplier is no longer available." };
+    }
+
+    // The global switch is authoritative: callers cannot create a hidden
+    // non-taxable product by sending a crafted action request.
+    const taxable = (await nonTaxableEnabled()) ? d.taxable : true;
+    const product = await prisma.$transaction(
+      async (tx) => {
+        const code = await nextProductCode(tx, resolved.categoryId, resolved.subcategoryId);
+        return tx.product.create({
+          data: {
+            code,
+            name: d.name,
+            categoryId: resolved.categoryId,
+            subcategoryId: resolved.subcategoryId,
+            costPrice: 0,
+            sellingPrice: d.sellingPrice,
+            quantityInStock: 0,
+            reorderLevel: 0,
+            taxable,
+            barcode: d.barcode?.trim() || null,
+            modelNumber: d.modelNumber?.trim() || null,
+            primarySupplierId: d.primarySupplierId || null,
+          },
+          select: { id: true, code: true, name: true, costPrice: true, quantityInStock: true },
+        });
+      },
+      { timeout: 15000 },
+    );
+
+    revalidatePath("/products");
+    return {
+      ok: true,
+      product: {
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        costPrice: toNum(product.costPrice),
+        stock: product.quantityInStock,
+      },
+    };
+  } catch (error) {
+    console.error("quickCreateProduct failed", error);
+    return { ok: false, error: "Could not create the product. Please try again." };
+  }
 }
 
 export async function createProduct(

@@ -11,6 +11,7 @@ import { formatLKR } from "@/lib/utils";
 
 type Denominations = {
   n5000: number;
+  n2000: number;
   n1000: number;
   n500: number;
   n100: number;
@@ -28,6 +29,7 @@ export function ShiftReportForm({
 }) {
   const [counts, setCounts] = useState<Denominations>({
     n5000: 0,
+    n2000: 0,
     n1000: 0,
     n500: 0,
     n100: 0,
@@ -46,6 +48,7 @@ export function ShiftReportForm({
 
   const actualCash =
     counts.n5000 * 5000 +
+    counts.n2000 * 2000 +
     counts.n1000 * 1000 +
     counts.n500 * 500 +
     counts.n100 * 100 +
@@ -161,6 +164,22 @@ export function ShiftReportForm({
                   />
                   <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
                     = {formatLKR(counts.n5000 * 5000)}
+                  </span>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="n2000">Rs. 2,000 Note count</Label>
+                <div className="relative mt-1 flex items-center">
+                  <NumberInput
+                    id="n2000"
+                    allowDecimal={false}
+                    placeholder="0"
+                    value={counts.n2000 || ""}
+                    onValueChange={(c) => handleCountChange("n2000", c)}
+                  />
+                  <span className="absolute right-3 text-[11px] font-bold text-muted pointer-events-none">
+                    = {formatLKR(counts.n2000 * 2000)}
                   </span>
                 </div>
               </div>

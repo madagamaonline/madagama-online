@@ -177,9 +177,9 @@ export default async function InvoiceViewPage({
       </div>
 
       {/* 80mm thermal receipt layout (hidden unless "80mm" is selected) */}
-      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-mono text-[11px] leading-tight text-black shadow-sm">
+      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[11px] font-normal leading-tight text-black shadow-sm">
         <div className="text-center">
-          <p className="text-sm font-bold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
+          <p className="text-sm font-semibold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
           {setting?.address && <p>{setting.address}</p>}
           {setting?.phone && <p>Tel: {setting.phone}</p>}
         </div>
@@ -188,7 +188,7 @@ export default async function InvoiceViewPage({
 
         <div className="flex justify-between">
           <span>INVOICE</span>
-          <span className="font-semibold">{invoice.invoiceNumber}</span>
+          <span className="font-medium">{invoice.invoiceNumber}</span>
         </div>
         <div className="flex justify-between">
           <span>{formatDateTime(invoice.createdAt)}</span>
@@ -226,7 +226,7 @@ export default async function InvoiceViewPage({
             <span>− {formatLKR(invoice.discount)}</span>
           </div>
         )}
-        <div className="mt-1 flex justify-between border-t border-black pt-1 text-xs font-bold">
+        <div className="mt-1 flex justify-between border-t border-black pt-1 text-xs font-semibold">
           <span>TOTAL</span>
           <span>{formatLKR(invoice.grandTotal)}</span>
         </div>

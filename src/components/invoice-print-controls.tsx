@@ -78,6 +78,10 @@ async function printThermalReceipt() {
       position: static !important;
       page: auto !important;
       box-sizing: border-box !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+      font-weight: 400 !important;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
       width: 72mm !important;
       max-width: 72mm !important;
       margin: 0 auto !important;

@@ -91,17 +91,24 @@ input[type="number"] {
   .no-print {
     display: none !important;
   }
-  /* When thermal is selected, its named page governs paper size/margins. */
+  /* When thermal is selected, use its receipt-specific page margins/layout. */
   [data-print-mode="thermal"] .print-thermal {
     page: thermal;
+    position: static;
+    width: 72mm !important;
+    max-width: 72mm;
+    margin: 0 auto !important;
+    padding: 0 !important;
   }
 }
 
 /* 80mm thermal receipt — only rendered on the invoice page when selected.
    Other .print-area pages never set data-print-mode, so they stay on A4. */
 @page thermal {
-  size: 72mm auto;
-  margin: 3mm 2mm;
+  /* The roll height comes from the XP-Q80B driver. Its 80mm paper has a
+     72mm printable area, which is enforced on .print-thermal above. */
+  size: auto;
+  margin: 4mm;
 }
 .print-thermal {
   display: none;

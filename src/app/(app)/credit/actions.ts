@@ -362,7 +362,7 @@ export async function recordPayment(
               data: { status: "SETTLED" },
             });
           }
-          return { notFound: false as const, error: null };
+          return { notFound: false as const, error: null, invoiceId: agreement.invoiceId };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
       );
@@ -371,6 +371,7 @@ export async function recordPayment(
       if (result.error) return { error: result.error };
 
       revalidatePath(`/credit/${agreementId}`);
+      if ("invoiceId" in result) revalidatePath(`/invoices/${result.invoiceId}`);
       revalidatePath("/credit");
       revalidatePath("/credit-invoices");
       revalidatePath("/dashboard");

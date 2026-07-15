@@ -46,6 +46,17 @@ body {
   height: 100%;
 }
 
+/* A credit statement is a literal paper preview, not an application surface.
+   Keep it stable across both application themes before print is invoked. */
+.credit-print-a4 {
+  --color-border: #cbd5e1;
+  --color-muted: #475569;
+  --color-surface: #ffffff;
+  background: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);
@@ -73,6 +84,34 @@ input[type="number"] {
   margin: 14mm;
 }
 @media print {
+  html,
+  body,
+  .a4-preview-viewport {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #111111 !important;
+  }
+  /* Chromium can paint the application shell behind an absolutely-positioned
+     print area. Reset the complete ancestor chain for an A4 credit document so
+     dark-mode surfaces cannot appear around the physical paper. */
+  html[data-print-mode="a4"],
+  html[data-print-mode="a4"] body,
+  html[data-print-mode="a4"] body > div,
+  body:has(.credit-print-a4),
+  body:has(.credit-print-a4) > div,
+  body:has(.credit-print-a4) main,
+  body:has(.credit-print-a4) main > div,
+  body:has(.credit-print-a4) .bg-background {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+  }
+  .a4-preview-viewport {
+    overflow: visible !important;
+    padding: 0 !important;
+  }
   body * {
     visibility: hidden;
   }
@@ -88,8 +127,83 @@ input[type="number"] {
     border: none !important;
     box-shadow: none !important;
   }
+  /* A4 invoices are paper documents, independent of the application's active
+     light/dark theme and the printer's background-graphics preference. */
+  .print-a4 {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #111111 !important;
+    color-scheme: light !important;
+    -webkit-print-color-adjust: economy;
+    print-color-adjust: economy;
+    border-radius: 0 !important;
+  }
+  .print-a4 * {
+    border-color: #777777 !important;
+  }
+  .print-a4 p,
+  .print-a4 span,
+  .print-a4 td,
+  .print-a4 th,
+  .print-a4 h1,
+  .print-a4 h2,
+  .print-a4 h3,
+  .print-a4 div {
+    color: #111111 !important;
+  }
+  .print-a4 .credit-statement,
+  .print-a4 .credit-summary,
+  .print-a4 .credit-print-tint {
+    background: #ffffff !important;
+  }
+  .print-a4 .credit-statement {
+    margin-top: 10px !important;
+    padding: 9px !important;
+  }
+  .print-a4 .credit-statement .mt-6 {
+    margin-top: 10px !important;
+  }
+  .credit-print-a4 .invoice-print-header {
+    padding-bottom: 12px !important;
+  }
+  .credit-print-a4 .invoice-bill-to {
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+  .credit-print-a4 .invoice-items th,
+  .credit-print-a4 .invoice-items td {
+    padding-top: 6px !important;
+    padding-bottom: 6px !important;
+  }
+  .credit-print-a4 .invoice-totals {
+    margin-top: 12px !important;
+  }
+  .credit-print-a4 .invoice-notes {
+    margin-top: 10px !important;
+    padding-top: 7px !important;
+  }
+  .credit-print-a4 .invoice-footer {
+    /* The thermal receipt keeps its own thank-you line. On a credit A4 the
+       statement itself is the closing artifact; hiding this decorative line
+       prevents it from ever orphaning onto a second sheet. */
+    display: none !important;
+  }
   .no-print {
     display: none !important;
+  }
+  .avoid-print-break,
+  .credit-payment-history tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .credit-payment-history thead {
+    display: table-header-group;
+  }
+  .credit-payment-history tfoot {
+    display: table-footer-group;
   }
   /* When thermal is selected, use its receipt-specific page margins/layout. */
   [data-print-mode="thermal"] .print-thermal {

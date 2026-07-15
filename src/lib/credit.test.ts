@@ -114,7 +114,7 @@ describe("buildCreditPaymentLedger", () => {
   });
 
   it("does not let a later payment alter an earlier historical balance", () => {
-    const payments = [pay(1, 10000), pay(6, 40800)];
+    const payments = [pay(1, 10000), pay(6, 41600)];
     const ledger = buildCreditPaymentLedger(agreement, payments);
 
     expect(ledger[0]?.balanceAfter).toBe(40000);

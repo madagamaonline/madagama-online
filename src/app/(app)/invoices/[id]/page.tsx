@@ -156,16 +156,16 @@ export default async function InvoiceViewPage({
         {/* Header */}
         <div className="invoice-print-header flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
           <div>
-            <h1 className="text-[22px] font-bold">{setting?.businessName ?? "Madagama Pvt Ltd"}</h1>
-            {setting?.address && <p className="text-[15px] text-muted">{setting.address}</p>}
-            {setting?.phone && <p className="text-[15px] text-muted">Tel: {setting.phone}</p>}
+            <h1 className="text-[26px] font-bold leading-tight">{setting?.businessName ?? "Madagama Pvt Ltd"}</h1>
+            {setting?.address && <p className="text-[16.5px] leading-snug text-muted">{setting.address}</p>}
+            {setting?.phone && <p className="text-[16.5px] leading-snug text-muted">Tel: {setting.phone}</p>}
           </div>
           <div className="text-right">
-            <h2 className="max-w-[280px] text-xl font-semibold">
+            <h2 className="max-w-[300px] text-[23px] font-semibold leading-tight">
               {creditAgreement ? "CREDIT INVOICE / ACCOUNT STATEMENT" : "INVOICE"}
             </h2>
-            <p className="text-[15px] font-medium">{invoice.invoiceNumber}</p>
-            <p className="text-[15px] text-muted">{formatDateTime(invoice.createdAt)}</p>
+            <p className="text-[16.5px] font-medium leading-snug">{invoice.invoiceNumber}</p>
+            <p className="text-[16.5px] leading-snug text-muted">{formatDateTime(invoice.createdAt)}</p>
             <div className="mt-1 flex justify-end gap-2">
               {ntEnabled && (
                 <span className="no-print">
@@ -186,7 +186,7 @@ export default async function InvoiceViewPage({
         </div>
 
         {/* Bill to */}
-        <div className="invoice-bill-to flex flex-wrap justify-between gap-4 py-6 text-[15px]">
+        <div className="invoice-bill-to flex flex-wrap justify-between gap-4 py-6 text-[16.5px] leading-snug">
           <div>
             <p className="mb-1 font-medium text-muted">Bill To</p>
             <p className="font-medium">{invoice.customer?.name ?? "Walk-in Customer"}</p>
@@ -202,7 +202,7 @@ export default async function InvoiceViewPage({
         </div>
 
         {/* Items */}
-        <table className="invoice-items w-full text-[15px]">
+        <table className="invoice-items w-full text-[16.5px] leading-snug">
           <thead>
             <tr className="border-y border-border text-left text-muted">
               <th className="py-2 pr-2 font-medium">Code</th>
@@ -215,11 +215,11 @@ export default async function InvoiceViewPage({
           <tbody>
             {invoice.items.map((it) => (
               <tr key={it.id} className="border-b border-border">
-                <td className="py-2 pr-2 font-mono text-[13px]">{it.codeSnapshot}</td>
+                <td className="py-2 pr-2 font-mono text-[14px]">{it.codeSnapshot}</td>
                 <td className="py-2 pr-2">
                   <div>{it.nameSnapshot}</div>
                   {it.product?.modelNumber && (
-                    <div className="text-[13px] text-muted">Model: {it.product.modelNumber}</div>
+                    <div className="text-[14px] text-muted">Model: {it.product.modelNumber}</div>
                   )}
                 </td>
                 <td className="px-2 text-right">{it.qty}</td>
@@ -232,7 +232,7 @@ export default async function InvoiceViewPage({
 
         {/* Totals */}
         <div className="invoice-totals mt-6 flex justify-end">
-          <div className="w-64 space-y-1.5 text-[15px]">
+          <div className="w-72 space-y-1.5 text-[16.5px] leading-snug">
             <div className="flex justify-between">
               <span className="text-muted">Subtotal</span>
               <span>{formatLKR(invoice.subtotal)}</span>
@@ -243,7 +243,7 @@ export default async function InvoiceViewPage({
                 <span>− {formatLKR(invoice.discount)}</span>
               </div>
             )}
-            <div className="flex justify-between border-t border-border pt-2 text-lg font-semibold">
+            <div className="flex justify-between border-t border-border pt-2 text-[19px] font-semibold">
               <span>Total</span>
               <span>{formatLKR(invoice.grandTotal)}</span>
             </div>
@@ -251,14 +251,14 @@ export default async function InvoiceViewPage({
         </div>
 
         {creditAgreement && creditState && (
-          <section className="credit-statement mt-7 border border-slate-400 bg-white p-4 pt-4 text-[14px] text-slate-950">
+          <section className="credit-statement mt-7 border border-slate-400 bg-white p-4 pt-4 text-[15.5px] leading-snug text-slate-950">
             <div className="credit-summary avoid-print-break border border-slate-400">
               <div className="credit-print-tint flex flex-wrap items-start justify-between gap-3 border-b border-slate-400 bg-slate-50 px-4 py-3">
                 <div>
-                  <h3 className="text-[15px] font-bold uppercase tracking-[0.08em] text-slate-900">Credit account summary</h3>
-                  <p className="mt-0.5 text-[12px] text-slate-600">As of {formatDateTime(statementAsOf)}</p>
+                  <h3 className="text-[16px] font-bold uppercase tracking-[0.08em] text-slate-900">Credit account summary</h3>
+                  <p className="mt-0.5 text-[13px] text-slate-600">As of {formatDateTime(statementAsOf)}</p>
                 </div>
-                <div className={`border-2 px-3 py-1 text-right text-[12px] font-black tracking-[0.06em] ${creditVoided ? "border-red-700 text-red-800" : creditState.isSettled ? "border-green-800 text-green-900" : creditState.isOverdue ? "border-red-700 text-red-800" : "border-amber-700 text-amber-900"}`}>
+                <div className={`border-2 px-3 py-1 text-right text-[13px] font-black leading-snug tracking-[0.06em] ${creditVoided ? "border-red-700 text-red-800" : creditState.isSettled ? "border-green-800 text-green-900" : creditState.isOverdue ? "border-red-700 text-red-800" : "border-amber-700 text-amber-900"}`}>
                   {creditStatus}
                 </div>
               </div>
@@ -272,17 +272,17 @@ export default async function InvoiceViewPage({
                 <div className="space-y-1.5 border-t border-slate-300 px-4 py-3 sm:border-t-0">
                   <div className="flex justify-between gap-4"><span className="text-slate-600">Interest charged to date</span><span className="tabular font-medium">{formatLKR(creditState.interestAccrued)}</span></div>
                   <div className="flex justify-between gap-4"><span className="text-slate-600">Unpaid interest</span><span className="tabular font-medium">{formatLKR(creditState.interestOutstanding)}</span></div>
-                  <div className="mt-2 flex justify-between gap-4 border-t-2 border-slate-800 pt-2 text-[17px] font-black"><span>Balance due</span><span className="tabular">{formatLKR(creditState.outstanding)}</span></div>
+                  <div className="mt-2 flex justify-between gap-4 border-t-2 border-slate-800 pt-2 text-[19px] font-black"><span>Balance due</span><span className="tabular">{formatLKR(creditState.outstanding)}</span></div>
                 </div>
               </div>
             </div>
 
             <div className="mt-6">
               <div className="mb-2 flex items-end justify-between gap-3">
-                <h3 className="text-[15px] font-bold uppercase tracking-[0.08em] text-slate-900">Payment history</h3>
-                <span className="text-[11px] text-slate-500">Payments reduce interest first, then principal</span>
+                <h3 className="text-[16px] font-bold uppercase tracking-[0.08em] text-slate-900">Payment history</h3>
+                <span className="text-[12px] text-slate-500">Payments reduce interest first, then principal</span>
               </div>
-              <table className="credit-payment-history w-full border-collapse text-[12px]">
+              <table className="credit-payment-history w-full border-collapse text-[13.5px] leading-snug">
                 <thead>
                     <tr className="credit-print-tint border-y-2 border-slate-700 bg-slate-50 text-left">
                     <th className="px-2 py-2 font-bold">Date</th>
@@ -306,7 +306,7 @@ export default async function InvoiceViewPage({
                       <td className="px-2 py-2.5 text-slate-600">
                         <span className="block text-slate-800">{payment.note ?? "—"}</span>
                         {payment.recordedBy?.name && (
-                          <span className="mt-0.5 block text-[10px] text-slate-500">Recorded by {payment.recordedBy.name}</span>
+                          <span className="mt-0.5 block text-[11px] text-slate-500">Recorded by {payment.recordedBy.name}</span>
                         )}
                       </td>
                       <td className="px-2 py-2.5 text-right tabular font-medium">{formatLKR(payment.amountNumber)}</td>
@@ -326,17 +326,17 @@ export default async function InvoiceViewPage({
         )}
 
         {invoice.notes && (
-          <p className="invoice-notes mt-6 border-t border-border pt-4 text-[15px] text-muted">{invoice.notes}</p>
+          <p className="invoice-notes mt-6 border-t border-border pt-4 text-[16.5px] leading-snug text-muted">{invoice.notes}</p>
         )}
-        <p className="invoice-footer mt-8 text-center text-sm text-muted">Thank you for your business!</p>
+        <p className="invoice-footer mt-8 text-center text-[16px] text-muted">Thank you for your business!</p>
       </div>
       </div>
 
       {/* 80mm thermal receipt layout (hidden unless "80mm" is selected) */}
-      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[12px] font-normal leading-tight text-black shadow-sm">
+      <div className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[14px] font-normal leading-[1.25] text-black shadow-sm">
         {invoice.voidedAt && <div className="mb-2 border-y-2 border-black py-1 text-center text-base font-black tracking-[0.15em]">VOIDED</div>}
         <div className="text-center">
-          <p className="text-[15px] font-semibold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
+          <p className="text-[18px] font-semibold leading-tight uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
           {setting?.address && <p>{setting.address}</p>}
           {setting?.phone && <p>Tel: {setting.phone}</p>}
         </div>
@@ -360,44 +360,44 @@ export default async function InvoiceViewPage({
           <div key={it.id} className="mb-1.5">
             <p className="break-words">{it.nameSnapshot}</p>
             {it.product?.modelNumber && (
-              <p className="break-words text-[11px]">Model: {it.product.modelNumber}</p>
+              <p className="break-words text-[12px]">Model: {it.product.modelNumber}</p>
             )}
-            <div className="flex justify-between">
-              <span>
+            <div className="flex justify-between gap-2">
+              <span className="min-w-0">
                 {it.qty} × {formatLKR(it.unitPrice)}
               </span>
-              <span>{formatLKR(it.lineTotal)}</span>
+              <span className="shrink-0 tabular">{formatLKR(it.lineTotal)}</span>
             </div>
           </div>
         ))}
 
         <div className="my-2 border-t border-dashed border-black" />
 
-        <div className="flex justify-between">
+        <div className="flex justify-between gap-2">
           <span>Subtotal</span>
-          <span>{formatLKR(invoice.subtotal)}</span>
+          <span className="shrink-0 tabular">{formatLKR(invoice.subtotal)}</span>
         </div>
         {toNum(invoice.discount) > 0 && (
-          <div className="flex justify-between">
+          <div className="flex justify-between gap-2">
             <span>Discount</span>
-            <span>− {formatLKR(invoice.discount)}</span>
+            <span className="shrink-0 tabular">− {formatLKR(invoice.discount)}</span>
           </div>
         )}
-        <div className="mt-1 flex justify-between border-t border-black pt-1 text-[13px] font-semibold">
+        <div className="mt-1 flex justify-between gap-2 border-t border-black pt-1 text-[16px] font-semibold">
           <span>TOTAL</span>
-          <span>{formatLKR(invoice.grandTotal)}</span>
+          <span className="shrink-0 tabular">{formatLKR(invoice.grandTotal)}</span>
         </div>
 
         {creditAgreement && creditState && (
           <section className="mt-2 border-y-2 border-black py-2">
             <div className="text-center font-bold">CREDIT ACCOUNT — {creditStatus}</div>
-            <div className="mt-1 text-[10px] text-center">As of {formatDateTime(statementAsOf)}</div>
+            <div className="mt-1 text-center text-[11.5px]">As of {formatDateTime(statementAsOf)}</div>
             <div className="mt-2 flex justify-between"><span>Original total</span><span className="tabular">{formatLKR(creditState.principal)}</span></div>
             <div className="flex justify-between"><span>Payments</span><span className="tabular">− {formatLKR(creditState.totalPaid)}</span></div>
             <div className="flex justify-between"><span>Principal left</span><span className="tabular">{formatLKR(creditState.principalRemaining)}</span></div>
             <div className="flex justify-between"><span>Interest charged</span><span className="tabular">{formatLKR(creditState.interestAccrued)}</span></div>
             <div className="flex justify-between"><span>Interest unpaid</span><span className="tabular">{formatLKR(creditState.interestOutstanding)}</span></div>
-            <div className="mt-1 flex justify-between border-t-2 border-black pt-1 text-[14px] font-black"><span>BALANCE DUE</span><span className="tabular">{formatLKR(creditState.outstanding)}</span></div>
+            <div className="mt-1 flex justify-between gap-2 border-t-2 border-black pt-1 text-[16px] font-black"><span>BALANCE DUE</span><span className="shrink-0 tabular">{formatLKR(creditState.outstanding)}</span></div>
 
             <div className="my-2 border-t border-dashed border-black" />
             <p className="font-bold">PAYMENT HISTORY</p>
@@ -406,10 +406,10 @@ export default async function InvoiceViewPage({
             ) : creditLedger.map((payment) => (
               <div key={payment.id} className="mt-1.5 border-b border-dotted border-black pb-1">
                 <div className="flex justify-between gap-2">
-                  <span>{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span>
-                  <span className="tabular font-semibold">{formatLKR(payment.amountNumber)}</span>
+                  <span className="min-w-0 break-words">{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span>
+                  <span className="shrink-0 tabular font-semibold">{formatLKR(payment.amountNumber)}</span>
                 </div>
-                <div className="flex justify-between gap-2 text-[10px]">
+                <div className="flex justify-between gap-2 text-[11.5px]">
                   <span className="min-w-0 break-words">{payment.note ?? "Payment"}</span>
                   <span className="shrink-0 tabular font-semibold">Bal {formatLKR(payment.balanceAfter)}</span>
                 </div>

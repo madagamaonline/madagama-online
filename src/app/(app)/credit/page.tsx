@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Plus } from "lucide-react";
+import { Files, Plus } from "lucide-react";
 import { differenceInCalendarDays } from "date-fns";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { computeCreditState } from "@/lib/credit";
@@ -69,11 +69,16 @@ export default async function CreditPage() {
         title="Credit"
         subtitle="Customer credit agreements"
         action={
-          <Link href="/credit/new">
-            <Button>
-              <Plus className="h-4 w-4" /> New Credit Sale
-            </Button>
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/credit-invoices" className={buttonVariants({ variant: "outline" })}>
+              <Files className="h-4 w-4" /> Credit Invoices
+            </Link>
+            <Link href="/credit/new">
+              <Button>
+                <Plus className="h-4 w-4" /> New Credit Sale
+              </Button>
+            </Link>
+          </div>
         }
       />
 

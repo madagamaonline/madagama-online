@@ -44,6 +44,10 @@ export type AgreementInput = {
 
 export type PaymentInput = { amount: number; paidDate: Date };
 
+export type CreditPaymentLedgerEntry = PaymentInput & {
+  balanceAfter: number;
+};
+
 export type CreditState = {
   principal: number;
   principalRemaining: number;
@@ -159,4 +163,32 @@ export function computeCreditState(
     isSettled,
     isOverdue,
   };
+}
+
+/**
+ * Builds the customer-facing payment trail for a credit account.
+ *
+ * Each balance is evaluated at that payment's exact timestamp and only with
+ * payments visible up to that row. This is important once interest has begun:
+ * a historical row must include charges posted by then, without including any
+ * later installment. Callers should supply payments in display order (normally
+ * paidDate, then creation order for ties).
+ */
+export function buildCreditPaymentLedger(
+  agreement: AgreementInput,
+  payments: PaymentInput[],
+): CreditPaymentLedgerEntry[] {
+  const paymentsSoFar: PaymentInput[] = [];
+
+  return payments.map((payment) => {
+    paymentsSoFar.push(payment);
+    return {
+      ...payment,
+      balanceAfter: computeCreditState(
+        agreement,
+        paymentsSoFar,
+        payment.paidDate,
+      ).outstanding,
+    };
+  });
 }

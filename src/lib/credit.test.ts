@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { addDays, addMonths } from "date-fns";
-import { computeCreditState, type PaymentInput } from "./credit";
+import {
+  buildCreditPaymentLedger,
+  computeCreditState,
+  type PaymentInput,
+} from "./credit";
 
 const start = new Date("2025-01-15T00:00:00Z");
 const agreement = {
@@ -83,5 +87,37 @@ describe("computeCreditState", () => {
     expect(s.outstanding).toBe(0);
     expect(s.isSettled).toBe(true);
     expect(s.interestAccrued).toBe(1000);
+  });
+});
+
+describe("buildCreditPaymentLedger", () => {
+  it("shows a declining running balance before interest starts", () => {
+    const payments = [pay(0, 10000), pay(2, 5000), pay(3, 20000)];
+
+    expect(buildCreditPaymentLedger(agreement, payments).map((row) => row.balanceAfter)).toEqual([
+      40000,
+      35000,
+      15000,
+    ]);
+  });
+
+  it("includes accrued interest in the balance at each payment timestamp", () => {
+    const payments = [pay(5, 500, 15), pay(6, 2000, 15)];
+
+    const ledger = buildCreditPaymentLedger(agreement, payments);
+
+    // Month 5 posts LKR 1,000 before the first payment, which clears interest.
+    expect(ledger[0]?.balanceAfter).toBe(50500);
+    // Month 6 posts another LKR 1,000; the second payment clears the remaining
+    // interest and then reduces principal by LKR 500.
+    expect(ledger[1]?.balanceAfter).toBe(49500);
+  });
+
+  it("does not let a later payment alter an earlier historical balance", () => {
+    const payments = [pay(1, 10000), pay(6, 40800)];
+    const ledger = buildCreditPaymentLedger(agreement, payments);
+
+    expect(ledger[0]?.balanceAfter).toBe(40000);
+    expect(ledger[1]?.balanceAfter).toBe(0);
   });
 });

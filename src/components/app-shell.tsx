@@ -54,6 +54,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/credit-invoices", label: "Credit Invoices", icon: CreditCard },
       { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },
       { href: "/services", label: "Service Jobs", icon: Wrench },

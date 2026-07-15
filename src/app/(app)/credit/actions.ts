@@ -226,6 +226,7 @@ export async function createCreditSale(
       );
 
       revalidatePath("/credit");
+      revalidatePath("/credit-invoices");
       revalidatePath("/products");
       revalidatePath("/dashboard");
       return { ok: true, agreementId };
@@ -371,6 +372,7 @@ export async function recordPayment(
 
       revalidatePath(`/credit/${agreementId}`);
       revalidatePath("/credit");
+      revalidatePath("/credit-invoices");
       revalidatePath("/dashboard");
       return { ok: true };
     } catch (e) {

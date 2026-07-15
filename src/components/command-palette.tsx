@@ -50,6 +50,7 @@ const PAGES: Cmd[] = [
   { id: "p-dash", group: "Go to", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { id: "p-rem", group: "Go to", label: "Reminders", icon: Bell, href: "/reminders" },
   { id: "p-inv", group: "Go to", label: "Invoices", icon: ReceiptText, href: "/invoices" },
+  { id: "p-credit-inv", group: "Go to", label: "Credit Invoices", sub: "Credit-sale document register", icon: CreditCard, href: "/credit-invoices" },
   { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
   { id: "p-ret", group: "Go to", label: "Returns", icon: Undo2, href: "/returns" },
   { id: "p-svc", group: "Go to", label: "Service Jobs", icon: Wrench, href: "/services" },

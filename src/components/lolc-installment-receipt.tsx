@@ -1,7 +1,8 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
-import { Eraser, Printer, ShieldCheck } from "lucide-react";
+import { useRef, useState } from "react";
+import { Eraser, ShieldCheck } from "lucide-react";
+import { InvoicePrintControls } from "@/components/invoice-print-controls";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,6 +52,7 @@ export function LolcInstallmentReceipt({
   initialDate: string;
 }) {
   const [draft, setDraft] = useState<ReceiptDraft>(() => emptyDraft(initialDate));
+  const formRef = useRef<HTMLFormElement>(null);
 
   function update(field: keyof ReceiptDraft, value: string) {
     setDraft((current) => ({ ...current, [field]: value }));
@@ -58,16 +60,6 @@ export function LolcInstallmentReceipt({
 
   function clearDraft() {
     setDraft(emptyDraft(initialDate));
-  }
-
-  function printAndClear(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
-    // The browser captures the printable DOM before firing `afterprint`. Clear
-    // all customer/payment data as soon as the print dialog closes (including
-    // when the operator cancels it), without ever sending it to the server.
-    window.addEventListener("afterprint", clearDraft, { once: true });
-    window.print();
   }
 
   return (
@@ -83,7 +75,7 @@ export function LolcInstallmentReceipt({
           </div>
         </CardHeader>
         <CardContent>
-          <form autoComplete="off" onSubmit={printAndClear}>
+          <form ref={formRef} autoComplete="off" onSubmit={(event) => event.preventDefault()}>
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="lg:col-span-2">
                 <Label htmlFor="lolc-customer-name">Customer name</Label>
@@ -158,9 +150,11 @@ export function LolcInstallmentReceipt({
               <Button type="button" variant="ghost" onClick={clearDraft}>
                 <Eraser className="h-4 w-4" /> Clear
               </Button>
-              <Button type="submit">
-                <Printer className="h-4 w-4" /> Print &amp; Clear
-              </Button>
+              <InvoicePrintControls
+                label="Print & Clear"
+                onBeforePrint={() => formRef.current?.reportValidity() ?? false}
+                onAfterPrint={clearDraft}
+              />
             </div>
           </form>
         </CardContent>
@@ -224,6 +218,64 @@ export function LolcInstallmentReceipt({
           </footer>
         </article>
       </div>
+
+      {/* 80mm thermal layout. The shared print controls show this preview and
+          print it from an isolated, receipt-sized document when selected. */}
+      <article className="print-area print-thermal mx-auto w-[302px] bg-white px-3 py-4 font-sans text-[14px] font-normal leading-[1.3] text-black shadow-sm">
+        <header className="text-center">
+          <p className="text-[18px] font-semibold uppercase leading-tight">{businessName}</p>
+          {businessAddress && <p className="mt-0.5 break-words">{businessAddress}</p>}
+          {businessPhone && <p>Tel: {businessPhone}</p>}
+        </header>
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <p className="text-center text-[15px] font-bold">LOLC INSTALLMENT RECEIPT</p>
+        <p className="mt-0.5 text-center text-[12px]">Collected on behalf of LOLC Finance</p>
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <dl className="space-y-1.5">
+          <div>
+            <dt className="text-[12px]">CUSTOMER</dt>
+            <dd className="break-words font-semibold">{draft.customerName || "—"}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>DATE</dt>
+            <dd className="text-right font-semibold">{displayDate(draft.date)}</dd>
+          </div>
+          <div className="flex justify-between gap-3">
+            <dt>PHONE</dt>
+            <dd className="text-right font-semibold">{draft.phone || "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-[12px]">LOLC CODE</dt>
+            <dd className="break-all font-mono font-semibold">{draft.lolcCode || "—"}</dd>
+          </div>
+        </dl>
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <div className="flex items-end justify-between gap-2 text-[16px] font-bold">
+          <span>AMOUNT PAID</span>
+          <span className="shrink-0 tabular">{draft.amount ? formatLKR(draft.amount) : "LKR 0.00"}</span>
+        </div>
+
+        {draft.note && (
+          <>
+            <div className="my-2 border-t border-dashed border-black" />
+            <p className="text-[12px]">NOTE</p>
+            <p className="whitespace-pre-wrap break-words">{draft.note}</p>
+          </>
+        )}
+
+        <div className="my-2 border-t border-dashed border-black" />
+
+        <footer className="text-center text-[11px] leading-[1.35]">
+          <p>This receipt acknowledges collection on behalf of LOLC Finance.</p>
+          <p className="mt-1">Not a sale invoice or part of {businessName}&apos;s sales or accounts.</p>
+        </footer>
+      </article>
     </div>
   );
 }

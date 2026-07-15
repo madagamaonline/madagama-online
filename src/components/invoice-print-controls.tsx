@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 
 type Mode = "a4" | "thermal";
 
-async function printThermalReceipt() {
+async function printThermalReceipt(onAfterPrint?: () => void) {
   const receipt = document.querySelector<HTMLElement>(".print-thermal");
   if (!receipt) throw new Error("Thermal receipt was not found.");
 
@@ -116,9 +116,15 @@ async function printThermalReceipt() {
     }
   `;
 
-  const cleanup = () => frame.remove();
-  printWindow.addEventListener("afterprint", cleanup, { once: true });
-  window.setTimeout(cleanup, 300_000);
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    frame.remove();
+    onAfterPrint?.();
+  };
+  printWindow.addEventListener("afterprint", finish, { once: true });
+  window.setTimeout(finish, 300_000);
   printWindow.focus();
   printWindow.print();
 }
@@ -130,7 +136,15 @@ async function printThermalReceipt() {
  * and page size. The physical printer is still chosen in the browser's print
  * dialog — this only decides how the invoice is rendered.
  */
-export function InvoicePrintControls() {
+export function InvoicePrintControls({
+  label = "Print Invoice",
+  onBeforePrint,
+  onAfterPrint,
+}: {
+  label?: string;
+  onBeforePrint?: () => boolean;
+  onAfterPrint?: () => void;
+} = {}) {
   const [mode, setMode] = useState<Mode>("a4");
 
   // Keep the DOM in sync so the on-screen preview matches what will print.
@@ -142,13 +156,22 @@ export function InvoicePrintControls() {
   }, [mode]);
 
   function printInvoice() {
+    if (onBeforePrint && !onBeforePrint()) return;
+
     if (mode === "thermal") {
-      void printThermalReceipt().catch((error: unknown) => {
+      void printThermalReceipt(onAfterPrint).catch((error: unknown) => {
         console.error(error);
         window.alert("Could not prepare the 80mm receipt. Please try again.");
       });
     } else {
-      window.print();
+      const finish = () => onAfterPrint?.();
+      window.addEventListener("afterprint", finish, { once: true });
+      try {
+        window.print();
+      } catch (error) {
+        window.removeEventListener("afterprint", finish);
+        throw error;
+      }
     }
   }
 
@@ -178,8 +201,8 @@ export function InvoicePrintControls() {
           </button>
         ))}
       </div>
-      <Button variant="outline" onClick={printInvoice}>
-        <Printer className="h-4 w-4" /> Print Invoice
+      <Button type="button" variant="outline" onClick={printInvoice}>
+        <Printer className="h-4 w-4" /> {label}
       </Button>
     </div>
   );

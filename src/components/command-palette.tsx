@@ -28,6 +28,7 @@ import {
   Loader2,
   FileText,
   MessageSquareText,
+  Landmark,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 
@@ -42,6 +43,7 @@ const ACTIONS: Cmd[] = [
   { id: "a-request", group: "Actions", label: "New Customer Request", sub: "Record a product inquiry or import request", icon: MessageSquareText, href: "/requests/new" },
   { id: "a-purchase", group: "Actions", label: "New Purchase", sub: "Record a supplier purchase", icon: Truck, href: "/purchases/new" },
   { id: "a-expense", group: "Actions", label: "Add Expense", sub: "Record an expense", icon: Receipt, href: "/expenses" },
+  { id: "a-cheque", group: "Actions", label: "Issue Supplier Cheque", sub: "Register a cheque from a bank account", icon: Landmark, href: "/banking/cheques/new" },
 ];
 
 const PAGES: Cmd[] = [
@@ -63,6 +65,7 @@ const PAGES: Cmd[] = [
   { id: "p-att", group: "Go to", label: "Attendance", icon: CalendarCheck, href: "/attendance" },
   { id: "p-pay", group: "Go to", label: "Payroll", icon: Wallet, href: "/payroll" },
   { id: "p-exp", group: "Go to", label: "Expenses", icon: Receipt, href: "/expenses" },
+  { id: "p-bank", group: "Go to", label: "Bank & Cheques", icon: Landmark, href: "/banking" },
   { id: "p-shift", group: "Go to", label: "Shift Reports", icon: ClipboardCheck, href: "/shift-report" },
   { id: "p-rep", group: "Go to", label: "Reports", icon: TrendingUp, href: "/reports" },
   { id: "p-set", group: "Go to", label: "Settings", icon: Settings, href: "/settings" },

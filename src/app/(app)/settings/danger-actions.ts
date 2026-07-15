@@ -96,6 +96,7 @@ export async function resetSystemData(
     "/invoices",
     "/credit",
     "/purchases",
+    "/banking",
     "/suppliers",
     "/employees",
     "/payroll",

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Undo2 } from "lucide-react";
+import { Undo2, WalletCards } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,10 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
       items: { include: { product: { select: { code: true, name: true } } } },
       payments: { orderBy: { paidDate: "desc" } },
       returns: { orderBy: { createdAt: "desc" }, include: { _count: { select: { items: true } } } },
+      issuedCheques: {
+        orderBy: { issuedDate: "desc" },
+        include: { bankAccount: { select: { bankName: true, accountName: true } }, payments: { select: { amount: true } } },
+      },
     },
   });
   if (!purchase) notFound();
@@ -109,6 +113,11 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
             )}
             {balance > 0 && (
               <div className="border-t border-border pt-3">
+                <Link href={`/banking/cheques/new?purchase=${purchase.id}&supplier=${purchase.supplierId}`}>
+                  <Button className="mb-3 w-full" variant="secondary">
+                    <WalletCards className="h-4 w-4" /> Issue cheque
+                  </Button>
+                </Link>
                 <PurchasePayment purchaseId={purchase.id} />
               </div>
             )}
@@ -173,6 +182,20 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                   </TR>
                 ))}
               </TBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {purchase.issuedCheques.length > 0 && (
+        <Card className="mt-4">
+          <CardHeader><CardTitle>Issued cheques</CardTitle></CardHeader>
+          <CardContent className="p-0">
+            <Table><THead><TR><TH>Cheque</TH><TH>Bank</TH><TH>Date issued</TH><TH className="text-right">Amount</TH><TH className="text-right">Cheque balance</TH></TR></THead>
+              <TBody>{purchase.issuedCheques.map((cheque) => {
+                const chequePaid = cheque.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0);
+                return <TR key={cheque.id}><TD><Link href={`/banking/cheques/${cheque.id}`} className="font-mono font-semibold text-primary hover:underline">#{cheque.chequeNumber}</Link></TD><TD>{cheque.bankAccount.bankName} · {cheque.bankAccount.accountName}</TD><TD>{formatDate(cheque.issuedDate)}</TD><TD className="text-right font-medium">{formatLKR(cheque.amount)}</TD><TD className="text-right font-bold">{formatLKR(Math.max(0, toNum(cheque.amount) - chequePaid))}</TD></TR>;
+              })}</TBody>
             </Table>
           </CardContent>
         </Card>

@@ -28,6 +28,7 @@ import {
   Search,
   FileText,
   MessageSquareText,
+  Landmark,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -77,6 +78,7 @@ const NAV: NavGroup[] = [
       { href: "/attendance", label: "Attendance", icon: CalendarCheck },
       { href: "/payroll", label: "Payroll", icon: Wallet },
       { href: "/expenses", label: "Expenses", icon: Receipt },
+      { href: "/banking", label: "Bank & Cheques", icon: Landmark },
       { href: "/shift-report", label: "Shift Reports", icon: ClipboardCheck },
       { href: "/reports", label: "Reports", icon: TrendingUp },
     ],

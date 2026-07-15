@@ -42,7 +42,8 @@ export function SystemReset() {
           <p>
             This permanently deletes <strong>all business data</strong> — products,
             customers, invoices, credit agreements &amp; payments, purchases, suppliers,
-            employees, payroll, expenses, service jobs, stock history and notifications.
+            bank accounts, supplier cheques and repayments, employees, payroll, expenses,
+            service jobs, stock history and notifications.
           </p>
           <p>
             Your <strong>login accounts</strong> and <strong>business settings</strong>{" "}

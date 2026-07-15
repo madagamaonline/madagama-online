@@ -29,6 +29,7 @@ import {
   FileText,
   MessageSquareText,
   Landmark,
+  HandCoins,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 
@@ -38,6 +39,7 @@ const ACTIONS: Cmd[] = [
   { id: "a-cash", group: "Actions", label: "New Cash Sale", sub: "Start a cash checkout", icon: ShoppingCart, href: "/invoices/new" },
   { id: "a-credit", group: "Actions", label: "New Credit Sale", sub: "Sell on credit", icon: CreditCard, href: "/credit/new" },
   { id: "a-quote", group: "Actions", label: "New Quotation", sub: "Prepare a price quote", icon: FileText, href: "/quotations/new" },
+  { id: "a-lolc", group: "Actions", label: "Print LOLC Receipt", sub: "Print-only installment collection receipt", icon: HandCoins, href: "/lolc-receipt" },
   { id: "a-product", group: "Actions", label: "New Product", sub: "Add a stock item", icon: PackagePlus, href: "/products/new" },
   { id: "a-customer", group: "Actions", label: "New Customer", sub: "Add a customer", icon: UserPlus, href: "/customers/new" },
   { id: "a-request", group: "Actions", label: "New Customer Request", sub: "Record a product inquiry or import request", icon: MessageSquareText, href: "/requests/new" },
@@ -51,6 +53,7 @@ const PAGES: Cmd[] = [
   { id: "p-rem", group: "Go to", label: "Reminders", icon: Bell, href: "/reminders" },
   { id: "p-inv", group: "Go to", label: "Invoices", icon: ReceiptText, href: "/invoices" },
   { id: "p-credit-inv", group: "Go to", label: "Credit Invoices", sub: "Credit-sale document register", icon: CreditCard, href: "/credit-invoices" },
+  { id: "p-lolc", group: "Go to", label: "LOLC Receipt", sub: "Print-only installment collection receipt", icon: HandCoins, href: "/lolc-receipt" },
   { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
   { id: "p-ret", group: "Go to", label: "Returns", icon: Undo2, href: "/returns" },
   { id: "p-svc", group: "Go to", label: "Service Jobs", icon: Wrench, href: "/services" },

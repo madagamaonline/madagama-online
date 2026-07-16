@@ -5,6 +5,7 @@ import {
   remainingReturnableByProduct,
   validateDownPaymentAmount,
   validatePaymentAmount,
+  validatePaymentWithDiscount,
 } from "./financial-guards";
 
 describe("financial workflow guards", () => {
@@ -28,6 +29,12 @@ describe("financial workflow guards", () => {
     expect(validatePaymentAmount(100, 100)).toBeNull();
   });
 
+  it("validates a payment and settlement discount against the balance", () => {
+    expect(validatePaymentWithDiscount(9000, 16000, 25000)).toBeNull();
+    expect(validatePaymentWithDiscount(9000, 16001, 25000)).toContain("plus discount exceeds");
+    expect(validatePaymentWithDiscount(9000, -1, 25000)).toContain("valid settlement discount");
+  });
+
   it("validates a down payment against the full sale total", () => {
     expect(validateDownPaymentAmount(30_000, 90_000)).toBeNull();
     expect(validateDownPaymentAmount(0, 90_000)).toBeNull();
@@ -43,13 +50,14 @@ describe("financial workflow guards", () => {
       isRecentDuplicatePayment(
         [{
           amount: 500,
+          discount: 0,
           paidDate,
           method: "CASH",
           note: null,
           recordedByUserId: "u1",
           createdAt: new Date(now.getTime() - 5_000),
         }],
-        { amount: 500, paidDate, method: "CASH", note: null, recordedByUserId: "u1" },
+        { amount: 500, discount: 0, paidDate, method: "CASH", note: null, recordedByUserId: "u1" },
         now,
       ),
     ).toBe(true);

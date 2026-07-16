@@ -9,7 +9,8 @@ import {
 } from "@/lib/dates";
 import { prisma } from "@/lib/prisma";
 import { computePayroll } from "@/lib/payroll";
-import { computeCreditState } from "@/lib/credit";
+import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
+import { cumulativeRealizedGrossProfit } from "@/lib/realized-profit";
 import { getSettings } from "@/lib/settings";
 import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
 import { PageHeader } from "@/components/page-header";
@@ -108,6 +109,7 @@ export default async function ReportsPage({
     refundAgg,
     returnedItems,
     interestAgreements,
+    realizedInvoices,
   ] = await Promise.all([
     prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
@@ -163,7 +165,48 @@ export default async function ReportsPage({
         startDate: true,
         interestRatePerMonth: true,
         interestFreeMonths: true,
-        payments: { select: { amount: true, paidDate: true } },
+        payments: { select: { amount: true, discount: true, paidDate: true } },
+      },
+    }),
+    // Only invoices whose realized profit can change in the selected month:
+    // newly-created sales, credit payments, or customer returns. Historical
+    // payments/returns are included so each invoice's opening position can be
+    // compared with its closing position.
+    prisma.invoice.findMany({
+      where: {
+        createdAt: { lt: monthEnd },
+        ...taxF,
+        OR: [
+          { createdAt: { gte: monthStart, lt: monthEnd } },
+          { creditAgreement: { payments: { some: { paidDate: { gte: monthStart, lt: monthEnd } } } } },
+          { returns: { some: { date: { gte: monthStart, lt: monthEnd } } } },
+        ],
+      },
+      select: {
+        createdAt: true,
+        grandTotal: true,
+        items: { select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } } },
+        returns: {
+          where: { date: { lt: monthEnd } },
+          select: {
+            date: true,
+            totalRefund: true,
+            method: true,
+            items: { select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } } },
+          },
+        },
+        creditAgreement: {
+          select: {
+            principal: true,
+            startDate: true,
+            interestRatePerMonth: true,
+            interestFreeMonths: true,
+            payments: {
+              where: { paidDate: { lt: monthEnd } },
+              select: { amount: true, discount: true, paidDate: true, method: true, createdAt: true },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -270,12 +313,109 @@ export default async function ReportsPage({
         interestRatePerMonth: toNum(a.interestRatePerMonth),
         interestFreeMonths: a.interestFreeMonths,
       };
-      const pays = a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate }));
+      const pays = a.payments.map((p) => ({
+        amount: toNum(p.amount),
+        discount: toNum(p.discount),
+        paidDate: p.paidDate,
+      }));
       return (
         sum +
         computeCreditState(agreement, pays, asOfEnd).interestPaid -
         computeCreditState(agreement, pays, asOfPrev).interestPaid
       );
+    }, 0),
+  );
+
+  // Cash-recovery gross profit: for each sale, principal collections recover
+  // the net cost of the goods first. The month's figure is the movement in that
+  // cumulative realized amount between the start and end of the month.
+  const realizedGrossProfit = round2(
+    realizedInvoices.reduce((sum, invoice) => {
+      const saleRevenue = toNum(invoice.grandTotal);
+      const saleCost = round2(
+        invoice.items.reduce(
+          (itemSum, item) => itemSum + item.qty * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
+          0,
+        ),
+      );
+      const agreement = invoice.creditAgreement;
+      const sortedPayments = agreement
+        ? [...agreement.payments].sort(
+            (a, b) => a.paidDate.getTime() - b.paidDate.getTime() || a.createdAt.getTime() - b.createdAt.getTime(),
+          )
+        : [];
+      const allocations = agreement
+        ? buildCreditPaymentLedger(
+            {
+              principal: toNum(agreement.principal),
+              startDate: agreement.startDate,
+              interestRatePerMonth: toNum(agreement.interestRatePerMonth),
+              interestFreeMonths: agreement.interestFreeMonths,
+            },
+            sortedPayments.map((payment) => ({
+              amount: toNum(payment.amount),
+              discount: toNum(payment.discount),
+              paidDate: payment.paidDate,
+            })),
+          )
+        : [];
+
+      const cumulativeAt = (asOf: Date) => {
+        if (invoice.createdAt > asOf) return 0;
+
+        const returnsToDate = invoice.returns.filter((customerReturn) => customerReturn.date <= asOf);
+        const returnedRevenue = round2(
+          returnsToDate.reduce((returnSum, customerReturn) => returnSum + toNum(customerReturn.totalRefund), 0),
+        );
+        const returnedCost = round2(
+          returnsToDate.reduce(
+            (returnSum, customerReturn) =>
+              returnSum +
+              customerReturn.items.reduce(
+                (itemSum, item) =>
+                  itemSum + item.qty * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
+                0,
+              ),
+            0,
+          ),
+        );
+        // CREDIT_BALANCE returns reduce the receivable without bringing cash
+        // in or taking cash out. Other return methods are actual refunds.
+        const cashRefunds = round2(
+          returnsToDate.reduce(
+            (refundSum, customerReturn) =>
+              refundSum + (customerReturn.method === "CREDIT_BALANCE" ? 0 : toNum(customerReturn.totalRefund)),
+            0,
+          ),
+        );
+        const principalCollected = agreement
+          ? round2(
+              allocations.reduce((collected, allocation, index) => {
+                const payment = sortedPayments[index];
+                if (!payment || payment.paidDate > asOf || payment.method === "RETURN") return collected;
+                return collected + allocation.principalApplied;
+              }, 0) - cashRefunds,
+            )
+          : round2(saleRevenue - cashRefunds);
+        const saleDiscount = round2(
+          allocations.reduce((discounted, allocation, index) => {
+            const payment = sortedPayments[index];
+            if (!payment || payment.paidDate > asOf) return discounted;
+            return discounted + allocation.principalDiscountApplied;
+          }, 0),
+        );
+
+        return cumulativeRealizedGrossProfit({
+          saleRevenue,
+          saleCost,
+          returnedRevenue,
+          returnedCost,
+          saleDiscount,
+          principalCollected,
+        });
+      };
+
+      return sum + cumulativeAt(asOfEnd) - cumulativeAt(asOfPrev);
     }, 0),
   );
 
@@ -348,6 +488,11 @@ export default async function ReportsPage({
         <StatCard label="Less: customer refunds" value={formatLKR(refunds)} tone={refunds > 0 ? "red" : "default"} />
         <StatCard label="Cost of goods (net of returns)" value={formatLKR(round2(cogs - returnedCogs))} tone="amber" />
         <StatCard label="Gross profit" value={formatLKR(grossProfit)} tone="blue" />
+        <StatCard
+          label="Realized gross profit"
+          value={formatLKR(realizedGrossProfit)}
+          tone={realizedGrossProfit >= 0 ? "green" : "red"}
+        />
         <StatCard label="Expenses" value={formatLKR(expenses)} tone="amber" />
         <StatCard label="Payroll (company cost)" value={formatLKR(payroll)} tone="amber" />
         <StatCard label="Net profit (approx.)" value={formatLKR(netProfit)} tone={netProfit >= 0 ? "green" : "red"} />
@@ -517,7 +662,10 @@ export default async function ReportsPage({
       </Card>
 
       <p className="mt-4 text-xs text-muted">
-        Net profit is approximate: revenue − customer refunds − cost of goods (captured at the time of sale, credited
+        Gross profit recognizes invoices when sold. Realized gross profit is the amount unlocked by principal cash
+        collections after each sale&apos;s net product cost has been recovered; principal settlement discounts reduce
+        the sale value, and neither waived balances nor interest count as realized gross profit. Net profit is
+        approximate: revenue − customer refunds − cost of goods (captured at the time of sale, credited
         back for restocked returns) − expenses − payroll at company cost (gross pay + employer EPF/ETF; salary-advance
         recoveries don&apos;t change the cost) for the selected month. Interest collected on credit sales is shown
         separately and not included in net profit. Stock value and the low-stock list reflect today&apos;s stock, not

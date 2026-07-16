@@ -74,7 +74,7 @@ export default async function CreditInvoicesPage({
     include: {
       customer: { select: { name: true, phone: true, nic: true } },
       creditAgreement: {
-        include: { payments: { select: { amount: true, paidDate: true } } },
+        include: { payments: { select: { amount: true, discount: true, paidDate: true } } },
       },
     },
   });
@@ -89,7 +89,11 @@ export default async function CreditInvoicesPage({
             interestRatePerMonth: toNum(agreement.interestRatePerMonth),
             interestFreeMonths: agreement.interestFreeMonths,
           },
-          agreement.payments.map((payment) => ({ amount: toNum(payment.amount), paidDate: payment.paidDate })),
+          agreement.payments.map((payment) => ({
+            amount: toNum(payment.amount),
+            discount: toNum(payment.discount),
+            paidDate: payment.paidDate,
+          })),
         )
       : null;
     const collected = state?.totalPaid ?? toNum(invoice.amountPaid);

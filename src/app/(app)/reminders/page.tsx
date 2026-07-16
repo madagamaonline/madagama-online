@@ -82,7 +82,7 @@ export default async function RemindersPage() {
         interestRatePerMonth: toNum(a.interestRatePerMonth),
         interestFreeMonths: a.interestFreeMonths,
       },
-      a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+      a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
     );
     if (state.outstanding <= 0) continue;
     const days = differenceInCalendarDays(state.graceEndDate, now);

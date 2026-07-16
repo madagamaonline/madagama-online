@@ -536,8 +536,9 @@ export function CreditSale({
             </div>
 
             <div className="rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
-              Interest-free for {freeMonths} months. After that, {interestRatePct}% per month on the
-              remaining balance.
+              No interest is posted for {freeMonths} months. At the end of month {freeMonths + 1}, a one-time
+              catch-up of {interestRatePct}% × {freeMonths + 1} is charged on the remaining principal. Later
+              months charge {interestRatePct}% on remaining principal.
             </div>
 
             {mixed && (

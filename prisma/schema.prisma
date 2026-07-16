@@ -528,6 +528,7 @@ model Payment {
   agreement        CreditAgreement @relation(fields: [agreementId], references: [id], onDelete: Cascade)
   agreementId      String
   amount           Decimal         @db.Decimal(12, 2)
+  discount         Decimal         @default("0") @db.Decimal(12, 2) // non-cash settlement waiver recorded with payment
   paidDate         DateTime        @default(now())
   method           String          @default("CASH")
   note             String?

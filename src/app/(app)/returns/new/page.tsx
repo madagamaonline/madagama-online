@@ -70,7 +70,7 @@ export default async function NewReturnPage({
             interestRatePerMonth: toNum(agreement.interestRatePerMonth),
             interestFreeMonths: agreement.interestFreeMonths,
           },
-          agreement.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+          agreement.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
         ).outstanding
       : null;
 

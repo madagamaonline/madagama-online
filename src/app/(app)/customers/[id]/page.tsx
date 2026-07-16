@@ -45,7 +45,7 @@ export default async function CustomerDetailPage({
         interestRatePerMonth: toNum(a.interestRatePerMonth),
         interestFreeMonths: a.interestFreeMonths,
       },
-      a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+      a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
     );
     return { a, state };
   });

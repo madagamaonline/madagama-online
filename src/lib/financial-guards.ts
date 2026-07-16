@@ -41,6 +41,20 @@ export function validatePaymentAmount(amount: number, outstanding: number): stri
   return null;
 }
 
+export function validatePaymentWithDiscount(
+  amount: number,
+  discount: number,
+  outstanding: number,
+): string | null {
+  const paymentError = validatePaymentAmount(amount, outstanding);
+  if (paymentError) return paymentError;
+  if (!Number.isFinite(discount) || discount < 0) return "Enter a valid settlement discount.";
+  if (round2(amount + discount) > round2(outstanding)) {
+    return `Payment plus discount exceeds the outstanding balance of LKR ${round2(outstanding).toFixed(2)}.`;
+  }
+  return null;
+}
+
 export function validateDownPaymentAmount(amount: number, saleTotal: number): string | null {
   if (!Number.isFinite(amount) || amount < 0) return "Enter a valid down payment.";
   if (round2(amount) > round2(saleTotal)) {
@@ -55,6 +69,7 @@ export function validateDownPaymentAmount(amount: number, saleTotal: number): st
 export function isRecentDuplicatePayment(
   existing: {
     amount: number;
+    discount: number;
     paidDate: Date;
     method: string;
     note: string | null;
@@ -63,6 +78,7 @@ export function isRecentDuplicatePayment(
   }[],
   candidate: {
     amount: number;
+    discount: number;
     paidDate: Date;
     method: string;
     note: string | null;
@@ -75,6 +91,7 @@ export function isRecentDuplicatePayment(
     (payment) =>
       payment.createdAt.getTime() >= cutoff &&
       round2(payment.amount) === round2(candidate.amount) &&
+      round2(payment.discount) === round2(candidate.discount) &&
       payment.paidDate.getTime() === candidate.paidDate.getTime() &&
       payment.method === candidate.method &&
       payment.note === candidate.note &&

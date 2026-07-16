@@ -145,6 +145,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           };
           const payments = openAgreement.payments.map((p) => ({
             amount: toNum(p.amount),
+            discount: toNum(p.discount),
             paidDate: p.paidDate,
           }));
           const before = computeCreditState(agreementInput, payments);

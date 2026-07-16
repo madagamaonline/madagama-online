@@ -42,10 +42,14 @@ export type AgreementInput = {
   interestFreeMonths: number; // e.g. 4
 };
 
-export type PaymentInput = { amount: number; paidDate: Date };
+export type PaymentInput = { amount: number; discount?: number; paidDate: Date };
 
 export type CreditPaymentLedgerEntry = PaymentInput & {
   balanceAfter: number;
+  interestApplied: number;
+  principalApplied: number;
+  interestDiscountApplied: number;
+  principalDiscountApplied: number;
 };
 
 export type CreditState = {
@@ -55,6 +59,9 @@ export type CreditState = {
   interestOutstanding: number; // unpaid interest
   interestPaid: number;
   principalPaid: number;
+  interestDiscount: number;
+  principalDiscount: number;
+  totalDiscount: number;
   totalPaid: number;
   outstanding: number; // principalRemaining + interestOutstanding
   monthsElapsed: number;
@@ -66,18 +73,22 @@ export type CreditState = {
 };
 
 type Event =
-  | { date: Date; kind: "pay"; amount: number; order: 1 }
-  | { date: Date; kind: "accrue"; order: 0 };
+  | { date: Date; kind: "pay"; amount: number; discount: number; order: 1 }
+  | { date: Date; kind: "accrue"; multiplier: number; order: 0 };
 
 /**
  * Computes the live state of a credit agreement.
  *
  * Rules (confirmed with the business):
- *  - No interest during the first `interestFreeMonths` months.
- *  - After grace, 2% (configurable) per month is charged on the REMAINING
+ *  - No interest is posted during the first `interestFreeMonths` months.
+ *  - At the end of the next month, the first charge catches up every elapsed
+ *    month: rate × remaining principal × (`interestFreeMonths` + 1).
+ *  - Each later monthly anniversary charges one month's rate on the remaining
  *    PRINCIPAL only — interest never earns interest (non-compounding).
  *  - Payments are flexible amounts on any date; each payment clears
  *    outstanding interest first, then reduces principal.
+ *  - An optional settlement discount is a non-cash waiver. It is applied
+ *    after that payment, clearing any remaining interest first, then principal.
  */
 export function computeCreditState(
   agreement: AgreementInput,
@@ -90,15 +101,21 @@ export function computeCreditState(
   // Build the event timeline up to `asOf`.
   const events: Event[] = [];
   for (const p of payments) {
-    if (p.paidDate <= asOf && p.amount > 0) {
-      events.push({ date: p.paidDate, kind: "pay", amount: p.amount, order: 1 });
+    const discount = Math.max(0, p.discount ?? 0);
+    if (p.paidDate <= asOf && (p.amount > 0 || discount > 0)) {
+      events.push({ date: p.paidDate, kind: "pay", amount: p.amount, discount, order: 1 });
     }
   }
   // Interest posts at each monthly anniversary after the grace period.
   for (let k = interestFreeMonths + 1; ; k++) {
     const anniversary = addBusinessMonths(startDate, k);
     if (anniversary > asOf) break;
-    events.push({ date: anniversary, kind: "accrue", order: 0 });
+    events.push({
+      date: anniversary,
+      kind: "accrue",
+      multiplier: k === interestFreeMonths + 1 ? interestFreeMonths + 1 : 1,
+      order: 0,
+    });
   }
 
   // On the same date, that month's interest posts before the payment is applied.
@@ -109,6 +126,8 @@ export function computeCreditState(
   let interestAccrued = 0;
   let interestPaid = 0;
   let principalPaid = 0;
+  let interestDiscount = 0;
+  let principalDiscount = 0;
 
   for (const ev of events) {
     if (ev.kind === "pay") {
@@ -119,9 +138,17 @@ export function computeCreditState(
       const toPrincipal = Math.min(rem, principalRemaining);
       principalRemaining = round2(principalRemaining - toPrincipal);
       principalPaid = round2(principalPaid + toPrincipal);
+
+      const discountToInterest = Math.min(ev.discount, interestOutstanding);
+      interestOutstanding = round2(interestOutstanding - discountToInterest);
+      interestDiscount = round2(interestDiscount + discountToInterest);
+      const discountRem = round2(ev.discount - discountToInterest);
+      const discountToPrincipal = Math.min(discountRem, principalRemaining);
+      principalRemaining = round2(principalRemaining - discountToPrincipal);
+      principalDiscount = round2(principalDiscount + discountToPrincipal);
     } else {
       if (principalRemaining > 0) {
-        const charge = round2(interestRatePerMonth * principalRemaining);
+        const charge = round2(interestRatePerMonth * principalRemaining * ev.multiplier);
         interestOutstanding = round2(interestOutstanding + charge);
         interestAccrued = round2(interestAccrued + charge);
       }
@@ -154,6 +181,9 @@ export function computeCreditState(
     interestOutstanding,
     interestPaid,
     principalPaid,
+    interestDiscount,
+    principalDiscount,
+    totalDiscount: round2(interestDiscount + principalDiscount),
     totalPaid: round2(interestPaid + principalPaid),
     outstanding,
     monthsElapsed,
@@ -179,16 +209,33 @@ export function buildCreditPaymentLedger(
   payments: PaymentInput[],
 ): CreditPaymentLedgerEntry[] {
   const paymentsSoFar: PaymentInput[] = [];
+  let previousInterestPaid = 0;
+  let previousPrincipalPaid = 0;
+  let previousInterestDiscount = 0;
+  let previousPrincipalDiscount = 0;
 
   return payments.map((payment) => {
     paymentsSoFar.push(payment);
+    const state = computeCreditState(
+      agreement,
+      paymentsSoFar,
+      payment.paidDate,
+    );
+    const interestApplied = round2(state.interestPaid - previousInterestPaid);
+    const principalApplied = round2(state.principalPaid - previousPrincipalPaid);
+    const interestDiscountApplied = round2(state.interestDiscount - previousInterestDiscount);
+    const principalDiscountApplied = round2(state.principalDiscount - previousPrincipalDiscount);
+    previousInterestPaid = state.interestPaid;
+    previousPrincipalPaid = state.principalPaid;
+    previousInterestDiscount = state.interestDiscount;
+    previousPrincipalDiscount = state.principalDiscount;
     return {
       ...payment,
-      balanceAfter: computeCreditState(
-        agreement,
-        paymentsSoFar,
-        payment.paidDate,
-      ).outstanding,
+      balanceAfter: state.outstanding,
+      interestApplied,
+      principalApplied,
+      interestDiscountApplied,
+      principalDiscountApplied,
     };
   });
 }

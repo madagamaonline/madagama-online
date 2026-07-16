@@ -9,7 +9,7 @@ import {
   assertUniqueProductLines,
   isRecentDuplicatePayment,
   validateDownPaymentAmount,
-  validatePaymentAmount,
+  validatePaymentWithDiscount,
 } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { sumLines } from "@/lib/totals";
@@ -250,6 +250,7 @@ export type PaymentFormState = { error?: string; ok?: boolean };
 
 const paymentSchema = z.object({
   amount: z.coerce.number().positive("Enter a valid amount"),
+  discount: z.coerce.number().min(0, "Enter a valid settlement discount").default(0),
   paidDate: z.string().optional(),
   method: z.string().optional(),
   note: z.string().optional(),
@@ -262,6 +263,7 @@ export async function recordPayment(
 ): Promise<PaymentFormState> {
   const parsed = paymentSchema.safeParse({
     amount: formData.get("amount"),
+    discount: formData.get("discount") || 0,
     paidDate: formData.get("paidDate") || undefined,
     method: formData.get("method") || undefined,
     note: formData.get("note") || undefined,
@@ -300,19 +302,29 @@ export async function recordPayment(
           };
           const beforePayments = existingPayments.map((p) => ({
             amount: toNum(p.amount),
+            discount: toNum(p.discount),
             paidDate: p.paidDate,
           }));
           const before = computeCreditState(agreementInput, beforePayments);
-          const paymentError = validatePaymentAmount(parsed.data.amount, before.outstanding);
+          const paymentError = validatePaymentWithDiscount(
+            parsed.data.amount,
+            parsed.data.discount,
+            before.outstanding,
+          );
           if (paymentError) return { notFound: false as const, error: paymentError };
 
           const method = parsed.data.method?.trim() || "CASH";
           const note = parsed.data.note?.trim() || null;
           if (
             isRecentDuplicatePayment(
-              existingPayments.map((payment) => ({ ...payment, amount: toNum(payment.amount) })),
+              existingPayments.map((payment) => ({
+                ...payment,
+                amount: toNum(payment.amount),
+                discount: toNum(payment.discount),
+              })),
               {
                 amount: parsed.data.amount,
+                discount: parsed.data.discount,
                 paidDate,
                 method,
                 note,
@@ -330,6 +342,7 @@ export async function recordPayment(
             data: {
               agreementId,
               amount: parsed.data.amount,
+              discount: parsed.data.discount,
               paidDate,
               method,
               note,
@@ -341,7 +354,7 @@ export async function recordPayment(
           // includes the row we just wrote) rather than trusting a pre-read.
           const allPayments = [
             ...beforePayments,
-            { amount: parsed.data.amount, paidDate },
+            { amount: parsed.data.amount, discount: parsed.data.discount, paidDate },
           ];
           const state = computeCreditState(
             agreementInput,
@@ -409,7 +422,7 @@ export async function sendReminderNow(agreementId: string): Promise<ReminderResu
       interestRatePerMonth: toNum(a.interestRatePerMonth),
       interestFreeMonths: a.interestFreeMonths,
     },
-    a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+    a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
   );
 
   const business = setting?.businessName ?? "Madagama";

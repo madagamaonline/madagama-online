@@ -51,7 +51,7 @@ export default async function CreditDetailPage({
       interestRatePerMonth: toNum(a.interestRatePerMonth),
       interestFreeMonths: a.interestFreeMonths,
     },
-    a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+    a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
   );
 
   const ratePct = Math.round(toNum(a.interestRatePerMonth) * 100);
@@ -106,6 +106,7 @@ export default async function CreditDetailPage({
             <Row label={`Interest charged (${ratePct}%/mo)`} value={formatLKR(state.interestAccrued)} />
             <Row label="Interest unpaid" value={formatLKR(state.interestOutstanding)} />
             <Row label="Total paid" value={formatLKR(state.totalPaid)} />
+            <Row label="Settlement discounts" value={formatLKR(state.totalDiscount)} />
             <Row label="Outstanding" value={formatLKR(state.outstanding)} strong />
             <div className="grid grid-cols-2 gap-2 pt-3 text-xs text-muted">
               <span>Interest-free until: <b className="text-foreground">{formatDate(state.graceEndDate)}</b></span>
@@ -128,7 +129,7 @@ export default async function CreditDetailPage({
               <p className="text-sm text-muted">This agreement is fully settled.</p>
             ) : (
               <div className="space-y-4">
-                <RecordPayment agreementId={a.id} />
+                <RecordPayment agreementId={a.id} outstanding={state.outstanding} />
                 <div className="border-t border-border pt-4">
                   <SendReminderButton agreementId={a.id} />
                 </div>
@@ -183,7 +184,12 @@ export default async function CreditDetailPage({
                             {p.note ? ` · ${p.note}` : ""}
                           </div>
                         </div>
-                        <span className="font-medium">{formatLKR(p.amount)}</span>
+                        <div className="text-right">
+                          <div className="font-medium">{formatLKR(p.amount)}</div>
+                          {toNum(p.discount) > 0 && (
+                            <div className="text-xs text-muted">Discount {formatLKR(p.discount)}</div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -197,6 +203,7 @@ export default async function CreditDetailPage({
                         <TH>Method</TH>
                         <TH>Note</TH>
                         <TH className="text-right">Amount</TH>
+                        <TH className="text-right">Discount</TH>
                       </TR>
                     </THead>
                     <TBody>
@@ -206,6 +213,7 @@ export default async function CreditDetailPage({
                           <TD>{p.method}</TD>
                           <TD className="text-muted">{p.note ?? "—"}</TD>
                           <TD className="text-right font-medium">{formatLKR(p.amount)}</TD>
+                          <TD className="text-right text-muted">{formatLKR(p.discount)}</TD>
                         </TR>
                       ))}
                     </TBody>

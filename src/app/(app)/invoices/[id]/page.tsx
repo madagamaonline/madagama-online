@@ -83,6 +83,7 @@ export default async function InvoiceViewPage({
     : null;
   const creditPayments = creditAgreement?.payments.map((payment) => ({
     amount: toNum(payment.amount),
+    discount: toNum(payment.discount),
     paidDate: payment.paidDate,
   })) ?? [];
   const creditState = creditTerms
@@ -94,13 +95,16 @@ export default async function InvoiceViewPage({
   const creditLedger = creditAgreement?.payments.map((payment, index) => ({
     ...payment,
     amountNumber: toNum(payment.amount),
+    discountNumber: toNum(payment.discount),
     balanceAfter: paymentBalances[index]?.balanceAfter ?? 0,
   })) ?? [];
   const creditVoided = Boolean(invoice.voidedAt) || creditAgreement?.status === "VOIDED";
   const creditStatus = creditVoided
     ? "VOIDED — AUDIT COPY ONLY"
     : creditState?.isSettled
-      ? "PAID IN FULL — SETTLED"
+      ? creditState.totalDiscount > 0
+        ? "SETTLED — INCLUDES DISCOUNT"
+        : "PAID IN FULL — SETTLED"
       : creditState?.isOverdue
         ? "OVERDUE"
         : "ACTIVE — WITHIN INTEREST-FREE PERIOD";
@@ -289,6 +293,7 @@ export default async function InvoiceViewPage({
                     <th className="px-2 py-2 font-bold">Method</th>
                     <th className="px-2 py-2 font-bold">Reference / note</th>
                     <th className="px-2 py-2 text-right font-bold">Payment</th>
+                    <th className="px-2 py-2 text-right font-bold">Discount</th>
                     <th className="px-2 py-2 text-right font-bold">Balance after</th>
                   </tr>
                 </thead>
@@ -296,6 +301,7 @@ export default async function InvoiceViewPage({
                   {creditLedger.length === 0 ? (
                     <tr className="border-b border-slate-400">
                       <td colSpan={3} className="px-2 py-4 italic text-slate-600">No payments received</td>
+                      <td className="px-2 py-4 text-right tabular">—</td>
                       <td className="px-2 py-4 text-right tabular">—</td>
                       <td className="px-2 py-4 text-right tabular font-bold">{formatLKR(creditState.outstanding)}</td>
                     </tr>
@@ -310,6 +316,7 @@ export default async function InvoiceViewPage({
                         )}
                       </td>
                       <td className="px-2 py-2.5 text-right tabular font-medium">{formatLKR(payment.amountNumber)}</td>
+                      <td className="px-2 py-2.5 text-right tabular text-slate-600">{formatLKR(payment.discountNumber)}</td>
                       <td className="px-2 py-2.5 text-right tabular font-bold">{formatLKR(payment.balanceAfter)}</td>
                     </tr>
                   ))}
@@ -394,6 +401,7 @@ export default async function InvoiceViewPage({
             <div className="mt-1 text-center text-[11.5px]">As of {formatDateTime(statementAsOf)}</div>
             <div className="mt-2 flex justify-between"><span>Original total</span><span className="tabular">{formatLKR(creditState.principal)}</span></div>
             <div className="flex justify-between"><span>Payments</span><span className="tabular">− {formatLKR(creditState.totalPaid)}</span></div>
+            <div className="flex justify-between"><span>Settlement discounts</span><span className="tabular">− {formatLKR(creditState.totalDiscount)}</span></div>
             <div className="flex justify-between"><span>Principal left</span><span className="tabular">{formatLKR(creditState.principalRemaining)}</span></div>
             <div className="flex justify-between"><span>Interest charged</span><span className="tabular">{formatLKR(creditState.interestAccrued)}</span></div>
             <div className="flex justify-between"><span>Interest unpaid</span><span className="tabular">{formatLKR(creditState.interestOutstanding)}</span></div>
@@ -409,6 +417,12 @@ export default async function InvoiceViewPage({
                   <span className="min-w-0 break-words">{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span>
                   <span className="shrink-0 tabular font-semibold">{formatLKR(payment.amountNumber)}</span>
                 </div>
+                {payment.discountNumber > 0 && (
+                  <div className="flex justify-between gap-2 text-[11.5px]">
+                    <span>Settlement discount</span>
+                    <span className="shrink-0 tabular">{formatLKR(payment.discountNumber)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between gap-2 text-[11.5px]">
                   <span className="min-w-0 break-words">{payment.note ?? "Payment"}</span>
                   <span className="shrink-0 tabular font-semibold">Bal {formatLKR(payment.balanceAfter)}</span>

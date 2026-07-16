@@ -82,7 +82,7 @@ export default async function DashboardPage() {
       include: {
         customer: { select: { name: true } },
         invoice: { select: { invoiceNumber: true } },
-        payments: { select: { amount: true, paidDate: true } },
+        payments: { select: { amount: true, discount: true, paidDate: true } },
       },
     }),
     prisma.invoice.findMany({
@@ -139,7 +139,7 @@ export default async function DashboardPage() {
         interestRatePerMonth: toNum(a.interestRatePerMonth),
         interestFreeMonths: a.interestFreeMonths,
       },
-      a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+      a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
     ),
   }));
   const outstanding = agStates.reduce((sum, x) => sum + x.s.outstanding, 0);

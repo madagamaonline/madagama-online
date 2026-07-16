@@ -38,7 +38,7 @@ export default async function CustomerStatementPage({
         interestRatePerMonth: toNum(a.interestRatePerMonth),
         interestFreeMonths: a.interestFreeMonths,
       },
-      a.payments.map((p) => ({ amount: toNum(p.amount), paidDate: p.paidDate })),
+      a.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
     );
     return { a, state };
   });
@@ -46,6 +46,7 @@ export default async function CustomerStatementPage({
   const totalPrincipal = rows.reduce((s, r) => s + r.state.principal, 0);
   const totalInterest = rows.reduce((s, r) => s + r.state.interestAccrued, 0);
   const totalPaid = rows.reduce((s, r) => s + r.state.totalPaid, 0);
+  const totalDiscount = rows.reduce((s, r) => s + r.state.totalDiscount, 0);
   const totalOutstanding = rows.reduce((s, r) => s + r.state.outstanding, 0);
 
   const payments = customer.creditAgreements
@@ -96,6 +97,7 @@ export default async function CustomerStatementPage({
                 <th className="px-2 text-right font-medium">Principal</th>
                 <th className="px-2 text-right font-medium">Interest</th>
                 <th className="px-2 text-right font-medium">Paid</th>
+                <th className="px-2 text-right font-medium">Discount</th>
                 <th className="py-2 pl-2 text-right font-medium">Outstanding</th>
               </tr>
             </thead>
@@ -107,6 +109,7 @@ export default async function CustomerStatementPage({
                   <td className="px-2 text-right">{formatLKR(state.principal)}</td>
                   <td className="px-2 text-right">{formatLKR(state.interestAccrued)}</td>
                   <td className="px-2 text-right">{formatLKR(state.totalPaid)}</td>
+                  <td className="px-2 text-right">{formatLKR(state.totalDiscount)}</td>
                   <td className="py-2 pl-2 text-right font-medium">{formatLKR(state.outstanding)}</td>
                 </tr>
               ))}
@@ -115,6 +118,7 @@ export default async function CustomerStatementPage({
                 <td className="px-2 text-right">{formatLKR(totalPrincipal)}</td>
                 <td className="px-2 text-right">{formatLKR(totalInterest)}</td>
                 <td className="px-2 text-right">{formatLKR(totalPaid)}</td>
+                <td className="px-2 text-right">{formatLKR(totalDiscount)}</td>
                 <td className="py-2 pl-2 text-right">{formatLKR(totalOutstanding)}</td>
               </tr>
             </tbody>
@@ -131,6 +135,7 @@ export default async function CustomerStatementPage({
                   <th className="py-2 pr-2 font-medium">Invoice</th>
                   <th className="py-2 pr-2 font-medium">Method</th>
                   <th className="py-2 pl-2 text-right font-medium">Amount</th>
+                  <th className="py-2 pl-2 text-right font-medium">Discount</th>
                 </tr>
               </thead>
               <tbody>
@@ -140,6 +145,7 @@ export default async function CustomerStatementPage({
                     <td className="py-2 pr-2">{p.invoiceNumber}</td>
                     <td className="py-2 pr-2 text-muted">{p.method}</td>
                     <td className="py-2 pl-2 text-right">{formatLKR(p.amount)}</td>
+                    <td className="py-2 pl-2 text-right">{formatLKR(p.discount)}</td>
                   </tr>
                 ))}
               </tbody>

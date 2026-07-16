@@ -14,7 +14,7 @@ purchasing, SMS reminders, payroll, expenses, and KPI dashboards.
 | Hosting | Cloud web app — Vercel + cloud PostgreSQL (same stack as `jnexmultitenant`) |
 | Reminders | **SMS** via **text.lk** (behind a swappable provider layer) |
 | Logins/Roles | **Admin-only** login; admin selects which employee made each sale (for commission). Role enum kept so staff logins can be added later. |
-| Interest | **2% / month on remaining principal**, non-compounding. Rate + grace period configurable in Settings. |
+| Interest | No charge posted for the configured grace period; if still owing at the end of the following month, post a catch-up for every elapsed month, then **2% / month on remaining principal**, non-compounding. |
 | Item codes | **Auto-generated structured**: `CATEGORY-SUBCATEGORY-NNNN` (e.g. `AGR-TOOL-0001`, `ELC-TV-0007`). Type-to-search on invoices. |
 | VAT | **VAT-registered, 18%** (configurable). Per-item taxable/exempt flag. Proper tax invoices with TIN/VAT number. |
 | Currency | LKR |
@@ -100,7 +100,7 @@ Single pure function `computeCreditState(agreement, charges[], payments[], asOf)
 
 Rules:
 - Months 1–4 (`interestFreeMonths`): **no interest**. If fully paid within grace → 0 interest.
-- After grace: each elapsed month adds `InterestCharge = interestRatePerMonth × principalRemaining`.
+- At the end of the first month after grace: `InterestCharge = interestRatePerMonth × principalRemaining × total elapsed months`; each later month adds `interestRatePerMonth × principalRemaining`.
 - **Non-compounding**: interest base is always *remaining principal only*, never on accrued interest.
 - Payment allocation: clears outstanding accrued interest first, remainder reduces principal *(documented rule — easy to flip to principal-first if you prefer; confirm during build)*.
 - `outstanding = principalRemaining + (interestAccrued − interestPaid)`.

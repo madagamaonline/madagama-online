@@ -7,7 +7,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // other — run them together instead of one after the other.
   const [user, setting] = await Promise.all([requireUser(), getSettings()]);
   return (
-    <AppShell user={user} businessName={setting?.businessName ?? "Madagama"}>
+    <AppShell
+      user={user}
+      businessName={setting?.businessName ?? "Madagama"}
+      nonTaxableEnabled={setting?.nonTaxableEnabled ?? true}
+    >
       {children}
     </AppShell>
   );

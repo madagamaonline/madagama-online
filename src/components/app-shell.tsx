@@ -39,7 +39,12 @@ import { CommandPalette } from "@/components/command-palette";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { Pwa } from "@/components/pwa";
 
-type NavItem = { href: string; label: string; icon: React.ElementType };
+type NavItem = {
+  href: string;
+  label: string;
+  icon: React.ElementType;
+  requiresNonTaxableMode?: boolean;
+};
 type NavGroup = { title: string; items: NavItem[] };
 
 const NAV: NavGroup[] = [
@@ -56,7 +61,6 @@ const NAV: NavGroup[] = [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/credit-invoices", label: "Credit Invoices", icon: CreditCard },
-      { href: "/lolc-receipt", label: "LOLC Receipt", icon: HandCoins },
       { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },
       { href: "/services", label: "Service Jobs", icon: Wrench },
@@ -86,20 +90,37 @@ const NAV: NavGroup[] = [
       { href: "/reports", label: "Reports", icon: TrendingUp },
     ],
   },
+  {
+    title: "Other",
+    items: [
+      {
+        href: "/lolc-receipt",
+        label: "Receipts",
+        icon: HandCoins,
+        requiresNonTaxableMode: true,
+      },
+    ],
+  },
 ];
 
 export function AppShell({
   user,
   businessName,
+  nonTaxableEnabled,
   children,
 }: {
   user: SessionUser;
   businessName: string;
+  nonTaxableEnabled: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const visibleNav = NAV.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => nonTaxableEnabled || !item.requiresNonTaxableMode),
+  })).filter((group) => group.items.length > 0);
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -178,7 +199,7 @@ export function AppShell({
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-3 scrollbar-thin">
-          {NAV.map((group, gi) => (
+          {visibleNav.map((group, gi) => (
             <div key={gi} className="mb-4">
               {group.title && (
                 <p className="px-3 pb-1.5 text-[10.5px] font-bold uppercase tracking-wider text-faint">
@@ -285,7 +306,7 @@ export function AppShell({
       </nav>
 
       <Pwa />
-      <CommandPalette />
+      <CommandPalette nonTaxableEnabled={nonTaxableEnabled} />
     </div>
     </ConfirmProvider>
   );

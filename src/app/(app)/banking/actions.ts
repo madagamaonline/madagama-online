@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireActionUser } from "@/lib/auth";
+import { requireActionStaffFinanceAccess } from "@/lib/auth";
 import { chequeBalance, validateChequePayment } from "@/lib/cheques";
 import { prisma } from "@/lib/prisma";
 import { round2, toNum } from "@/lib/utils";
@@ -23,7 +23,7 @@ export async function createBankAccount(
   _previous: BankingActionState,
   formData: FormData,
 ): Promise<BankingActionState> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   const parsed = accountSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the account details" };
 
@@ -66,7 +66,7 @@ export async function issueCheque(
   _previous: BankingActionState,
   formData: FormData,
 ): Promise<BankingActionState> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   const parsed = chequeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the cheque details" };
   const data = parsed.data;
@@ -164,7 +164,7 @@ export async function recordChequePayment(
   _previous: BankingActionState,
   formData: FormData,
 ): Promise<BankingActionState> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   const parsed = repaymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the payment details" };
 

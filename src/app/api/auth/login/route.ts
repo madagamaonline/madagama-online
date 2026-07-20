@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { verifyPassword, setSession } from "@/lib/auth";
+import { defaultLandingPath } from "@/lib/authorization";
 
 const schema = z.object({
   email: z.string().min(1),
@@ -22,5 +23,5 @@ export async function POST(req: Request) {
   }
 
   await setSession({ id: user.id, name: user.name, email: user.email, role: user.role });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, redirectTo: defaultLandingPath(user.role) });
 }

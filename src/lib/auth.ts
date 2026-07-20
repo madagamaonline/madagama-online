@@ -2,7 +2,9 @@ import "server-only";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
-import { roleCanAccess } from "./authorization";
+import { cache } from "react";
+import { canAccessStaffFinance, defaultLandingPath, roleCanAccess } from "./authorization";
+import { prisma } from "./prisma";
 import {
   SESSION_COOKIE,
   signSession,
@@ -10,12 +12,22 @@ import {
   type SessionUser,
 } from "./session";
 
-export async function getSession(): Promise<SessionUser | null> {
+export const getSession = cache(async (): Promise<SessionUser | null> => {
   const store = await cookies();
   const token = store.get(SESSION_COOKIE)?.value;
   if (!token) return null;
-  return verifySession(token);
-}
+  const session = await verifySession(token);
+  if (!session) return null;
+
+  // The database is authoritative so role changes and deactivation take effect
+  // immediately, rather than when the seven-day cookie eventually expires.
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { id: true, name: true, email: true, role: true, active: true },
+  });
+  if (!user?.active) return null;
+  return { id: user.id, name: user.name, email: user.email, role: user.role };
+});
 
 export async function requireUser(): Promise<SessionUser> {
   const user = await getSession();
@@ -30,6 +42,13 @@ export async function requireAdmin(): Promise<SessionUser> {
   return user;
 }
 
+/** Protect pages that salespeople must not access. */
+export async function requireStaffFinanceAccess(): Promise<SessionUser> {
+  const user = await requireUser();
+  if (!canAccessStaffFinance(user.role)) redirect(defaultLandingPath(user.role));
+  return user;
+}
+
 /** Authenticate a directly-invokable Server Action without redirect control flow. */
 export async function requireActionUser(): Promise<SessionUser> {
   const user = await getSession();
@@ -41,6 +60,13 @@ export async function requireActionUser(): Promise<SessionUser> {
 export async function requireActionAdmin(): Promise<SessionUser> {
   const user = await requireActionUser();
   if (!roleCanAccess(user.role, "ADMIN")) throw new Error("Forbidden");
+  return user;
+}
+
+/** Protect staff-and-finance Server Actions from direct invocation. */
+export async function requireActionStaffFinanceAccess(): Promise<SessionUser> {
+  const user = await requireActionUser();
+  if (!canAccessStaffFinance(user.role)) throw new Error("Forbidden");
   return user;
 }
 

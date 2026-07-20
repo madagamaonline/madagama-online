@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
+import { canAccessStaffFinance } from "@/lib/authorization";
 import { UserSwitcher } from "@/components/user-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
@@ -44,6 +45,7 @@ type NavItem = {
   label: string;
   icon: React.ElementType;
   requiresNonTaxableMode?: boolean;
+  requiresStaffFinanceAccess?: boolean;
 };
 type NavGroup = { title: string; items: NavItem[] };
 
@@ -51,7 +53,7 @@ const NAV: NavGroup[] = [
   {
     title: "",
     items: [
-      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, requiresStaffFinanceAccess: true },
       { href: "/reminders", label: "Reminders", icon: Bell },
     ],
   },
@@ -81,13 +83,13 @@ const NAV: NavGroup[] = [
   {
     title: "Staff & Finance",
     items: [
-      { href: "/employees", label: "Employees", icon: UserCog },
-      { href: "/attendance", label: "Attendance", icon: CalendarCheck },
-      { href: "/payroll", label: "Payroll", icon: Wallet },
-      { href: "/expenses", label: "Expenses", icon: Receipt },
-      { href: "/banking", label: "Bank & Cheques", icon: Landmark },
-      { href: "/shift-report", label: "Shift Reports", icon: ClipboardCheck },
-      { href: "/reports", label: "Reports", icon: TrendingUp },
+      { href: "/employees", label: "Employees", icon: UserCog, requiresStaffFinanceAccess: true },
+      { href: "/attendance", label: "Attendance", icon: CalendarCheck, requiresStaffFinanceAccess: true },
+      { href: "/payroll", label: "Payroll", icon: Wallet, requiresStaffFinanceAccess: true },
+      { href: "/expenses", label: "Expenses", icon: Receipt, requiresStaffFinanceAccess: true },
+      { href: "/banking", label: "Bank & Cheques", icon: Landmark, requiresStaffFinanceAccess: true },
+      { href: "/shift-report", label: "Shift Reports", icon: ClipboardCheck, requiresStaffFinanceAccess: true },
+      { href: "/reports", label: "Reports", icon: TrendingUp, requiresStaffFinanceAccess: true },
     ],
   },
   {
@@ -119,7 +121,11 @@ export function AppShell({
   const [open, setOpen] = useState(false);
   const visibleNav = NAV.map((group) => ({
     ...group,
-    items: group.items.filter((item) => nonTaxableEnabled || !item.requiresNonTaxableMode),
+    items: group.items.filter(
+      (item) =>
+        (nonTaxableEnabled || !item.requiresNonTaxableMode) &&
+        (canAccessStaffFinance(user.role) || !item.requiresStaffFinanceAccess),
+    ),
   })).filter((group) => group.items.length > 0);
 
   async function logout() {
@@ -213,14 +219,16 @@ export function AppShell({
 
         {/* Footer */}
         <div className="border-t border-border-subtle p-3">
-          {navLink({ href: "/settings", label: "Settings", icon: Settings })}
+          {canAccessStaffFinance(user.role) && navLink({ href: "/settings", label: "Settings", icon: Settings })}
           <div className="mt-2 flex items-center gap-2.5 rounded-[10px] px-2 py-2">
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-soft text-sm font-bold text-primary-ink">
               {user.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[13px] font-semibold leading-tight text-foreground">{user.name}</p>
-              <p className="text-[11px] leading-tight text-faint">{user.role}</p>
+              <p className="text-[11px] leading-tight text-faint">
+                {user.role === "ADMIN" ? "Admin" : user.role === "SALESPERSON" ? "Salesperson" : "Cashier"}
+              </p>
             </div>
             <button
               onClick={logout}
@@ -284,7 +292,9 @@ export function AppShell({
       {/* Mobile bottom tab bar — the primary "feels like an app" navigation on
           phones. Hidden at lg where the sidebar takes over. */}
       <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
-        {mobileTab({ href: "/dashboard", label: "Home", icon: LayoutDashboard })}
+        {canAccessStaffFinance(user.role)
+          ? mobileTab({ href: "/dashboard", label: "Home", icon: LayoutDashboard })
+          : mobileTab({ href: "/invoices/new", label: "New Sale", icon: ShoppingCart })}
         {mobileTab({ href: "/reminders", label: "Reminders", icon: Bell })}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent("madagama:command-palette"))}
@@ -306,7 +316,7 @@ export function AppShell({
       </nav>
 
       <Pwa />
-      <CommandPalette nonTaxableEnabled={nonTaxableEnabled} />
+      <CommandPalette nonTaxableEnabled={nonTaxableEnabled} userRole={user.role} />
     </div>
     </ConfirmProvider>
   );

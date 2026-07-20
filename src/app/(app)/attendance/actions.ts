@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requireActionUser } from "@/lib/auth";
+import { requireActionStaffFinanceAccess } from "@/lib/auth";
 
 export type SaveAttendanceResult = { ok: boolean; error?: string };
 
@@ -18,7 +18,7 @@ const schema = z.object({
 });
 
 export async function saveAttendance(input: z.input<typeof schema>): Promise<SaveAttendanceResult> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   const parsed = schema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid attendance data" };
   const date = new Date(parsed.data.date + "T00:00:00.000Z");

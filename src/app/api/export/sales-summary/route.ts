@@ -14,8 +14,12 @@ const MS_PER_DAY = 86_400_000;
 // plus a TOTAL row. Meant for owners doing their bookkeeping in Excel.
 export async function GET(req: Request) {
   // Daily takings — re-check auth here, not just in the proxy.
-  if (!(await getSession())) {
+  const session = await getSession();
+  if (!session) {
     return new Response("Unauthorized", { status: 401 });
+  }
+  if (session.role === "SALESPERSON") {
+    return new Response("Forbidden", { status: 403 });
   }
 
   const now = new Date();

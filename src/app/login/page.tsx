@@ -28,7 +28,8 @@ export default function LoginPage() {
         setError(data.error ?? "Login failed");
         return;
       }
-      router.replace("/dashboard");
+      const data = await res.json();
+      router.replace(data.redirectTo ?? "/dashboard");
       router.refresh();
     } catch {
       setError("Network error. Please try again.");

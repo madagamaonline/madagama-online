@@ -32,6 +32,8 @@ import {
   HandCoins,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
+import { canAccessStaffFinance } from "@/lib/authorization";
+import type { Role } from "@/lib/session";
 
 type Cmd = { id: string; group: string; label: string; sub?: string; icon: React.ElementType; href: string };
 
@@ -77,7 +79,25 @@ const PAGES: Cmd[] = [
 
 type ProductHit = { id: string; code: string; shortCode?: number; name: string; sellingPrice: number; stock: number };
 
-export function CommandPalette({ nonTaxableEnabled }: { nonTaxableEnabled: boolean }) {
+const SALESPERSON_RESTRICTED_PREFIXES = [
+  "/dashboard",
+  "/settings",
+  "/employees",
+  "/attendance",
+  "/payroll",
+  "/expenses",
+  "/banking",
+  "/shift-report",
+  "/reports",
+];
+
+export function CommandPalette({
+  nonTaxableEnabled,
+  userRole,
+}: {
+  nonTaxableEnabled: boolean;
+  userRole: Role;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -158,12 +178,21 @@ export function CommandPalette({ nonTaxableEnabled }: { nonTaxableEnabled: boole
 
   const staticMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const all = [...ACTIONS, ...PAGES].filter(
-      (command) => nonTaxableEnabled || command.href !== "/lolc-receipt",
-    );
+    const all = [...ACTIONS, ...PAGES].filter((command) => {
+      if (!nonTaxableEnabled && command.href === "/lolc-receipt") return false;
+      if (
+        !canAccessStaffFinance(userRole) &&
+        SALESPERSON_RESTRICTED_PREFIXES.some(
+          (prefix) => command.href === prefix || command.href.startsWith(prefix + "/"),
+        )
+      ) {
+        return false;
+      }
+      return true;
+    });
     if (!q) return all;
     return all.filter((c) => c.label.toLowerCase().includes(q) || c.sub?.toLowerCase().includes(q));
-  }, [query, nonTaxableEnabled]);
+  }, [query, nonTaxableEnabled, userRole]);
 
   const items: Cmd[] = useMemo(
     () => [

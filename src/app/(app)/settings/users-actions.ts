@@ -8,7 +8,7 @@ import { getSession, hashPassword } from "@/lib/auth";
 
 export type UserFormState = { error?: string; ok?: boolean };
 
-const roleEnum = z.enum(["ADMIN", "STAFF"]);
+const roleEnum = z.enum(["ADMIN", "STAFF", "SALESPERSON"]);
 
 async function ensureAdmin(): Promise<{ id: string } | { error: string }> {
   const me = await getSession();

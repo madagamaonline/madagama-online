@@ -14,7 +14,7 @@ const secret = new TextEncoder().encode(
   process.env.AUTH_SECRET ?? "dev-insecure-secret-change-me",
 );
 
-export type Role = "ADMIN" | "STAFF";
+export type Role = "ADMIN" | "STAFF" | "SALESPERSON";
 
 export type SessionUser = {
   id: string;

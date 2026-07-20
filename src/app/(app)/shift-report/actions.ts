@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getSession, requireActionUser } from "@/lib/auth";
+import { requireActionStaffFinanceAccess } from "@/lib/auth";
 
 export type ShiftSummary = {
   startTime: Date;
@@ -14,7 +14,7 @@ export type ShiftSummary = {
 };
 
 export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   // Find the last shift report to determine the start time of the current shift
   const lastReport = await prisma.shiftReport.findFirst({
     orderBy: { endTime: "desc" },
@@ -77,8 +77,12 @@ export async function createShiftReport(
   _prev: ShiftReportFormState,
   formData: FormData,
 ): Promise<ShiftReportFormState> {
-  const session = await getSession();
-  if (!session) return { error: "Your session has expired — please sign in again." };
+  let session;
+  try {
+    session = await requireActionStaffFinanceAccess();
+  } catch {
+    return { error: "You don't have access to shift reports." };
+  }
 
   const parsed = shiftReportSchema.safeParse({
     actualCash: formData.get("actualCash"),
@@ -132,7 +136,7 @@ export type ShiftReportRow = {
 };
 
 export async function getShiftReports(): Promise<ShiftReportRow[]> {
-  await requireActionUser();
+  await requireActionStaffFinanceAccess();
   const reports = await prisma.shiftReport.findMany({
     include: {
       createdBy: { select: { name: true } },

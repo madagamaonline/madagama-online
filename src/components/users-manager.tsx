@@ -15,12 +15,13 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { DeleteButton } from "@/components/delete-button";
+import type { Role } from "@/lib/session";
 
 export type UserRow = {
   id: string;
   name: string;
   email: string;
-  role: "ADMIN" | "STAFF";
+  role: Role;
   active: boolean;
   hasPin: boolean;
 };
@@ -53,6 +54,7 @@ function AddUserForm() {
         <Label htmlFor="u-role">Role</Label>
         <Select id="u-role" name="role" defaultValue="STAFF">
           <option value="STAFF">Cashier (Staff)</option>
+          <option value="SALESPERSON">Salesperson</option>
           <option value="ADMIN">Admin</option>
         </Select>
       </div>
@@ -104,6 +106,7 @@ function EditUserForm({
         <Label htmlFor={`e-role-${user.id}`}>Role</Label>
         <Select id={`e-role-${user.id}`} name="role" defaultValue={user.role} disabled={isSelf}>
           <option value="STAFF">Cashier (Staff)</option>
+          <option value="SALESPERSON">Salesperson</option>
           <option value="ADMIN">Admin</option>
         </Select>
         {isSelf && <input type="hidden" name="role" value={user.role} />}
@@ -158,7 +161,7 @@ function UserRowView({
           <span className="font-medium">{user.name}</span>
           {isSelf && <span className="text-xs text-muted">(you)</span>}
           <Badge tone={user.role === "ADMIN" ? "blue" : "gray"}>
-            {user.role === "ADMIN" ? "Admin" : "Cashier"}
+            {user.role === "ADMIN" ? "Admin" : user.role === "SALESPERSON" ? "Salesperson" : "Cashier"}
           </Badge>
           {!user.active && <Badge tone="red">Disabled</Badge>}
         </div>
@@ -195,8 +198,8 @@ export function UsersManager({
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-muted">
-          These are the people who can log in and create invoices (admins and cashiers) — separate
-          from sales Employees. Only admins can manage users.
+          These are the people who can log in (admins, cashiers, and salespeople) — separate from
+          sales Employees. Only admins can manage users.
         </p>
         <AddUserForm />
         <div className="divide-y divide-border">

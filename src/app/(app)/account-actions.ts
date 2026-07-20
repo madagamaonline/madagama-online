@@ -2,11 +2,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { getSession, setSession } from "@/lib/auth";
+import type { Role } from "@/lib/session";
 
 export type LoginUserInfo = {
   id: string;
   name: string;
-  role: "ADMIN" | "STAFF";
+  role: Role;
   hasPin: boolean;
   isCurrent: boolean;
 };

@@ -5,10 +5,13 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Users, Lock, ChevronDown, UserCheck, ShieldAlert, X, Loader2 } from "lucide-react";
 import { getActiveLoginUsers, switchUser, type LoginUserInfo } from "@/app/(app)/account-actions";
+import type { Role } from "@/lib/session";
+import { defaultLandingPath } from "@/lib/authorization";
 
-type CurrentUser = { id: string; name: string; role: "ADMIN" | "STAFF" };
+type CurrentUser = { id: string; name: string; role: Role };
 
-const roleLabel = (r: "ADMIN" | "STAFF") => (r === "ADMIN" ? "Admin" : "Cashier");
+const roleLabel = (r: Role) =>
+  r === "ADMIN" ? "Admin" : r === "SALESPERSON" ? "Salesperson" : "Cashier";
 
 export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
   const router = useRouter();
@@ -53,6 +56,7 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
       const res = await switchUser(selected.id, value);
       if (res.ok) {
         close();
+        router.replace(defaultLandingPath(selected.role));
         router.refresh();
       } else {
         setError(res.error);

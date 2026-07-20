@@ -3,7 +3,7 @@
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { getSession } from "@/lib/auth";
+import { requireActionStaffFinanceAccess } from "@/lib/auth";
 
 export type SettingsState = { error?: string; ok?: boolean };
 
@@ -49,8 +49,12 @@ export async function updateSettings(
 
   // Defense in depth: don't rely on the middleware alone — verify a real session
   // here too, since a server action is just a POST endpoint.
-  const me = await getSession();
-  if (!me) return { error: "Your session has expired — please sign in again." };
+  let me;
+  try {
+    me = await requireActionStaffFinanceAccess();
+  } catch {
+    return { error: "You don't have access to Settings." };
+  }
   const isAdmin = me.role === "ADMIN";
   const nonTaxableEnabled = formData.get("nonTaxableEnabled") === "on";
 

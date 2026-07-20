@@ -30,6 +30,7 @@ import {
   MessageSquareText,
   Landmark,
   HandCoins,
+  Tractor,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 import { canAccessStaffFinance } from "@/lib/authorization";
@@ -48,6 +49,7 @@ const ACTIONS: Cmd[] = [
   { id: "a-purchase", group: "Actions", label: "New Purchase", sub: "Record a supplier purchase", icon: Truck, href: "/purchases/new" },
   { id: "a-expense", group: "Actions", label: "Add Expense", sub: "Record an expense", icon: Receipt, href: "/expenses" },
   { id: "a-cheque", group: "Actions", label: "Issue Supplier Cheque", sub: "Register a cheque from a bank account", icon: Landmark, href: "/banking/cheques/new" },
+  { id: "a-vehicle", group: "Actions", label: "Receive Consignment Vehicle", sub: "Add a supplier-owned tractor or harvester", icon: Tractor, href: "/vehicles/new" },
 ];
 
 const PAGES: Cmd[] = [
@@ -67,6 +69,8 @@ const PAGES: Cmd[] = [
   { id: "p-sup", group: "Go to", label: "Suppliers", icon: Truck, href: "/suppliers" },
   { id: "p-pur", group: "Go to", label: "Purchases", icon: PackagePlus, href: "/purchases" },
   { id: "p-sret", group: "Go to", label: "Supplier Returns", icon: PackageX, href: "/supplier-returns" },
+  { id: "p-vehicles", group: "Go to", label: "Consignment Vehicles", icon: Tractor, href: "/vehicles" },
+  { id: "p-vehicle-sales", group: "Go to", label: "Vehicle Sales", icon: Tractor, href: "/vehicle-sales" },
   { id: "p-emp", group: "Go to", label: "Employees", icon: UserCog, href: "/employees" },
   { id: "p-att", group: "Go to", label: "Attendance", icon: CalendarCheck, href: "/attendance" },
   { id: "p-pay", group: "Go to", label: "Payroll", icon: Wallet, href: "/payroll" },

@@ -50,15 +50,21 @@ export async function resetSystemData(
   // Collect the storage keys of every uploaded file BEFORE the rows referencing
   // them are truncated, so the blobs (NIC images, service photos) can be removed
   // too instead of being orphaned in the bucket.
-  const [customers, guarantors, serviceJobs] = await Promise.all([
+  const [customers, guarantors, serviceJobs, vehicles, vehicleDocuments, vehicleAcknowledgements] = await Promise.all([
     prisma.customer.findMany({ select: { nicFrontKey: true, nicBackKey: true } }),
     prisma.guarantor.findMany({ select: { nicFrontKey: true, nicBackKey: true } }),
     prisma.serviceJob.findMany({ select: { photoKeys: true } }),
+    prisma.consignmentVehicle.findMany({ select: { photoKeys: true } }),
+    prisma.vehicleDocumentItem.findMany({ select: { fileKey: true } }),
+    prisma.vehicleDocumentAcknowledgement.findMany({ select: { signatureKey: true } }),
   ]);
   const uploadKeys = [
     ...customers.flatMap((c) => [c.nicFrontKey, c.nicBackKey]),
     ...guarantors.flatMap((g) => [g.nicFrontKey, g.nicBackKey]),
     ...serviceJobs.flatMap((j) => j.photoKeys),
+    ...vehicles.flatMap((vehicle) => vehicle.photoKeys),
+    ...vehicleDocuments.map((document) => document.fileKey),
+    ...vehicleAcknowledgements.map((acknowledgement) => acknowledgement.signatureKey),
   ].filter((k): k is string => !!k);
 
   // Discover every table to wipe — everything in the public schema except the

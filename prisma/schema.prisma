@@ -32,20 +32,28 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  invoicesCreated          Invoice[]              @relation("InvoiceCreatedBy")
-  invoicesVoided           Invoice[]              @relation("InvoiceVoidedBy")
-  paymentsRecorded         Payment[]              @relation("PaymentRecordedBy")
-  stockMovements           StockMovement[]
-  salesReturns             SalesReturn[]
-  supplierReturns          SupplierReturn[]
-  shiftReports             ShiftReport[]
-  serviceJobs              ServiceJob[]
-  serviceJobEvents         ServiceJobEvent[]
-  priceChanges             PriceChange[]
-  quotations               Quotation[]
-  customerRequestsCreated  CustomerRequest[]      @relation("CustomerRequestCreatedBy")
-  customerRequestsAssigned CustomerRequest[]      @relation("CustomerRequestAssignedTo")
-  customerRequestEvents    CustomerRequestEvent[]
+  invoicesCreated             Invoice[]                        @relation("InvoiceCreatedBy")
+  invoicesVoided              Invoice[]                        @relation("InvoiceVoidedBy")
+  paymentsRecorded            Payment[]                        @relation("PaymentRecordedBy")
+  stockMovements              StockMovement[]
+  salesReturns                SalesReturn[]
+  supplierReturns             SupplierReturn[]
+  shiftReports                ShiftReport[]
+  serviceJobs                 ServiceJob[]
+  serviceJobEvents            ServiceJobEvent[]
+  priceChanges                PriceChange[]
+  quotations                  Quotation[]
+  customerRequestsCreated     CustomerRequest[]                @relation("CustomerRequestCreatedBy")
+  customerRequestsAssigned    CustomerRequest[]                @relation("CustomerRequestAssignedTo")
+  customerRequestEvents       CustomerRequestEvent[]
+  consignmentVehiclesReceived ConsignmentVehicle[]             @relation("VehicleReceivedBy")
+  vehicleSalesCreated         VehicleSale[]                    @relation("VehicleSaleCreatedBy")
+  vehicleSalesVoided          VehicleSale[]                    @relation("VehicleSaleVoidedBy")
+  vehicleCustomerPayments     VehicleCustomerPayment[]
+  vehicleSupplierSettlements  VehicleSupplierSettlement[]
+  vehicleDocumentEvents       VehicleDocumentEvent[]
+  vehicleDocumentItemsUpdated VehicleDocumentItem[]            @relation("VehicleDocumentItemUpdatedBy")
+  vehicleAcknowledgements     VehicleDocumentAcknowledgement[]
 }
 
 // Single-row global configuration (id = 1).
@@ -173,6 +181,7 @@ model Customer {
   serviceJobs      ServiceJob[]
   quotations       Quotation[]
   customerRequests CustomerRequest[]
+  vehicleSales     VehicleSale[]
 
   @@index([phone])
 }
@@ -216,6 +225,7 @@ model Employee {
   payrollLines PayrollLine[]
   shiftReports ShiftReport[]
   quotations   Quotation[]
+  vehicleSales VehicleSale[]
 }
 
 model ShiftReport {
@@ -245,11 +255,313 @@ model Supplier {
   address       String?
   createdAt     DateTime @default(now())
 
-  products         Product[]
-  purchases        Purchase[]
-  returns          SupplierReturn[]
-  customerRequests CustomerRequest[]
-  issuedCheques    IssuedCheque[]
+  products                   Product[]
+  purchases                  Purchase[]
+  returns                    SupplierReturn[]
+  customerRequests           CustomerRequest[]
+  issuedCheques              IssuedCheque[]
+  consignmentVehicles        ConsignmentVehicle[]
+  vehicleSupplierSettlements VehicleSupplierSettlement[]
+}
+
+// ----------------------------------------------------------------------------
+// Supplier-owned consignment vehicles
+// ----------------------------------------------------------------------------
+
+enum VehicleKind {
+  TRACTOR
+  HARVESTER
+  COMBINE_HARVESTER
+}
+
+enum ConsignmentVehicleStatus {
+  DRAFT
+  AVAILABLE
+  RESERVED
+  SOLD
+  RETURNED
+}
+
+enum VehicleSaleType {
+  CASH
+  EXTERNAL_FINANCE
+  IN_HOUSE_CREDIT
+}
+
+enum VehicleSaleStatus {
+  CONFIRMED
+  VOIDED
+}
+
+enum VehiclePaymentKind {
+  FULL_PAYMENT
+  DOWN_PAYMENT
+  INSTALLMENT
+  FINAL_SETTLEMENT
+}
+
+enum VehiclePaymentMethod {
+  CASH
+  BANK
+  CHEQUE
+  CARD
+}
+
+enum VehicleCreditStatus {
+  ACTIVE
+  SETTLED
+  DEFAULTED
+  VOIDED
+}
+
+enum VehicleDocumentCaseStatus {
+  AWAITING_CUSTOMER_DOCUMENTS
+  DOCUMENTS_RECEIVED
+  SUBMITTED
+  PROCESSING
+  REGISTERED
+  HANDED_OVER
+  CANCELLED
+}
+
+enum VehicleDocumentItemStatus {
+  REQUIRED
+  RECEIVED
+  SUBMITTED
+  APPROVED
+  RETURNED
+  WAIVED
+}
+
+enum VehicleDocumentEventType {
+  CASE_CREATED
+  DOCUMENT_ADDED
+  STATUS_CHANGED
+  CUSTOMER_DOCUMENTS_RECEIVED
+  REGISTRATION_DOCUMENTS_HANDED_OVER
+  NOTE
+}
+
+enum VehicleAcknowledgementType {
+  CUSTOMER_DOCUMENTS_RECEIVED
+  REGISTRATION_DOCUMENTS_HANDED_OVER
+}
+
+model ConsignmentVehicle {
+  id                    String                   @id @default(cuid())
+  vehicleNumber         Int                      @unique @default(autoincrement())
+  kind                  VehicleKind
+  make                  String
+  model                 String
+  year                  Int?
+  colour                String?
+  engineNumber          String                   @unique
+  chassisNumber         String                   @unique
+  specifications        String?
+  photoKeys             String[]                 @default([])
+  supplier              Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierId            String
+  supplierReference     String?
+  listPrice             Decimal                  @db.Decimal(12, 2)
+  supplierSettlementDue Decimal                  @db.Decimal(12, 2)
+  status                ConsignmentVehicleStatus @default(AVAILABLE)
+  receivedAt            DateTime                 @default(now())
+  receivedBy            User?                    @relation("VehicleReceivedBy", fields: [receivedByUserId], references: [id], onDelete: SetNull)
+  receivedByUserId      String?
+  notes                 String?
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
+
+  sales VehicleSale[]
+
+  @@index([supplierId, status])
+  @@index([status, receivedAt])
+}
+
+model VehicleSale {
+  id               String             @id @default(cuid())
+  saleNumber       Int                @unique @default(autoincrement())
+  vehicle          ConsignmentVehicle @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
+  vehicleId        String
+  customer         Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId       String
+  soldBy           Employee?          @relation(fields: [soldByEmployeeId], references: [id], onDelete: SetNull)
+  soldByEmployeeId String?
+  type             VehicleSaleType
+  status           VehicleSaleStatus  @default(CONFIRMED)
+  saleDate         DateTime           @default(now())
+
+  vehicleLabelSnapshot  String
+  engineNumberSnapshot  String
+  chassisNumberSnapshot String
+  supplierNameSnapshot  String
+  listPrice             Decimal @db.Decimal(12, 2)
+  supplierSettlementDue Decimal @db.Decimal(12, 2)
+  grossDealerCommission Decimal @db.Decimal(12, 2)
+  customerDiscount      Decimal @default("0") @db.Decimal(12, 2)
+  customerPrice         Decimal @db.Decimal(12, 2)
+  netDealerCommission   Decimal @db.Decimal(12, 2)
+  customerCollected     Decimal @default("0") @db.Decimal(12, 2)
+  supplierPaid          Decimal @default("0") @db.Decimal(12, 2)
+  lossOverrideReason    String?
+
+  financeProvider       String?
+  financeReference      String?
+  financeApprovedAmount Decimal?  @db.Decimal(12, 2)
+  financeApprovedAt     DateTime?
+  notes                 String?
+
+  createdBy       User?     @relation("VehicleSaleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  voidedAt        DateTime?
+  voidReason      String?
+  voidedBy        User?     @relation("VehicleSaleVoidedBy", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  voidedByUserId  String?
+
+  payments            VehicleCustomerPayment[]
+  creditAgreement     VehicleCreditAgreement?
+  supplierSettlements VehicleSupplierSettlement[]
+  documentCase        VehicleDocumentCase?
+
+  @@index([vehicleId, status])
+  @@index([customerId, saleDate])
+  @@index([type, status])
+}
+
+model VehicleCustomerPayment {
+  id               String               @id @default(cuid())
+  receiptNumber    Int                  @unique @default(autoincrement())
+  sale             VehicleSale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  saleId           String
+  kind             VehiclePaymentKind
+  amount           Decimal              @db.Decimal(12, 2)
+  method           VehiclePaymentMethod @default(CASH)
+  reference        String?
+  note             String?
+  paidDate         DateTime             @default(now())
+  recordedBy       User?                @relation(fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  recordedByUserId String?
+  createdAt        DateTime             @default(now())
+
+  @@index([saleId, paidDate])
+}
+
+model VehicleCreditAgreement {
+  id                   String              @id @default(cuid())
+  sale                 VehicleSale         @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  saleId               String              @unique
+  principal            Decimal             @db.Decimal(12, 2)
+  startDate            DateTime
+  firstDueDate         DateTime?
+  termMonths           Int?
+  expectedInstallment  Decimal?            @db.Decimal(12, 2)
+  interestRatePerMonth Decimal             @default("0") @db.Decimal(5, 4)
+  interestFreeMonths   Int                 @default(0)
+  guarantorName        String?
+  guarantorNic         String?
+  guarantorPhone       String?
+  status               VehicleCreditStatus @default(ACTIVE)
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  @@index([status, firstDueDate])
+}
+
+model VehicleSupplierSettlement {
+  id               String               @id @default(cuid())
+  sale             VehicleSale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  saleId           String
+  supplier         Supplier             @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierId       String
+  amount           Decimal              @db.Decimal(12, 2)
+  method           VehiclePaymentMethod @default(BANK)
+  reference        String?
+  note             String?
+  paidDate         DateTime             @default(now())
+  recordedBy       User?                @relation(fields: [recordedByUserId], references: [id], onDelete: SetNull)
+  recordedByUserId String?
+  createdAt        DateTime             @default(now())
+
+  @@index([saleId, paidDate])
+  @@index([supplierId, paidDate])
+}
+
+model VehicleDocumentCase {
+  id                  String                    @id @default(cuid())
+  sale                VehicleSale               @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  saleId              String                    @unique
+  status              VehicleDocumentCaseStatus @default(AWAITING_CUSTOMER_DOCUMENTS)
+  registrationNumber  String?
+  processingReference String?
+  submittedAt         DateTime?
+  registeredAt        DateTime?
+  handedOverAt        DateTime?
+  notes               String?
+  createdAt           DateTime                  @default(now())
+  updatedAt           DateTime                  @updatedAt
+
+  items            VehicleDocumentItem[]
+  events           VehicleDocumentEvent[]
+  acknowledgements VehicleDocumentAcknowledgement[]
+
+  @@index([status, updatedAt])
+}
+
+model VehicleDocumentItem {
+  id              String                    @id @default(cuid())
+  case            VehicleDocumentCase       @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseId          String
+  name            String
+  status          VehicleDocumentItemStatus @default(REQUIRED)
+  required        Boolean                   @default(true)
+  fileKey         String?
+  reference       String?
+  receivedAt      DateTime?
+  submittedAt     DateTime?
+  returnedAt      DateTime?
+  waiverReason    String?
+  updatedBy       User?                     @relation("VehicleDocumentItemUpdatedBy", fields: [updatedByUserId], references: [id], onDelete: SetNull)
+  updatedByUserId String?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  @@index([caseId, status])
+}
+
+model VehicleDocumentEvent {
+  id              String                     @id @default(cuid())
+  case            VehicleDocumentCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseId          String
+  type            VehicleDocumentEventType
+  fromStatus      VehicleDocumentCaseStatus?
+  toStatus        VehicleDocumentCaseStatus?
+  note            String?
+  createdBy       User?                      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUserId String?
+  createdAt       DateTime                   @default(now())
+
+  @@index([caseId, createdAt])
+}
+
+model VehicleDocumentAcknowledgement {
+  id                  String                     @id @default(cuid())
+  case                VehicleDocumentCase        @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseId              String
+  type                VehicleAcknowledgementType
+  signerName          String
+  signerNic           String
+  signatureKey        String
+  acknowledgementText String
+  documentManifest    Json
+  manifestHash        String
+  signedAt            DateTime                   @default(now())
+  witnessedBy         User?                      @relation(fields: [witnessedByUserId], references: [id], onDelete: SetNull)
+  witnessedByUserId   String?
+  createdAt           DateTime                   @default(now())
+
+  @@unique([caseId, type])
+  @@index([caseId, signedAt])
 }
 
 // ----------------------------------------------------------------------------

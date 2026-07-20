@@ -30,6 +30,7 @@ import {
   MessageSquareText,
   Landmark,
   HandCoins,
+  Tractor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -69,6 +70,7 @@ const NAV: NavGroup[] = [
       { href: "/requests", label: "Customer Requests", icon: MessageSquareText },
       { href: "/customers", label: "Customers", icon: Users },
       { href: "/credit", label: "Credit", icon: CreditCard },
+      { href: "/vehicle-sales", label: "Vehicle Sales", icon: Tractor },
     ],
   },
   {
@@ -78,6 +80,7 @@ const NAV: NavGroup[] = [
       { href: "/suppliers", label: "Suppliers", icon: Truck },
       { href: "/purchases", label: "Purchases", icon: PackagePlus },
       { href: "/supplier-returns", label: "Supplier Returns", icon: PackageX },
+      { href: "/vehicles", label: "Consignment Vehicles", icon: Tractor },
     ],
   },
   {

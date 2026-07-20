@@ -110,6 +110,7 @@ export default async function ReportsPage({
     returnedItems,
     interestAgreements,
     realizedInvoices,
+    vehicleSales,
   ] = await Promise.all([
     prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
@@ -209,6 +210,18 @@ export default async function ReportsPage({
         },
       },
     }),
+    prisma.vehicleSale.findMany({
+      where: { saleDate: { gte: monthStart, lt: monthEnd }, status: "CONFIRMED" },
+      select: {
+        type: true,
+        grossDealerCommission: true,
+        customerDiscount: true,
+        netDealerCommission: true,
+        supplierSettlementDue: true,
+        supplierPaid: true,
+        customerCollected: true,
+      },
+    }),
   ]);
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
@@ -297,7 +310,28 @@ export default async function ReportsPage({
   // business pays out, so net (take-home) pay would understate the cost.
   const payroll = round2(payrollLines.reduce((s, l) => s + l.employerCost, 0));
   const grossProfit = round2(revenue - refunds - (cogs - returnedCogs));
-  const netProfit = round2(grossProfit - expenses - payroll);
+  const vehicleGrossCommission = round2(
+    vehicleSales.reduce((sum, sale) => sum + toNum(sale.grossDealerCommission), 0),
+  );
+  const vehicleDiscounts = round2(
+    vehicleSales.reduce((sum, sale) => sum + toNum(sale.customerDiscount), 0),
+  );
+  const vehicleNetCommission = round2(
+    vehicleSales.reduce((sum, sale) => sum + toNum(sale.netDealerCommission), 0),
+  );
+  const vehicleSupplierDue = round2(
+    vehicleSales.reduce((sum, sale) => sum + toNum(sale.supplierSettlementDue), 0),
+  );
+  const vehicleSupplierOutstanding = round2(
+    vehicleSales.reduce(
+      (sum, sale) => sum + Math.max(0, toNum(sale.supplierSettlementDue) - toNum(sale.supplierPaid)),
+      0,
+    ),
+  );
+  const vehicleCollections = round2(
+    vehicleSales.reduce((sum, sale) => sum + toNum(sale.customerCollected), 0),
+  );
+  const netProfit = round2(grossProfit + vehicleNetCommission - expenses - payroll);
 
   // Interest collected this month: payments clear outstanding interest before
   // principal (see computeCreditState), so the month's interest income is the
@@ -497,6 +531,23 @@ export default async function ReportsPage({
         <StatCard label="Payroll (company cost)" value={formatLKR(payroll)} tone="amber" />
         <StatCard label="Net profit (approx.)" value={formatLKR(netProfit)} tone={netProfit >= 0 ? "green" : "red"} />
       </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Consignment vehicle sales</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatCard label="Vehicles sold" value={String(vehicleSales.length)} tone="blue" />
+            <StatCard label="Gross dealer commission" value={formatLKR(vehicleGrossCommission)} tone="green" />
+            <StatCard label="Customer discounts" value={formatLKR(vehicleDiscounts)} tone={vehicleDiscounts > 0 ? "amber" : "default"} />
+            <StatCard label="Net dealer commission" value={formatLKR(vehicleNetCommission)} tone={vehicleNetCommission >= 0 ? "green" : "red"} />
+            <StatCard label="Customer collections" value={formatLKR(vehicleCollections)} tone="blue" />
+            <StatCard label="Supplier liability created" value={formatLKR(vehicleSupplierDue)} tone="amber" />
+            <StatCard label="Supplier still payable" value={formatLKR(vehicleSupplierOutstanding)} tone={vehicleSupplierOutstanding > 0 ? "amber" : "green"} />
+          </div>
+        </CardContent>
+      </Card>
 
       <div className={`mb-4 grid grid-cols-2 gap-4 ${ntEnabled ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
         {ntEnabled ? (

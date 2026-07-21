@@ -129,6 +129,17 @@ export function NewSale({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  // A link to the current route does not remount this component. Let the active
+  // New Sale nav item dismiss the completed-sale view while leaving a live cart
+  // untouched when the cashier is already entering a sale.
+  useEffect(() => {
+    function handleStartNewSale() {
+      setResult(null);
+    }
+    window.addEventListener("madagama:start-new-sale", handleStartNewSale);
+    return () => window.removeEventListener("madagama:start-new-sale", handleStartNewSale);
+  }, []);
+
   // Restore a held draft + the recent-invoices strip on mount (client only).
   useEffect(() => {
     let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string; notes?: string } | null = null;

@@ -141,6 +141,13 @@ export function AppShell({
     return pathname === href || (href !== "/dashboard" && pathname.startsWith(href + "/"));
   }
 
+  function handleNavClick(item: NavItem) {
+    setOpen(false);
+    if (item.href === "/invoices/new" && pathname === item.href) {
+      window.dispatchEvent(new CustomEvent("madagama:start-new-sale"));
+    }
+  }
+
   function navLink(item: NavItem) {
     const Icon = item.icon;
     const active = isActive(item.href);
@@ -148,7 +155,7 @@ export function AppShell({
       <Link
         key={item.href}
         href={item.href}
-        onClick={() => setOpen(false)}
+        onClick={() => handleNavClick(item)}
         className={cn(
           "mb-0.5 flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors",
           active
@@ -169,7 +176,7 @@ export function AppShell({
       <Link
         key={item.href}
         href={item.href}
-        onClick={() => setOpen(false)}
+        onClick={() => handleNavClick(item)}
         className={cn(
           "flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
           active ? "text-primary-ink" : "text-faint",

@@ -122,13 +122,16 @@ export default async function CreditPage() {
                           Principal {formatLKR(state.principal)} · Grace ends {formatDate(state.graceEndDate)}
                         </div>
                       </div>
-                      {state.isSettled ? (
-                        <Badge tone="green">Settled</Badge>
-                      ) : state.isOverdue ? (
-                        <Badge tone="red">Overdue</Badge>
-                      ) : (
-                        <Badge tone="amber">In grace</Badge>
-                      )}
+                      <div className="flex flex-col items-end gap-1">
+                        {state.isSettled ? (
+                          <Badge tone="green">Settled</Badge>
+                        ) : state.isOverdue ? (
+                          <Badge tone="red">Overdue</Badge>
+                        ) : (
+                          <Badge tone="amber">In grace</Badge>
+                        )}
+                        {!a.guarantorId && <Badge tone="amber">Guarantor pending</Badge>}
+                      </div>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
                       <span className="font-medium">{formatLKR(state.outstanding)} outstanding</span>
@@ -169,13 +172,16 @@ export default async function CreditPage() {
                           {!state.isSettled && state.isOverdue ? `${daysOverdueOf(state.graceEndDate)}d` : "—"}
                         </TD>
                         <TD>
-                          {state.isSettled ? (
-                            <Badge tone="green">Settled</Badge>
-                          ) : state.isOverdue ? (
-                            <Badge tone="red">Overdue</Badge>
-                          ) : (
-                            <Badge tone="amber">In grace</Badge>
-                          )}
+                          <div className="flex flex-col items-start gap-1">
+                            {state.isSettled ? (
+                              <Badge tone="green">Settled</Badge>
+                            ) : state.isOverdue ? (
+                              <Badge tone="red">Overdue</Badge>
+                            ) : (
+                              <Badge tone="amber">In grace</Badge>
+                            )}
+                            {!a.guarantorId && <Badge tone="amber">Guarantor pending</Badge>}
+                          </div>
                         </TD>
                       </TR>
                     ))}

@@ -807,8 +807,8 @@ model CreditAgreement {
   invoiceId            String       @unique
   customer             Customer     @relation(fields: [customerId], references: [id])
   customerId           String
-  guarantor            Guarantor    @relation(fields: [guarantorId], references: [id])
-  guarantorId          String
+  guarantor            Guarantor?   @relation(fields: [guarantorId], references: [id])
+  guarantorId          String?
   principal            Decimal      @db.Decimal(12, 2)
   startDate            DateTime
   interestRatePerMonth Decimal      @db.Decimal(5, 4) // snapshot at creation

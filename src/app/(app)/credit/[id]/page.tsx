@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { RecordPayment } from "@/components/record-payment";
 import { SendReminderButton } from "@/components/send-reminder-button";
+import { AddAgreementGuarantor } from "@/components/add-agreement-guarantor";
 import { computeCreditState } from "@/lib/credit";
 import { formatLKR, formatDate, formatDateTime, toNum } from "@/lib/utils";
 
@@ -55,10 +56,12 @@ export default async function CreditDetailPage({
   );
 
   const ratePct = Math.round(toNum(a.interestRatePerMonth) * 100);
-  const guarantorNics = [
-    { key: a.guarantor.nicFrontKey, label: "Front" },
-    { key: a.guarantor.nicBackKey, label: "Back" },
-  ].filter((n) => n.key);
+  const guarantorNics = a.guarantor
+    ? [
+        { key: a.guarantor.nicFrontKey, label: "Front" },
+        { key: a.guarantor.nicBackKey, label: "Back" },
+      ].filter((n) => n.key)
+    : [];
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -141,16 +144,20 @@ export default async function CreditDetailPage({
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Guarantor */}
-        <Card>
+        <Card className={!a.guarantor ? "lg:col-span-3" : undefined}>
           <CardHeader>
-            <CardTitle>Guarantor</CardTitle>
+            <div className="flex items-center justify-between gap-2">
+              <CardTitle>Guarantor</CardTitle>
+              {!a.guarantor && <Badge tone="amber">Pending</Badge>}
+            </div>
           </CardHeader>
           <CardContent className="space-y-1 text-sm">
-            <p className="font-medium">{a.guarantor.name}</p>
-            <p className="text-muted">NIC: {a.guarantor.nic}</p>
-            <p className="text-muted">{a.guarantor.phone}</p>
-            {a.guarantor.address && <p className="text-muted">{a.guarantor.address}</p>}
-            {guarantorNics.length > 0 && (
+            {a.guarantor ? <>
+              <p className="font-medium">{a.guarantor.name}</p>
+              <p className="text-muted">NIC: {a.guarantor.nic}</p>
+              <p className="text-muted">{a.guarantor.phone}</p>
+              {a.guarantor.address && <p className="text-muted">{a.guarantor.address}</p>}
+              {guarantorNics.length > 0 && (
               <div className="grid grid-cols-2 gap-2 pt-2">
                 {guarantorNics.map((n) => (
                   <a key={n.key} href={`/api/files/${n.key}`} target="_blank" rel="noreferrer" className="overflow-hidden rounded-lg border border-border">
@@ -159,12 +166,17 @@ export default async function CreditDetailPage({
                   </a>
                 ))}
               </div>
+              )}
+            </> : isVoided ? (
+              <p className="text-muted">No guarantor was recorded before this agreement was voided.</p>
+            ) : (
+              <AddAgreementGuarantor agreementId={a.id} />
             )}
           </CardContent>
         </Card>
 
         {/* Payment history */}
-        <Card className="lg:col-span-2">
+        <Card className={a.guarantor ? "lg:col-span-2" : "lg:col-span-3"}>
           <CardHeader>
             <CardTitle>Payment History</CardTitle>
           </CardHeader>

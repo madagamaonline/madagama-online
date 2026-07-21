@@ -16,7 +16,7 @@ export default async function NewCreditSalePage() {
 
   return (
     <div>
-      <PageHeader title="New Credit Sale" subtitle="Sell on credit with a guarantor" />
+      <PageHeader title="New Credit Sale" subtitle="Create the sale now and collect guarantor details now or during delivery" />
       <CreditSale
         customers={customers}
         employees={employees}

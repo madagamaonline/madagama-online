@@ -59,6 +59,7 @@ export function CreditSale({
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
   const [g, setG] = useState({ name: "", nic: "", phone: "", address: "", nicFrontKey: "", nicBackKey: "" });
+  const [collectGuarantorLater, setCollectGuarantorLater] = useState(false);
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [phoneClash, setPhoneClash] = useState(false);
@@ -209,7 +210,9 @@ export function CreditSale({
     if (cart.length === 0) return setError("Add at least one item.");
     if (mixed) return setError("A credit sale must be all taxable or all non-taxable items. Please make two separate credit sales.");
     if (!customerId) return setError("Select a customer.");
-    if (!g.name || !g.nic || !g.phone) return setError("Guarantor name, NIC and phone are required.");
+    if (!collectGuarantorLater && (!g.name.trim() || !g.nic.trim() || !g.phone.trim())) {
+      return setError("Enter the guarantor's name, NIC and phone, or choose to collect the details during delivery.");
+    }
     if (downPayment < 0 || downPayment > totals.grandTotal) {
       return setError("Down payment cannot exceed the total sale price.");
     }
@@ -222,7 +225,7 @@ export function CreditSale({
         discount: discount || 0,
         customerId,
         soldByEmployeeId: soldBy || null,
-        guarantor: g,
+        guarantor: collectGuarantorLater ? null : g,
         notes: notes || null,
         allowDuplicatePhone,
         downPayment,
@@ -380,10 +383,26 @@ export function CreditSale({
         {/* Guarantor */}
         <Card>
           <CardHeader>
-            <CardTitle>Guarantor</CardTitle>
+            <CardTitle>Guarantor (optional at creation)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <label className="flex items-start gap-2 rounded-lg bg-clay-soft px-3 py-2 text-sm text-clay-ink">
+              <input
+                type="checkbox"
+                checked={collectGuarantorLater}
+                onChange={(e) => {
+                  setCollectGuarantorLater(e.target.checked);
+                  setPhoneClash(false);
+                  setAllowDuplicatePhone(false);
+                }}
+                className="mt-0.5 h-4 w-4 rounded border-border"
+              />
+              <span>
+                <b>Collect guarantor details during delivery.</b> The agreement will be marked as guarantor pending.
+              </span>
+            </label>
+            {!collectGuarantorLater && <>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <Label>Name</Label>
                 <Input value={g.name} onChange={(e) => setG({ ...g, name: e.target.value })} />
@@ -400,11 +419,12 @@ export function CreditSale({
                 <Label>Address (optional)</Label>
                 <Input value={g.address} onChange={(e) => setG({ ...g, address: e.target.value })} />
               </div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <NicUpload name="g_front" label="Guarantor NIC — Front" onChange={(k) => setG((s) => ({ ...s, nicFrontKey: k }))} />
-              <NicUpload name="g_back" label="Guarantor NIC — Back" onChange={(k) => setG((s) => ({ ...s, nicBackKey: k }))} />
-            </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <NicUpload name="g_front" label="Guarantor NIC — Front" onChange={(k) => setG((s) => ({ ...s, nicFrontKey: k }))} />
+                <NicUpload name="g_back" label="Guarantor NIC — Back" onChange={(k) => setG((s) => ({ ...s, nicBackKey: k }))} />
+              </div>
+            </>}
           </CardContent>
         </Card>
       </div>

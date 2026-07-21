@@ -28,9 +28,9 @@ const lineSchema = z.object({
 });
 
 const guarantorSchema = z.object({
-  name: z.string().min(1, "Guarantor name is required"),
-  nic: z.string().min(1, "Guarantor NIC is required"),
-  phone: z.string().min(1, "Guarantor phone is required"),
+  name: z.string().trim().min(1, "Guarantor name is required"),
+  nic: z.string().trim().min(1, "Guarantor NIC is required"),
+  phone: z.string().trim().min(1, "Guarantor phone is required"),
   address: z.string().optional().nullable(),
   nicFrontKey: z.string().optional().nullable(),
   nicBackKey: z.string().optional().nullable(),
@@ -40,7 +40,7 @@ const inputSchema = z.object({
   lines: z.array(lineSchema).min(1, "Add at least one item"),
   discount: z.coerce.number().min(0).default(0),
   customerId: z.string().min(1, "Select a customer"),
-  guarantor: guarantorSchema,
+  guarantor: guarantorSchema.optional().nullable(),
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   allowDuplicatePhone: z.boolean().optional(),
@@ -68,22 +68,26 @@ export async function createCreditSale(
   }
   const session = await requireActionUser();
 
-  // Validate the guarantor's phone and make sure it isn't the customer's own
-  // number (a common way to fake a guarantor).
-  const gPhone = validateLkPhone(data.guarantor.phone);
-  if (!gPhone.ok) return { ok: false, error: `Guarantor: ${gPhone.error}` };
-
   const customer = await prisma.customer.findUnique({
     where: { id: data.customerId },
     select: { phone: true },
   });
   if (!customer) return { ok: false, error: "Selected customer not found." };
-  if (!data.allowDuplicatePhone && normalizeLkPhone(customer.phone) === gPhone.normalized) {
-    return {
-      ok: false,
-      error: "Guarantor phone cannot be the same as the customer's phone.",
-      duplicate: true,
-    };
+
+  // When supplied, validate the guarantor exactly as before. A null guarantor
+  // intentionally means the details will be collected during delivery.
+  let guarantorPhone: string | null = null;
+  if (data.guarantor) {
+    const gPhone = validateLkPhone(data.guarantor.phone);
+    if (!gPhone.ok) return { ok: false, error: `Guarantor: ${gPhone.error}` };
+    guarantorPhone = gPhone.normalized;
+    if (!data.allowDuplicatePhone && normalizeLkPhone(customer.phone) === guarantorPhone) {
+      return {
+        ok: false,
+        error: "Guarantor phone cannot be the same as the customer's phone.",
+        duplicate: true,
+      };
+    }
   }
 
   const setting = await prisma.setting.findUnique({ where: { id: 1 } });
@@ -186,21 +190,23 @@ export async function createCreditSale(
               userId: session?.id ?? null,
             });
           }
-          const guarantor = await tx.guarantor.create({
-            data: {
-              name: data.guarantor.name.trim(),
-              nic: data.guarantor.nic.trim(),
-              phone: gPhone.normalized,
-              address: data.guarantor.address?.trim() || null,
-              nicFrontKey: data.guarantor.nicFrontKey || null,
-              nicBackKey: data.guarantor.nicBackKey || null,
-            },
-          });
+          const guarantor = data.guarantor
+            ? await tx.guarantor.create({
+                data: {
+                  name: data.guarantor.name,
+                  nic: data.guarantor.nic,
+                  phone: guarantorPhone!,
+                  address: data.guarantor.address?.trim() || null,
+                  nicFrontKey: data.guarantor.nicFrontKey || null,
+                  nicBackKey: data.guarantor.nicBackKey || null,
+                },
+              })
+            : null;
           const agreement = await tx.creditAgreement.create({
             data: {
               invoiceId: invoice.id,
               customerId: data.customerId,
-              guarantorId: guarantor.id,
+              guarantorId: guarantor?.id ?? null,
               principal: totals.grandTotal,
               startDate: startedAt,
               interestRatePerMonth: interestRate,
@@ -244,6 +250,82 @@ export async function createCreditSale(
     }
   }
   return { ok: false, error: "Could not generate an invoice number. Please try again." };
+}
+
+export type GuarantorFormState = { error?: string; duplicate?: boolean };
+
+export async function addAgreementGuarantor(
+  agreementId: string,
+  _prev: GuarantorFormState,
+  formData: FormData,
+): Promise<GuarantorFormState> {
+  await requireActionUser();
+  const parsed = guarantorSchema.safeParse({
+    name: formData.get("name"),
+    nic: formData.get("nic"),
+    phone: formData.get("phone"),
+    address: formData.get("address") || undefined,
+    nicFrontKey: formData.get("nicFrontKey") || undefined,
+    nicBackKey: formData.get("nicBackKey") || undefined,
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid guarantor details." };
+  }
+
+  const agreement = await prisma.creditAgreement.findUnique({
+    where: { id: agreementId },
+    select: {
+      guarantorId: true,
+      status: true,
+      customer: { select: { phone: true } },
+      invoice: { select: { voidedAt: true } },
+    },
+  });
+  if (!agreement) return { error: "Credit agreement not found." };
+  if (agreement.guarantorId) return { error: "A guarantor has already been added to this agreement." };
+  if (agreement.status === "VOIDED" || agreement.invoice.voidedAt) {
+    return { error: "A guarantor cannot be added to a voided agreement." };
+  }
+
+  const phone = validateLkPhone(parsed.data.phone);
+  if (!phone.ok) return { error: `Guarantor: ${phone.error}` };
+  const allowDuplicatePhone = formData.get("confirmDuplicate") === "on";
+  if (!allowDuplicatePhone && normalizeLkPhone(agreement.customer.phone) === phone.normalized) {
+    return {
+      error: "Guarantor phone cannot be the same as the customer's phone.",
+      duplicate: true,
+    };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const guarantor = await tx.guarantor.create({
+        data: {
+          name: parsed.data.name,
+          nic: parsed.data.nic,
+          phone: phone.normalized,
+          address: parsed.data.address?.trim() || null,
+          nicFrontKey: parsed.data.nicFrontKey || null,
+          nicBackKey: parsed.data.nicBackKey || null,
+        },
+      });
+      const updated = await tx.creditAgreement.updateMany({
+        where: { id: agreementId, guarantorId: null },
+        data: { guarantorId: guarantor.id },
+      });
+      if (updated.count !== 1) throw new Error("GUARANTOR_ALREADY_ADDED");
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "GUARANTOR_ALREADY_ADDED") {
+      return { error: "A guarantor has already been added to this agreement." };
+    }
+    console.error("addAgreementGuarantor failed", error);
+    return { error: "Could not save the guarantor. Please try again." };
+  }
+
+  revalidatePath(`/credit/${agreementId}`);
+  revalidatePath("/credit");
+  return {};
 }
 
 export type PaymentFormState = { error?: string; ok?: boolean };

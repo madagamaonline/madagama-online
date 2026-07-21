@@ -125,6 +125,7 @@ export async function quickCreateCustomer(data: {
   name: string;
   phone: string;
   nic?: string;
+  address?: string;
   confirmDuplicate?: boolean;
 }): Promise<QuickCustomerResult> {
   await requireActionUser();
@@ -148,6 +149,7 @@ export async function quickCreateCustomer(data: {
         name: data.name.trim(),
         phone: phoneCheck.normalized,
         nic: data.nic?.trim() || null,
+        address: data.address?.trim() || null,
       },
       select: { id: true, name: true, phone: true },
     });

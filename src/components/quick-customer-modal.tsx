@@ -5,6 +5,7 @@ import { Plus, X, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { quickCreateCustomer } from "@/app/(app)/customers/actions";
 
 export function QuickCustomerModal({
@@ -17,6 +18,7 @@ export function QuickCustomerModal({
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [nic, setNic] = useState("");
+  const [address, setAddress] = useState("");
   const [error, setError] = useState("");
   const [duplicate, setDuplicate] = useState(false);
   const [confirmDuplicate, setConfirmDuplicate] = useState(false);
@@ -30,7 +32,7 @@ export function QuickCustomerModal({
       return;
     }
     startTransition(async () => {
-      const res = await quickCreateCustomer({ name, phone, nic, confirmDuplicate });
+      const res = await quickCreateCustomer({ name, phone, nic, address, confirmDuplicate });
       if (!res.ok) {
         setError(res.error);
         setDuplicate(!!res.duplicate);
@@ -100,6 +102,16 @@ export function QuickCustomerModal({
               value={nic}
               onChange={(e) => setNic(e.target.value)}
               placeholder="e.g. 199012345678"
+            />
+          </div>
+          <div>
+            <Label htmlFor="quick-address">Address (optional)</Label>
+            <Textarea
+              id="quick-address"
+              value={address}
+              onChange={(e) => setAddress(e.target.value)}
+              placeholder="e.g. 123 Main Street, Colombo"
+              className="min-h-[72px]"
             />
           </div>
 

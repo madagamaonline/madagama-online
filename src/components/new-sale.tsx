@@ -27,6 +27,10 @@ import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
 import { createCashInvoice, type CreatedInvoice } from "@/app/(app)/invoices/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
+import {
+  CustomerSearchPicker,
+  type SaleCustomer,
+} from "@/components/customer-search-picker";
 
 type ProductHit = {
   id: string;
@@ -64,7 +68,7 @@ export function NewSale({
   nonTaxableEnabled = true,
 }: {
   employees: { id: string; name: string }[];
-  customers: { id: string; name: string; phone: string }[];
+  customers: SaleCustomer[];
   nonTaxableEnabled?: boolean;
 }) {
   const router = useRouter();
@@ -101,7 +105,7 @@ export function NewSale({
   );
 
   function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
-    setAddedCustomers((prev) => [newCust, ...prev]);
+    setAddedCustomers((prev) => [{ ...newCust, nic: null }, ...prev]);
     setCustomerId(newCust.id);
   }
 
@@ -657,7 +661,7 @@ export function NewSale({
           <CardContent className="space-y-4">
             <div>
               <div className="flex items-center justify-between">
-                <Label>Customer (optional)</Label>
+                <Label htmlFor="sale-customer">Customer (optional)</Label>
                 <button
                   type="button"
                   onClick={() => setShowQuickCustomer(true)}
@@ -666,14 +670,11 @@ export function NewSale({
                   + Quick Add
                 </button>
               </div>
-              <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">Walk-in customer</option>
-                {localCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.phone}
-                  </option>
-                ))}
-              </Select>
+              <CustomerSearchPicker
+                customers={localCustomers}
+                value={customerId}
+                onChange={setCustomerId}
+              />
             </div>
             <div>
               <Label>Sold by (optional)</Label>

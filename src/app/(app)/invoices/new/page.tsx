@@ -14,7 +14,7 @@ export default async function NewSalePage() {
     }),
     prisma.customer.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true },
+      select: { id: true, name: true, phone: true, nic: true },
       take: 500,
     }),
     nonTaxableEnabled(),

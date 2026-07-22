@@ -31,6 +31,7 @@ import {
   Landmark,
   HandCoins,
   Tractor,
+  CircleDollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -63,6 +64,7 @@ const NAV: NavGroup[] = [
     items: [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
+      { href: "/open-accounts", label: "Customer Balances", icon: CircleDollarSign, requiresStaffFinanceAccess: true },
       { href: "/credit-invoices", label: "Credit Invoices", icon: CreditCard },
       { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },

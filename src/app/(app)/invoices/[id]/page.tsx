@@ -11,6 +11,7 @@ import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSession } from "@/lib/auth";
 import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
+import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
 
 const CATEGORY_LABEL = { TAXABLE: "TAXABLE", NON_TAXABLE: "NON-TAXABLE" } as const;
 
@@ -50,6 +51,9 @@ export default async function InvoiceViewPage({
               include: { recordedBy: { select: { name: true } } },
             },
           },
+        },
+        openAccount: {
+          include: { payments: { orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }], include: { recordedBy: { select: { name: true } } } } },
         },
         returns: {
           orderBy: { createdAt: "asc" },
@@ -108,6 +112,14 @@ export default async function InvoiceViewPage({
       : creditState?.isOverdue
         ? "OVERDUE"
         : "ACTIVE — WITHIN INTEREST-FREE PERIOD";
+  const openAccount = invoice.type === "OPEN_ACCOUNT" ? invoice.openAccount : null;
+  const openState = openAccount ? computeOpenAccountState(toNum(openAccount.principal), openAccount.payments.map((p) => ({ amount: toNum(p.amount), method: p.method })), openAccount.dueDate) : null;
+  let runningOpenBalance = openState?.principal ?? 0;
+  const openLedger = openAccount?.payments.map((payment) => {
+    runningOpenBalance = Math.max(0, runningOpenBalance - toNum(payment.amount));
+    return { ...payment, balanceAfter: runningOpenBalance };
+  }) ?? [];
+  const isAccountStatement = Boolean(creditAgreement || openAccount);
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -122,6 +134,9 @@ export default async function InvoiceViewPage({
             <Link href={`/credit/${creditAgreement.id}`}>
               <Button variant="outline"><ReceiptText className="h-4 w-4" /> Record / view payments</Button>
             </Link>
+          )}
+          {openAccount && (
+            <Link href={`/open-accounts/${openAccount.id}`}><Button variant="outline"><ReceiptText className="h-4 w-4" /> Record / view payments</Button></Link>
           )}
           {!invoice.voidedAt && (
             <>
@@ -149,13 +164,13 @@ export default async function InvoiceViewPage({
 
       {/* A4 layout. Credit statements retain a paper-sized canvas on screen;
           the viewport scrolls it instead of allowing financial columns to clip. */}
-      {creditAgreement && (
-        <div className="no-print mb-2 flex items-center gap-2 rounded-md border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary sm:hidden">
+      {isAccountStatement && (
+        <div className={`no-print mb-2 flex items-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold sm:hidden ${openAccount ? "border-amber-300 bg-amber-50 text-amber-900" : "border-primary/25 bg-primary/10 text-primary"}`}>
           <MoveHorizontal className="h-4 w-4 shrink-0" /> Swipe horizontally to review the full A4 statement
         </div>
       )}
-      <div className={creditAgreement ? "a4-preview-viewport max-w-full overflow-x-auto pb-2" : undefined}>
-      <div className={`print-area print-a4 rounded-xl border border-border p-8 shadow-sm ${creditAgreement ? "credit-print-a4 w-[720px] min-w-[720px] bg-white text-slate-950 sm:w-full" : "bg-surface"}`}>
+      <div className={isAccountStatement ? "a4-preview-viewport max-w-full overflow-x-auto pb-2" : undefined}>
+      <div className={`print-area print-a4 rounded-xl border border-border p-8 shadow-sm ${isAccountStatement ? "credit-print-a4 w-[720px] min-w-[720px] bg-white text-slate-950 sm:w-full" : "bg-surface"}`}>
         {invoice.voidedAt && <div className="mb-5 border-y-4 border-double border-danger py-2 text-center text-2xl font-black tracking-[0.2em] text-danger">VOIDED</div>}
         {/* Header */}
         <div className="invoice-print-header flex flex-wrap items-start justify-between gap-4 border-b border-border pb-6">
@@ -166,7 +181,7 @@ export default async function InvoiceViewPage({
           </div>
           <div className="text-right">
             <h2 className="max-w-[300px] text-[23px] font-semibold leading-tight">
-              {creditAgreement ? "CREDIT INVOICE / ACCOUNT STATEMENT" : "INVOICE"}
+              {creditAgreement ? "CREDIT INVOICE / ACCOUNT STATEMENT" : openAccount ? "PAY LATER INVOICE / ACCOUNT STATEMENT" : "INVOICE"}
             </h2>
             <p className="text-[16.5px] font-medium leading-snug">{invoice.invoiceNumber}</p>
             <p className="text-[16.5px] leading-snug text-muted">{formatDateTime(invoice.createdAt)}</p>
@@ -178,7 +193,7 @@ export default async function InvoiceViewPage({
                   </Badge>
                 </span>
               )}
-              <Badge tone={invoice.type === "CREDIT" ? "amber" : "green"}>{invoice.type}</Badge>
+              <Badge tone={invoice.type === "CASH" ? "green" : invoice.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(invoice.type)}</Badge>
               {invoice.voidedAt && <Badge tone="red">VOIDED</Badge>}
               {returnedQty > 0 && (
                 <span className="no-print">
@@ -332,6 +347,14 @@ export default async function InvoiceViewPage({
           </section>
         )}
 
+        {openAccount && openState && (
+          <section className="mt-7 border border-amber-700/50 bg-amber-50/40 p-4 text-[15.5px] leading-snug text-slate-950">
+            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-amber-700/30 pb-3"><div><h3 className="font-bold uppercase tracking-[0.08em]">Pay Later account</h3><p className="text-[13px] text-slate-600">No interest or guarantor{openAccount.dueDate ? ` · Promised ${formatDateTime(openAccount.dueDate)}` : ""}</p></div><strong>{openState.isSettled ? "PAID" : openState.isOverdue ? "OVERDUE" : openState.credited ? "PARTIAL" : "UNPAID"}</strong></div>
+            <div className="mt-3 ml-auto max-w-sm space-y-1"><div className="flex justify-between"><span>Original total</span><span>{formatLKR(openState.principal)}</span></div><div className="flex justify-between"><span>Payments / credits</span><span>− {formatLKR(openState.credited)}</span></div><div className="flex justify-between border-t-2 border-slate-800 pt-2 text-[19px] font-black"><span>Balance due</span><span>{formatLKR(openState.outstanding)}</span></div></div>
+            <h3 className="mt-5 font-bold uppercase tracking-[0.08em]">Payment history</h3>{openLedger.length === 0 ? <p className="mt-2 italic text-slate-600">No payments received</p> : <table className="mt-2 w-full table-fixed text-[13.5px]"><thead><tr className="border-y border-amber-700/30 text-left text-[12px] uppercase tracking-wide text-slate-600"><th className="w-[22%] py-2">Date</th><th className="w-[14%]">Method</th><th>Note</th><th className="w-[17%] text-right">Amount</th><th className="w-[19%] text-right">Balance</th></tr></thead><tbody>{openLedger.map((payment) => <tr key={payment.id} className="border-b border-amber-700/20"><td className="whitespace-nowrap py-2">{formatDateTime(payment.paidDate)}</td><td>{paymentMethodLabel(payment.method)}</td><td className="break-words pr-2">{payment.note ?? "—"}</td><td className="whitespace-nowrap text-right font-medium tabular-nums">{formatLKR(payment.amount)}</td><td className="whitespace-nowrap text-right font-bold tabular-nums">{formatLKR(payment.balanceAfter)}</td></tr>)}</tbody></table>}
+          </section>
+        )}
+
         {invoice.notes && (
           <p className="invoice-notes mt-6 border-t border-border pt-4 text-[16.5px] leading-snug text-muted">{invoice.notes}</p>
         )}
@@ -351,12 +374,12 @@ export default async function InvoiceViewPage({
         <div className="my-2 border-t border-dashed border-black" />
 
         <div className="flex justify-between">
-          <span>{creditAgreement ? "CREDIT STATEMENT" : "INVOICE"}</span>
+          <span>{creditAgreement ? "CREDIT STATEMENT" : openAccount ? "PAY LATER STATEMENT" : "INVOICE"}</span>
           <span className="font-medium">{invoice.invoiceNumber}</span>
         </div>
         <div className="flex justify-between">
           <span>{formatDateTime(invoice.createdAt)}</span>
-          <span>{invoice.type}</span>
+          <span>{invoiceTypeLabel(invoice.type)}</span>
         </div>
         <p className="mt-1">Bill To: {invoice.customer?.name ?? "Walk-in Customer"}</p>
         {invoice.soldBy?.name && <p>Served By: {invoice.soldBy.name}</p>}
@@ -431,6 +454,9 @@ export default async function InvoiceViewPage({
             ))}
             {creditVoided && <p className="mt-2 border-2 border-black p-1 text-center font-black">AUDIT COPY ONLY — VOIDED</p>}
           </section>
+        )}
+        {openAccount && openState && (
+          <section className="mt-2 border-y-2 border-black py-2"><div className="text-center font-bold">PAY LATER — {openState.isSettled ? "PAID" : openState.isOverdue ? "OVERDUE" : openState.credited ? "PARTIAL" : "UNPAID"}</div><div className="text-center text-[11.5px]">No interest or guarantor</div>{openAccount.dueDate && <div className="text-center text-[11.5px]">Promised {formatDateTime(openAccount.dueDate)}</div>}<div className="mt-2 flex justify-between"><span>Original total</span><span>{formatLKR(openState.principal)}</span></div><div className="flex justify-between"><span>Paid / credited</span><span>− {formatLKR(openState.credited)}</span></div><div className="flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>BALANCE DUE</span><span>{formatLKR(openState.outstanding)}</span></div><div className="my-2 border-t border-dashed border-black" /><p className="font-bold">PAYMENT HISTORY</p>{openLedger.length === 0 ? <p className="italic">No payments received</p> : openLedger.map((payment) => <div key={payment.id} className="mt-1 flex justify-between border-b border-dotted border-black"><span>{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span><span>{formatLKR(payment.amount)} · Bal {formatLKR(payment.balanceAfter)}</span></div>)}</section>
         )}
 
         {invoice.notes && <p className="mt-2 break-words">{invoice.notes}</p>}

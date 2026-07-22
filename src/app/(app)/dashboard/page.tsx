@@ -29,6 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { SalesChart } from "@/components/sales-chart";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
 import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
+import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
 
@@ -129,6 +130,10 @@ export default async function DashboardPage() {
       select: { qty: true, product: { select: { costPrice: true } } },
     }),
   ]);
+  const [openAccounts, openCollectedToday] = await Promise.all([
+    prisma.openAccount.findMany({ where: { status: "ACTIVE", invoice: { ...taxF } }, select: { principal: true, dueDate: true, payments: { select: { amount: true, method: true } } } }),
+    prisma.openAccountPayment.aggregate({ _sum: { amount: true }, _count: true, where: { method: { not: "RETURN" }, createdAt: { gte: startToday }, account: { invoice: { ...taxF } } } }),
+  ]);
 
   const agStates = agreements.map((a) => ({
     a,
@@ -143,6 +148,8 @@ export default async function DashboardPage() {
     ),
   }));
   const outstanding = agStates.reduce((sum, x) => sum + x.s.outstanding, 0);
+  const openStates = openAccounts.map((a) => computeOpenAccountState(toNum(a.principal), a.payments.map((p) => ({ amount: toNum(p.amount), method: p.method })), a.dueDate));
+  const openOutstanding = openStates.reduce((sum, state) => sum + state.outstanding, 0);
   const overdueList = agStates.filter((x) => x.s.isOverdue && !x.s.isSettled).slice(0, 4);
 
   // Payments due within the next 7 days (or already overdue).
@@ -192,10 +199,11 @@ export default async function DashboardPage() {
 
   // Cash vs credit split of today's sales.
   const cashToday = toNum(todayByType.find((t) => t.type === "CASH")?._sum.grandTotal);
-  const cashShare = todayVal > 0 ? Math.round((cashToday / todayVal) * 100) : 0;
+  const payLaterToday = toNum(todayByType.find((t) => t.type === "OPEN_ACCOUNT")?._sum.grandTotal);
+  const formalCreditToday = toNum(todayByType.find((t) => t.type === "CREDIT")?._sum.grandTotal);
 
   // Cash actually collected today (credit instalment payments).
-  const moneyIn = toNum(moneyInToday._sum.amount);
+  const moneyIn = toNum(moneyInToday._sum.amount) + toNum(openCollectedToday._sum.amount);
 
   // Today's gross profit ≈ revenue − cost of goods sold (at current cost),
   // corrected for customer returns: refunds come off revenue and the restocked
@@ -263,7 +271,7 @@ export default async function DashboardPage() {
               {todayDiff}%
             </span>
             <span className="text-[11px] font-medium text-white/85">
-              {todayVal > 0 ? `Cash ${cashShare}% · Credit ${100 - cashShare}%` : `${todaySales._count} invoice(s) · vs yesterday`}
+              {todayVal > 0 ? `Cash ${k(cashToday)} · Pay Later ${k(payLaterToday)} · Formal ${k(formalCreditToday)}` : `${todaySales._count} invoice(s) · vs yesterday`}
             </span>
           </div>
         </div>
@@ -274,17 +282,17 @@ export default async function DashboardPage() {
         {/* Outstanding credit */}
         <div className="flex h-40 flex-col justify-between rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] hover:-translate-y-0.5 hover:shadow-md hover:border-clay/20 transition-all duration-300 group">
           <div className="flex items-start justify-between">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Outstanding Credit</span>
+            <span className="text-[11px] font-bold uppercase tracking-wider text-muted">Customer receivables</span>
             <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-clay-soft text-clay group-hover:scale-105 transition-transform duration-300">
               <CreditCard className="h-4 w-4" />
             </div>
           </div>
-          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground group-hover:translate-x-0.5 transition-transform duration-300">{k(outstanding)}</h2>
+          <h2 className="tabular text-[26px] font-extrabold leading-none tracking-tight text-foreground group-hover:translate-x-0.5 transition-transform duration-300">{k(outstanding + openOutstanding)}</h2>
           <div className="flex items-center gap-1.5">
             <span className="inline-flex items-center rounded-full bg-clay-soft px-2 py-0.5 text-[10px] font-bold text-clay-ink">
-              {agStates.filter((x) => !x.s.isSettled).length} active
+              Pay Later {k(openOutstanding)}
             </span>
-            <span className="text-[11px] font-medium text-faint">{overdueList.length} overdue</span>
+            <span className="text-[11px] font-medium text-faint">Formal {k(outstanding)}</span>
           </div>
         </div>
       </div>
@@ -298,7 +306,7 @@ export default async function DashboardPage() {
             </div>
             <div>
               <div className="text-[11px] font-bold uppercase tracking-wider text-muted">Money collected today</div>
-              <div className="text-[11px] text-faint">{moneyInToday._count} credit payment(s)</div>
+              <div className="text-[11px] text-faint">{moneyInToday._count} formal + {openCollectedToday._count} Pay Later payment(s)</div>
             </div>
           </div>
           <span className="tabular text-xl font-extrabold text-foreground">{k(moneyIn)}</span>
@@ -543,7 +551,7 @@ export default async function DashboardPage() {
                       </td>
                     )}
                     <td className="px-4 py-3">
-                      <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
+                      <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
                     </td>
                     <td className="tabular px-4 py-3 text-right font-bold text-foreground">{formatLKR(inv.grandTotal)}</td>
                     <td className="px-5 py-3 text-faint">{formatDate(inv.createdAt)}</td>

@@ -180,6 +180,7 @@ export default async function ReportsPage({
         OR: [
           { createdAt: { gte: monthStart, lt: monthEnd } },
           { creditAgreement: { payments: { some: { paidDate: { gte: monthStart, lt: monthEnd } } } } },
+          { openAccount: { payments: { some: { createdAt: { gte: monthStart, lt: monthEnd } } } } },
           { returns: { some: { date: { gte: monthStart, lt: monthEnd } } } },
         ],
       },
@@ -208,6 +209,7 @@ export default async function ReportsPage({
             },
           },
         },
+        openAccount: { select: { principal: true, payments: { where: { createdAt: { lt: monthEnd } }, select: { amount: true, paidDate: true, method: true, createdAt: true } } } },
       },
     }),
     prisma.vehicleSale.findMany({
@@ -223,6 +225,14 @@ export default async function ReportsPage({
       },
     }),
   ]);
+  const [payLaterIssuedAgg, payLaterCollectedAgg, payLaterAccounts] = await Promise.all([
+    prisma.invoice.aggregate({ _sum: { grandTotal: true }, _count: true, where: { type: "OPEN_ACCOUNT", createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
+    prisma.openAccountPayment.aggregate({ _sum: { amount: true }, _count: true, where: { method: { not: "RETURN" }, createdAt: { gte: monthStart, lt: monthEnd }, account: { invoice: { ...taxF } } } }),
+    prisma.openAccount.findMany({ where: { status: "ACTIVE", invoice: { ...taxF } }, select: { principal: true, payments: { select: { amount: true } } } }),
+  ]);
+  const payLaterIssued = toNum(payLaterIssuedAgg._sum.grandTotal);
+  const payLaterCollected = toNum(payLaterCollectedAgg._sum.amount);
+  const payLaterOutstanding = round2(payLaterAccounts.reduce((sum, account) => sum + Math.max(0, toNum(account.principal) - account.payments.reduce((paid, payment) => paid + toNum(payment.amount), 0)), 0));
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
   const employeeMap = new Map(employees.map((e) => [e.id, e.name]));
@@ -422,6 +432,7 @@ export default async function ReportsPage({
             0,
           ),
         );
+        const openAccount = invoice.openAccount;
         const principalCollected = agreement
           ? round2(
               allocations.reduce((collected, allocation, index) => {
@@ -430,7 +441,9 @@ export default async function ReportsPage({
                 return collected + allocation.principalApplied;
               }, 0) - cashRefunds,
             )
-          : round2(saleRevenue - cashRefunds);
+          : openAccount
+            ? round2(openAccount.payments.reduce((sum, payment) => payment.createdAt <= asOf && payment.method !== "RETURN" ? sum + toNum(payment.amount) : sum, 0) - cashRefunds)
+            : round2(saleRevenue - cashRefunds);
         const saleDiscount = round2(
           allocations.reduce((discounted, allocation, index) => {
             const payment = sortedPayments[index];
@@ -561,6 +574,8 @@ export default async function ReportsPage({
         <StatCard label="Interest collected (month)" value={formatLKR(interestCollected)} tone="green" />
         <StatCard label="Stock value (at cost, today)" value={formatLKR(stockValue)} tone="amber" />
       </div>
+
+      <Card className="mb-4"><CardHeader><CardTitle>Pay Later receivables</CardTitle></CardHeader><CardContent><div className="grid grid-cols-2 gap-4 lg:grid-cols-3"><StatCard label={`Issued (${payLaterIssuedAgg._count})`} value={formatLKR(payLaterIssued)} tone="amber" /><StatCard label={`Collected (${payLaterCollectedAgg._count})`} value={formatLKR(payLaterCollected)} tone="green" /><StatCard label="Outstanding today" value={formatLKR(payLaterOutstanding)} tone={payLaterOutstanding ? "amber" : "default"} /></div></CardContent></Card>
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Purchases (month)" value={formatLKR(purchasesMonth)} tone="amber" />

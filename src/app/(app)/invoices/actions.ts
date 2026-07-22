@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma, type TaxCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireActionAdmin, requireActionUser } from "@/lib/auth";
+import { requireActionAdmin, requireActionStaffFinanceAccess, requireActionUser } from "@/lib/auth";
 import { assertUniqueProductLines } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
@@ -48,8 +48,23 @@ type Computed = {
   costSnapshot: number;
 };
 
-export async function createCashInvoice(
+export async function createCashInvoice(input: CreateInvoiceInput): Promise<CreateInvoiceResult> {
+  return createSale(input, "CASH");
+}
+
+export async function createOpenAccountSale(
+  input: CreateInvoiceInput & { dueDate?: string | null },
+): Promise<CreateInvoiceResult> {
+  if (!input.customerId) return { ok: false, error: "Select a customer for Pay Later." };
+  const dueDate = input.dueDate ? new Date(`${input.dueDate}T00:00:00+05:30`) : null;
+  if (dueDate && Number.isNaN(dueDate.getTime())) return { ok: false, error: "Enter a valid promised date." };
+  return createSale(input, "OPEN_ACCOUNT", dueDate);
+}
+
+async function createSale(
   input: CreateInvoiceInput,
+  type: "CASH" | "OPEN_ACCOUNT",
+  dueDate: Date | null = null,
 ): Promise<CreateInvoiceResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) {
@@ -61,7 +76,16 @@ export async function createCashInvoice(
   } catch {
     return { ok: false, error: "Each product may appear only once in a sale." };
   }
-  const session = await requireActionUser();
+  let session;
+  try {
+    session = type === "OPEN_ACCOUNT" ? await requireActionStaffFinanceAccess() : await requireActionUser();
+  } catch {
+    return { ok: false, error: type === "OPEN_ACCOUNT" ? "You don't have permission to create Pay Later sales." : "Please sign in." };
+  }
+  if (type === "OPEN_ACCOUNT") {
+    const customer = await prisma.customer.findUnique({ where: { id: data.customerId! }, select: { id: true } });
+    if (!customer) return { ok: false, error: "The selected customer no longer exists." };
+  }
 
   const products = await prisma.product.findMany({
     where: { id: { in: data.lines.map((l) => l.productId) }, active: true },
@@ -142,9 +166,9 @@ export async function createCashInvoice(
             const inv = await tx.invoice.create({
               data: {
                 invoiceNumber,
-                type: "CASH",
+                type,
                 taxCategory: g.category,
-                status: "PAID",
+                status: type === "CASH" ? "PAID" : "CREDIT",
                 customerId: data.customerId || null,
                 soldByEmployeeId: data.soldByEmployeeId || null,
                 createdByUserId: session?.id ?? null,
@@ -152,7 +176,7 @@ export async function createCashInvoice(
                 subtotal: totals.subtotal,
                 discount: totals.discount,
                 grandTotal: totals.grandTotal,
-                amountPaid: totals.grandTotal,
+                amountPaid: type === "CASH" ? totals.grandTotal : 0,
                 items: {
                   create: g.items.map((it) => ({
                     productId: it.productId,
@@ -166,6 +190,16 @@ export async function createCashInvoice(
                 },
               },
             });
+            if (type === "OPEN_ACCOUNT") {
+              await tx.openAccount.create({
+                data: {
+                  invoiceId: inv.id,
+                  customerId: data.customerId!,
+                  principal: totals.grandTotal,
+                  dueDate,
+                },
+              });
+            }
             for (const it of [...g.items].sort((a, b) => a.productId.localeCompare(b.productId))) {
               const balanceAfter = await decrementStockForSale(tx, {
                 productId: it.productId,
@@ -191,6 +225,8 @@ export async function createCashInvoice(
       revalidatePath("/invoices");
       revalidatePath("/products");
       revalidatePath("/dashboard");
+      revalidatePath("/open-accounts");
+      if (data.customerId) revalidatePath(`/customers/${data.customerId}`);
       return { ok: true, invoices: created };
     } catch (e) {
       if (e instanceof StockConflictError) {
@@ -203,7 +239,7 @@ export async function createCashInvoice(
       ) {
         continue; // retry invoice number
       }
-      console.error("createCashInvoice failed", e);
+      console.error("createSale failed", e);
       return { ok: false, error: "Could not save the sale. Please try again." };
     }
   }
@@ -249,6 +285,7 @@ export async function voidInvoice(input: {
         "/dashboard",
         "/reports",
         "/credit",
+        "/open-accounts",
         "/customers",
         "/reminders",
         "/shift-report",

@@ -31,6 +31,7 @@ import {
   Landmark,
   HandCoins,
   Tractor,
+  CircleDollarSign,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
 import { canAccessStaffFinance } from "@/lib/authorization";
@@ -56,6 +57,7 @@ const PAGES: Cmd[] = [
   { id: "p-dash", group: "Go to", label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
   { id: "p-rem", group: "Go to", label: "Reminders", icon: Bell, href: "/reminders" },
   { id: "p-inv", group: "Go to", label: "Invoices", icon: ReceiptText, href: "/invoices" },
+  { id: "p-open", group: "Go to", label: "Customer Balances", sub: "Collect Pay Later balances", icon: CircleDollarSign, href: "/open-accounts" },
   { id: "p-credit-inv", group: "Go to", label: "Credit Invoices", sub: "Credit-sale document register", icon: CreditCard, href: "/credit-invoices" },
   { id: "p-lolc", group: "Go to", label: "LOLC Receipts", sub: "Track customer collections and LOLC confirmation", icon: HandCoins, href: "/lolc-receipt" },
   { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
@@ -93,6 +95,7 @@ const SALESPERSON_RESTRICTED_PREFIXES = [
   "/banking",
   "/shift-report",
   "/reports",
+  "/open-accounts",
 ];
 
 export function CommandPalette({

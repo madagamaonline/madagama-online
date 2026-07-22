@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 import { toNum } from "@/lib/utils";
 import { nonTaxableEnabled, activeInvoiceWhere } from "@/lib/tax-mode";
+import { invoiceTypeLabel, openAccountStatusLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
 
@@ -39,20 +40,22 @@ export async function GET() {
       "Discount",
       "Total",
       "Paid",
+      "Balance",
     ],
     invoices.map((i) => [
       i.invoiceNumber,
       csvDate(i.createdAt),
-      i.type,
+      invoiceTypeLabel(i.type),
       ...(ntEnabled ? [i.taxCategory] : []),
       i.customer?.name ?? "Walk-in",
       i.createdBy?.name ?? "",
       i.soldBy?.name ?? "",
-      i.status,
+      i.type === "OPEN_ACCOUNT" ? openAccountStatusLabel(i.status) : i.status,
       toNum(i.subtotal),
       toNum(i.discount),
       toNum(i.grandTotal),
       toNum(i.amountPaid),
+      Math.max(0, toNum(i.grandTotal) - toNum(i.amountPaid)),
     ]),
   );
 

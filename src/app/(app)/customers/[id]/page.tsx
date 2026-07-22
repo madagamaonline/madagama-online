@@ -11,6 +11,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { computeCreditState } from "@/lib/credit";
 import { formatLKR, toNum } from "@/lib/utils";
 import { requestNumber, requestStatusLabel, requestStatusTone } from "@/lib/customer-requests";
+import { computeOpenAccountState } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export default async function CustomerDetailPage({
         orderBy: { createdAt: "desc" },
         include: { invoice: { select: { invoiceNumber: true } }, payments: true },
       },
+      openAccounts: { where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } }, orderBy: { openedAt: "desc" }, include: { invoice: { select: { invoiceNumber: true } }, payments: true } },
       customerRequests: {
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -52,6 +54,8 @@ export default async function CustomerDetailPage({
 
   const activeCount = agreements.filter(({ state }) => !state.isSettled).length;
   const totalOutstanding = agreements.reduce((s, { state }) => s + state.outstanding, 0);
+  const openAccounts = customer.openAccounts.map((a) => ({ a, state: computeOpenAccountState(toNum(a.principal), a.payments.map((p) => ({ amount: toNum(p.amount), method: p.method })), a.dueDate) }));
+  const openOutstanding = openAccounts.reduce((sum, row) => sum + row.state.outstanding, 0);
 
   const nics = [
     { key: customer.nicFrontKey, label: "NIC Front" },
@@ -86,18 +90,21 @@ export default async function CustomerDetailPage({
 
       {/* Outstanding balance up top — the main thing you check a customer for
           on a phone. */}
-      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard
-          label="Outstanding balance"
-          value={formatLKR(totalOutstanding)}
-          tone={totalOutstanding > 0 ? "amber" : "default"}
+          label="Combined receivable"
+          value={formatLKR(totalOutstanding + openOutstanding)}
+          tone={totalOutstanding + openOutstanding > 0 ? "amber" : "default"}
         />
+        <StatCard label="Pay Later balance" value={formatLKR(openOutstanding)} tone={openOutstanding ? "amber" : "default"} />
         <StatCard
           label="Active agreements"
           value={String(activeCount)}
           tone={activeCount ? "blue" : "default"}
         />
       </div>
+
+      <Card className="mb-4"><CardHeader><CardTitle>Pay Later</CardTitle></CardHeader><CardContent className="p-0">{openAccounts.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted">No Pay Later accounts.</div> : <Table><THead><TR><TH>Invoice</TH><TH className="text-right">Original</TH><TH className="text-right">Outstanding</TH><TH>Status</TH></TR></THead><TBody>{openAccounts.map(({ a, state }) => <TR key={a.id}><TD><Link href={`/open-accounts/${a.id}`} className="font-mono text-primary hover:underline">{a.invoice.invoiceNumber}</Link></TD><TD className="text-right">{formatLKR(state.principal)}</TD><TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD><TD><Badge tone={state.isSettled ? "green" : state.isOverdue ? "red" : "amber"}>{state.isSettled ? "Paid" : state.isOverdue ? "Overdue" : state.credited ? "Partial" : "Unpaid"}</Badge></TD></TR>)}</TBody></Table>}</CardContent></Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">

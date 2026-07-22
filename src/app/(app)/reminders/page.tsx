@@ -13,6 +13,8 @@ import { computeCreditState } from "@/lib/credit";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
 import { ACTIVE_REQUEST_STATUSES, requestNumber, requestStatusLabel, requestStatusTone } from "@/lib/customer-requests";
 import { businessStartOfDay } from "@/lib/dates";
+import { computeOpenAccountState } from "@/lib/open-account";
+import { SendOpenAccountReminder } from "@/components/send-open-account-reminder";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +33,7 @@ function badgeTone(u: Urgency): "red" | "amber" | "gray" {
 export default async function RemindersPage() {
   const now = new Date();
 
-  const [agreements, purchases, customerRequests] = await Promise.all([
+  const [agreements, purchases, customerRequests, openAccounts] = await Promise.all([
     prisma.creditAgreement.findMany({
       where: { status: "ACTIVE", invoice: { voidedAt: null } },
       include: {
@@ -55,7 +57,9 @@ export default async function RemindersPage() {
       orderBy: [{ followUpAt: "asc" }, { priority: "desc" }],
       take: 100,
     }),
+    prisma.openAccount.findMany({ where: { status: "ACTIVE", dueDate: { not: null }, invoice: { voidedAt: null } }, include: { customer: { select: { name: true } }, invoice: { select: { invoiceNumber: true } }, payments: true }, take: 500 }),
   ]);
+  const openRows = openAccounts.map((a) => { const state = computeOpenAccountState(toNum(a.principal), a.payments.map((p) => ({ amount: toNum(p.amount), method: p.method })), a.dueDate); const days = differenceInCalendarDays(a.dueDate!, now); return { a, state, days }; }).filter((r) => !r.state.isSettled && r.days <= 7).sort((a,b) => a.days - b.days);
 
   const requestRows = customerRequests
     .map((request) => ({
@@ -185,6 +189,8 @@ export default async function RemindersPage() {
         <StatCard label="Pay — overdue" value={formatLKR(payOverdue)} tone={payOverdue ? "red" : "default"} />
         <StatCard label="Pay — due ≤7d" value={formatLKR(paySoon)} tone={paySoon ? "amber" : "default"} />
       </div>
+
+      <Card className="mb-4"><CardHeader className="flex items-center justify-between"><CardTitle>Pay Later promised dates</CardTitle><Link href="/open-accounts" className="text-xs font-medium text-primary hover:underline">View all balances</Link></CardHeader><CardContent className="p-0">{openRows.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted">No dated Pay Later balances due in the next 7 days.</div> : <Table><THead><TR><TH>Customer</TH><TH>Invoice</TH><TH className="text-right">Outstanding</TH><TH>Status</TH><TH></TH></TR></THead><TBody>{openRows.map(({ a, state, days }) => <TR key={a.id}><TD><Link href={`/open-accounts/${a.id}`} className="font-medium hover:underline">{a.customer.name}</Link></TD><TD className="font-mono text-xs">{a.invoice.invoiceNumber}</TD><TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD><TD><Badge tone={days < 0 ? "red" : "amber"}>{dueLabel(days)}</Badge></TD><TD className="text-right"><SendOpenAccountReminder accountId={a.id} compact /></TD></TR>)}</TBody></Table>}</CardContent></Card>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Customers owe you */}

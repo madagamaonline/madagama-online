@@ -7,6 +7,7 @@ import { sendSms, type SmsResult } from "./sms";
 import { toNum, formatLKR } from "./utils";
 import { ACTIVE_REQUEST_STATUSES, requestNumber } from "./customer-requests";
 import { businessDayKey } from "./dates";
+import { computeOpenAccountState } from "./open-account";
 
 /** Run `tasks` with at most `size` in flight at once (keeps the cron under the
  *  serverless time limit without a p-limit dependency). */
@@ -176,6 +177,19 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
     }
   }
 
+  // --- Pay Later reminders (dated accounts only; undated accounts stay manual) ---
+  const openAccounts = await prisma.openAccount.findMany({
+    where: { status: "ACTIVE", dueDate: { not: null }, invoice: { voidedAt: null } },
+    include: { customer: { select: { name: true, phone: true } }, invoice: { select: { invoiceNumber: true } }, payments: true },
+  });
+  for (const account of openAccounts) {
+    const state = computeOpenAccountState(toNum(account.principal), account.payments.map((p) => ({ amount: toNum(p.amount), method: p.method })), account.dueDate, now);
+    if (state.isSettled) continue;
+    const days = differenceInDays(account.dueDate!, now);
+    if (days >= 0 && days <= 7) queue({ type: "CUSTOMER_PAYMENT", refId: account.id, dedupeKey: `pay-later-due:${account.id}`, recipient: account.customer.phone, message: `${business}: Dear ${account.customer.name}, your Pay Later balance on ${account.invoice.invoiceNumber} is ${formatLKR(state.outstanding)}, promised by ${format(account.dueDate!, "dd MMM yyyy")}. No interest is charged. Thank you.` });
+    if (days < 0) queue({ type: "CUSTOMER_PAYMENT", refId: account.id, dedupeKey: `pay-later-overdue:${account.id}:${format(now, "yyyy-MM")}`, recipient: account.customer.phone, message: `${business}: Dear ${account.customer.name}, your Pay Later balance on ${account.invoice.invoiceNumber} is ${formatLKR(state.outstanding)} and the promised date has passed. Please make a payment. No interest is charged. Thank you.` });
+  }
+
   // --- Supplier credit alerts (to admin) ---
   if (adminPhone) {
     const purchases = await prisma.purchase.findMany({
@@ -213,7 +227,7 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
     sent,
     skipped,
     failed,
-    customers: agreements.length,
+    customers: agreements.length + openAccounts.length,
     suppliers: adminPhone ? 1 : 0,
     requests: customerRequests.length,
   };

@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   Printer,
   CreditCard,
+  Clock3,
+  Banknote,
   History,
   Pause,
   X,
@@ -25,7 +27,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
-import { createCashInvoice, type CreatedInvoice } from "@/app/(app)/invoices/actions";
+import { createCashInvoice, createOpenAccountSale, type CreatedInvoice } from "@/app/(app)/invoices/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
 import {
   CustomerSearchPicker,
@@ -66,10 +68,12 @@ export function NewSale({
   employees,
   customers,
   nonTaxableEnabled = true,
+  canPayLater = false,
 }: {
   employees: { id: string; name: string }[];
   customers: SaleCustomer[];
   nonTaxableEnabled?: boolean;
+  canPayLater?: boolean;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -86,11 +90,14 @@ export function NewSale({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<CreatedInvoice[] | null>(null);
+  const [resultMode, setResultMode] = useState<"cash" | "pay-later">("cash");
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
   const [parked, setParked] = useState<ParkedSale[]>([]);
   const [resumed, setResumed] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
+  const [showPayLater, setShowPayLater] = useState(false);
+  const [promisedDate, setPromisedDate] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false);
 
@@ -375,6 +382,7 @@ export function NewSale({
         return;
       }
       setResult(res.invoices);
+      setResultMode("cash");
       try {
         const next = [
           ...res.invoices.map((inv) => ({
@@ -400,6 +408,29 @@ export function NewSale({
     });
   }
 
+  function completePayLater() {
+    setError("");
+    if (!customerId) { setError("Select or quick-add a customer for Pay Later."); return; }
+    if (cart.length === 0) { setError("Add at least one item."); return; }
+    startTransition(async () => {
+      const res = await createOpenAccountSale({
+        lines: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        discount: discount || 0,
+        customerId,
+        soldByEmployeeId: soldBy || null,
+        notes: notes.trim() || null,
+        dueDate: promisedDate || null,
+      });
+      if (!res.ok) { setError(res.error); return; }
+      setResult(res.invoices);
+      setResultMode("pay-later");
+      setShowPayLater(false);
+      setPromisedDate("");
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
+      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setResumed(false);
+    });
+  }
+
   function startNewSale() {
     setResult(null);
     searchRef.current?.focus();
@@ -412,13 +443,14 @@ export function NewSale({
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2 text-primary-ink">
               <CheckCircle2 className="h-6 w-6" />
-              <h2 className="text-lg font-semibold">Sale completed</h2>
+              <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
             {result.length > 1 && (
               <p className="text-sm text-muted">
                 The cart had both taxable and non-taxable items, so it was split into two bills.
               </p>
             )}
+            {resultMode === "pay-later" && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
             <div className="divide-y divide-border rounded-lg border border-border">
               {result.map((inv) => (
                 <div key={inv.id} className="flex items-center justify-between gap-3 p-3">
@@ -661,7 +693,7 @@ export function NewSale({
           <CardContent className="space-y-4">
             <div>
               <div className="flex items-center justify-between">
-                <Label htmlFor="sale-customer">Customer (optional)</Label>
+                <Label htmlFor="sale-customer">{showPayLater ? "Customer (required for Pay Later)" : "Customer (optional)"}</Label>
                 <button
                   type="button"
                   onClick={() => setShowQuickCustomer(true)}
@@ -750,8 +782,16 @@ export function NewSale({
               </p>
             </div>
 
+            <div>
+              <Label>Payment method</Label>
+              <div className="mt-1 grid grid-cols-2 rounded-xl border border-input-border bg-input/60 p-1" role="radiogroup" aria-label="Payment method">
+                <button type="button" role="radio" aria-checked={!showPayLater} onClick={() => { setShowPayLater(false); setError(""); }} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${!showPayLater ? "bg-surface text-foreground shadow-sm ring-1 ring-border" : "text-muted hover:text-foreground"}`}><Banknote className="h-4 w-4" /> Cash</button>
+                {canPayLater ? <button type="button" role="radio" aria-checked={showPayLater} onClick={() => { setShowPayLater(true); setTendered(0); setError(""); }} disabled={cart.length === 0} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors disabled:opacity-50 ${showPayLater ? "bg-amber-50 text-amber-900 shadow-sm ring-1 ring-amber-300" : "text-muted hover:text-amber-900"}`}><Clock3 className="h-4 w-4" /> Pay Later</button> : <span className="flex min-h-11 items-center justify-center text-xs text-muted">Pay Later unavailable</span>}
+              </div>
+            </div>
+
             {/* Cash tendered + change */}
-            <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
+            {!showPayLater && <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Cash received</span>
                 <NumberInput
@@ -782,7 +822,7 @@ export function NewSale({
                   <span>{formatLKR(Math.abs(change))}</span>
                 </div>
               )}
-            </div>
+            </div>}
 
             {willSplit && (
               <div className="rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
@@ -792,16 +832,25 @@ export function NewSale({
 
             {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
 
-            <Button onClick={completeSale} size="lg" className="w-full" disabled={pending || cart.length === 0}>
+            {!showPayLater && <Button onClick={completeSale} size="lg" className="w-full" disabled={pending || cart.length === 0}>
               {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
               {pending ? "Saving…" : "Complete Cash Sale"}
-            </Button>
+            </Button>}
+            {showPayLater && (
+              <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950">
+                <div><div className="font-semibold">Pay Later account</div><div className="text-xs text-amber-800">The customer takes the items now and owes the full balance. No interest or guarantor.</div></div>
+                {!customerId && <p className="rounded-lg bg-surface px-3 py-2 text-xs font-medium">Select or quick-add the customer above.</p>}
+                <div><Label htmlFor="promised-date">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setPromisedDate(event.target.value)} /></div>
+                <div className="space-y-1 border-t border-amber-300 pt-2 text-sm"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(0)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><strong>{formatLKR(totals.grandTotal)}</strong></div></div>
+                <Button onClick={completePayLater} disabled={pending || !customerId} className="w-full bg-amber-700 text-white hover:bg-amber-800">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} Create Pay Later Invoice</Button>
+              </div>
+            )}
             <button
               onClick={switchToCredit}
               disabled={cart.length === 0}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-input-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-input disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <CreditCard className="h-4 w-4" /> Switch to Credit (keep cart)
+              <CreditCard className="h-4 w-4" /> Formal Credit (interest terms)
             </button>
           </CardContent>
         </Card>

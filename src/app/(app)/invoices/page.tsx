@@ -12,6 +12,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { InvoiceCashierFilter } from "@/components/invoice-cashier-filter";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
 import { nonTaxableEnabled, invoiceTaxableWhere } from "@/lib/tax-mode";
+import { invoiceTypeLabel, openAccountStatusLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
 
@@ -26,15 +27,16 @@ const FILTERS: { label: string; value: string }[] = [
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; cashier?: string }>;
+  searchParams: Promise<{ q?: string; category?: string; cashier?: string; type?: string }>;
 }) {
-  const { q, category, cashier } = await searchParams;
+  const { q, category, cashier, type } = await searchParams;
   const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
   const cat = category === "TAXABLE" || category === "NON_TAXABLE" ? (category as TaxCategory) : undefined;
   const cashierId = (cashier ?? "").trim();
 
   const where: Prisma.InvoiceWhereInput = {
+    ...(type === "CASH" || type === "CREDIT" || type === "OPEN_ACCOUNT" ? { type } : {}),
     ...(cat ? { taxCategory: cat } : {}),
     ...(cashierId ? { createdByUserId: cashierId } : {}),
     // When non-taxable is off this overrides any category filter to taxable-only.
@@ -64,12 +66,14 @@ export default async function InvoicesPage({
   ]);
 
   // Build a list href that preserves the current filters, optionally overriding one.
-  const buildHref = (next: { category?: string }) => {
+  const buildHref = (next: { category?: string; type?: string }) => {
     const sp = new URLSearchParams();
     if (query) sp.set("q", query);
     const c = next.category ?? cat ?? "";
     if (c) sp.set("category", c);
     if (cashierId) sp.set("cashier", cashierId);
+    const t = next.type ?? type ?? "";
+    if (t) sp.set("type", t);
     const s = sp.toString();
     return `/invoices${s ? `?${s}` : ""}`;
   };
@@ -98,6 +102,7 @@ export default async function InvoicesPage({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
             <ListSearch placeholder="Search invoice # or customer…" className="relative max-w-md flex-1" />
             <div className="flex flex-wrap items-center gap-2">
+              <div className="flex gap-1">{[["All types", ""], ["Cash", "CASH"], ["Pay Later", "OPEN_ACCOUNT"], ["Formal Credit", "CREDIT"]].map(([label, value]) => <Link key={label} href={buildHref({ type: value })} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium transition-colors", (type ?? "") === value ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border")}>{label}</Link>)}</div>
               {ntEnabled && (
                 <div className="flex gap-1">
                   {FILTERS.map((f) => {
@@ -151,8 +156,8 @@ export default async function InvoicesPage({
                           {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
                         </Badge>
                       )}
-                      <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
-                      <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                      <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
+                      <Badge tone={statusTone[inv.status]}>{inv.type === "OPEN_ACCOUNT" ? openAccountStatusLabel(inv.status) : inv.status}</Badge>
                       {inv.voidedAt && <Badge tone="red">VOIDED · AUDIT ONLY</Badge>}
                       {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
                     </div>
@@ -193,11 +198,11 @@ export default async function InvoicesPage({
                           </TD>
                         )}
                         <TD>
-                          <Badge tone={inv.type === "CREDIT" ? "amber" : "green"}>{inv.type}</Badge>
+                          <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
                         </TD>
                         <TD>
                           <span className="flex flex-wrap items-center gap-1">
-                            <Badge tone={statusTone[inv.status]}>{inv.status}</Badge>
+                            <Badge tone={statusTone[inv.status]}>{inv.type === "OPEN_ACCOUNT" ? openAccountStatusLabel(inv.status) : inv.status}</Badge>
                             {inv.voidedAt && <Badge tone="red">VOIDED</Badge>}
                             {inv._count.returns > 0 && <Badge tone="red">RETURNED</Badge>}
                           </span>

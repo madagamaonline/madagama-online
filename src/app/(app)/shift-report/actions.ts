@@ -11,6 +11,7 @@ export type ShiftSummary = {
   expectedCash: number;
   totalCashSales: number;
   totalRepayments: number;
+  totalOpenAccountCollections: number;
 };
 
 export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
@@ -50,16 +51,22 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
       amount: true,
     },
   });
+  const openAccountCashPayments = await prisma.openAccountPayment.findMany({
+    where: { method: "CASH", account: { status: { not: "VOIDED" }, invoice: { voidedAt: null } }, createdAt: { gte: startTime } },
+    select: { amount: true },
+  });
 
   const totalCashSales = cashInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
   const totalRepayments = cashPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const expectedCash = totalCashSales + totalRepayments;
+  const totalOpenAccountCollections = openAccountCashPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const expectedCash = totalCashSales + totalRepayments + totalOpenAccountCollections;
 
   return {
     startTime,
     expectedCash,
     totalCashSales,
     totalRepayments,
+    totalOpenAccountCollections,
   };
 }
 

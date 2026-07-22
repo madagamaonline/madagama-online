@@ -12,6 +12,7 @@ import {
 import { logStockMovement } from "@/lib/stock";
 import { computeCreditState } from "@/lib/credit";
 import { round2, toNum } from "@/lib/utils";
+import { computeOpenAccountState, openAccountInvoiceStatus } from "@/lib/open-account";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -96,6 +97,10 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           include: { payments: true },
         });
         const openAgreement = agreement && agreement.status !== "SETTLED" && agreement.status !== "VOIDED" ? agreement : null;
+        const openAccount = await tx.openAccount.findUnique({ where: { invoiceId: d.invoiceId }, include: { payments: true } });
+        const activeOpenAccount = openAccount && openAccount.status === "ACTIVE" ? openAccount : null;
+        const openState = activeOpenAccount ? computeOpenAccountState(toNum(activeOpenAccount.principal), activeOpenAccount.payments.map((p) => ({ amount: toNum(p.amount), method: p.method }))) : null;
+        if (openState && total > openState.outstanding) throw new ReturnValidationError(`This return exceeds the Pay Later balance of LKR ${openState.outstanding.toFixed(2)}.`);
 
         // Capture the cost each returned product was sold at, so profit reports
         // credit the restock back to COGS at the same cost it was charged out at
@@ -121,7 +126,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           data: {
             invoiceId: d.invoiceId,
             totalRefund: total,
-            method: openAgreement ? "CREDIT_BALANCE" : d.method?.trim() || "CASH",
+            method: openAgreement || activeOpenAccount ? "CREDIT_BALANCE" : d.method?.trim() || "CASH",
             reason: d.reason?.trim() || null,
             createdByUserId: session?.id ?? null,
             items: {
@@ -185,6 +190,14 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
             }
           }
         }
+        if (activeOpenAccount && openState && total > 0) {
+          creditedToBalance = total;
+          await tx.openAccountPayment.create({ data: { accountId: activeOpenAccount.id, amount: total, paidDate: new Date(), method: "RETURN", note: `Goods returned (return ${created.id})`, recordedByUserId: session.id } });
+          const credited = round2(openState.credited + total);
+          const settled = credited >= toNum(activeOpenAccount.principal);
+          await tx.invoice.update({ where: { id: activeOpenAccount.invoiceId }, data: { amountPaid: credited, status: openAccountInvoiceStatus(toNum(activeOpenAccount.principal), credited) } });
+          await tx.openAccount.update({ where: { id: activeOpenAccount.id }, data: { status: settled ? "SETTLED" : "ACTIVE" } });
+        }
 
         // Restock returned items and log the movement.
         for (const l of returnLines) {
@@ -210,6 +223,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
     revalidatePath("/products");
     revalidatePath("/credit");
     revalidatePath("/dashboard");
+    revalidatePath("/open-accounts");
     if (d.invoiceId) revalidatePath(`/invoices/${d.invoiceId}`);
     return { ok: true, id: result.id, creditedToBalance: result.creditedToBalance };
   } catch (e) {

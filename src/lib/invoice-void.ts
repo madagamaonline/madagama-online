@@ -41,6 +41,7 @@ export async function applyInvoiceVoid(
       creditAgreement: {
         select: { id: true, _count: { select: { payments: true, interestCharges: true } } },
       },
+      openAccount: { select: { id: true, _count: { select: { payments: true } } } },
     },
   });
   if (!invoice) throw new VoidInvoiceError("Invoice not found.");
@@ -53,7 +54,7 @@ export async function applyInvoiceVoid(
     returns: invoice._count.returns,
     serviceJobs: invoice._count.serviceJobs,
     missingProducts: invoice.items.filter((item) => !item.productId).length,
-    payments: invoice.creditAgreement?._count.payments ?? 0,
+    payments: (invoice.creditAgreement?._count.payments ?? 0) + (invoice.openAccount?._count.payments ?? 0),
     interestCharges: invoice.creditAgreement?._count.interestCharges ?? 0,
     closedShift: closedShift > 0,
   });
@@ -74,6 +75,9 @@ export async function applyInvoiceVoid(
       where: { id: invoice.creditAgreement.id },
       data: { status: "VOIDED" },
     });
+  }
+  if (invoice.openAccount) {
+    await tx.openAccount.update({ where: { id: invoice.openAccount.id }, data: { status: "VOIDED" } });
   }
 
   for (const item of [...invoice.items].sort((a, b) =>

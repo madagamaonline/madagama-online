@@ -35,6 +35,7 @@ model User {
   invoicesCreated             Invoice[]                        @relation("InvoiceCreatedBy")
   invoicesVoided              Invoice[]                        @relation("InvoiceVoidedBy")
   paymentsRecorded            Payment[]                        @relation("PaymentRecordedBy")
+  openAccountPaymentsRecorded OpenAccountPayment[]             @relation("OpenAccountPaymentRecordedBy")
   stockMovements              StockMovement[]
   salesReturns                SalesReturn[]
   supplierReturns             SupplierReturn[]
@@ -183,6 +184,7 @@ model Customer {
 
   invoices         Invoice[]
   creditAgreements CreditAgreement[]
+  openAccounts     OpenAccount[]
   serviceJobs      ServiceJob[]
   quotations       Quotation[]
   customerRequests CustomerRequest[]
@@ -730,6 +732,13 @@ model LolcReceiptEvent {
 enum InvoiceType {
   CASH
   CREDIT
+  OPEN_ACCOUNT
+}
+
+enum OpenAccountStatus {
+  ACTIVE
+  SETTLED
+  VOIDED
 }
 
 enum InvoiceStatus {
@@ -769,6 +778,7 @@ model Invoice {
 
   items           InvoiceItem[]
   creditAgreement CreditAgreement?
+  openAccount     OpenAccount?
   returns         SalesReturn[]
   serviceJobs     ServiceJob[]
 
@@ -780,6 +790,41 @@ model Invoice {
   @@index([createdByUserId])
   @@index([voidedAt])
   @@index([voidedByUserId])
+}
+
+model OpenAccount {
+  id         String               @id @default(cuid())
+  invoice    Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  invoiceId  String               @unique
+  customer   Customer             @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId String
+  principal  Decimal              @db.Decimal(12, 2)
+  openedAt   DateTime             @default(now())
+  dueDate    DateTime?
+  status     OpenAccountStatus    @default(ACTIVE)
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+  payments   OpenAccountPayment[]
+
+  @@index([status, dueDate])
+  @@index([customerId, status])
+  @@index([openedAt])
+}
+
+model OpenAccountPayment {
+  id               String      @id @default(cuid())
+  account          OpenAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  accountId        String
+  amount           Decimal     @db.Decimal(12, 2)
+  paidDate         DateTime    @default(now())
+  method           String      @default("CASH")
+  note             String?
+  recordedBy       User?       @relation("OpenAccountPaymentRecordedBy", fields: [recordedByUserId], references: [id])
+  recordedByUserId String?
+  createdAt        DateTime    @default(now())
+
+  @@index([accountId, paidDate])
+  @@index([createdAt])
 }
 
 model InvoiceItem {

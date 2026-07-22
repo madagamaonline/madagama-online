@@ -42,7 +42,7 @@ const ACTIONS: Cmd[] = [
   { id: "a-cash", group: "Actions", label: "New Cash Sale", sub: "Start a cash checkout", icon: ShoppingCart, href: "/invoices/new" },
   { id: "a-credit", group: "Actions", label: "New Credit Sale", sub: "Sell on credit", icon: CreditCard, href: "/credit/new" },
   { id: "a-quote", group: "Actions", label: "New Quotation", sub: "Prepare a price quote", icon: FileText, href: "/quotations/new" },
-  { id: "a-lolc", group: "Actions", label: "Print Receipt", sub: "Print-only installment collection receipt", icon: HandCoins, href: "/lolc-receipt" },
+  { id: "a-lolc", group: "Actions", label: "New LOLC Receipt", sub: "Record a customer collection", icon: HandCoins, href: "/lolc-receipt/new" },
   { id: "a-product", group: "Actions", label: "New Product", sub: "Add a stock item", icon: PackagePlus, href: "/products/new" },
   { id: "a-customer", group: "Actions", label: "New Customer", sub: "Add a customer", icon: UserPlus, href: "/customers/new" },
   { id: "a-request", group: "Actions", label: "New Customer Request", sub: "Record a product inquiry or import request", icon: MessageSquareText, href: "/requests/new" },
@@ -57,7 +57,7 @@ const PAGES: Cmd[] = [
   { id: "p-rem", group: "Go to", label: "Reminders", icon: Bell, href: "/reminders" },
   { id: "p-inv", group: "Go to", label: "Invoices", icon: ReceiptText, href: "/invoices" },
   { id: "p-credit-inv", group: "Go to", label: "Credit Invoices", sub: "Credit-sale document register", icon: CreditCard, href: "/credit-invoices" },
-  { id: "p-lolc", group: "Go to", label: "Receipts", sub: "Print-only installment collection receipt", icon: HandCoins, href: "/lolc-receipt" },
+  { id: "p-lolc", group: "Go to", label: "LOLC Receipts", sub: "Track customer collections and LOLC confirmation", icon: HandCoins, href: "/lolc-receipt" },
   { id: "p-quo", group: "Go to", label: "Quotations", icon: FileText, href: "/quotations" },
   { id: "p-ret", group: "Go to", label: "Returns", icon: Undo2, href: "/returns" },
   { id: "p-svc", group: "Go to", label: "Service Jobs", icon: Wrench, href: "/services" },
@@ -183,7 +183,7 @@ export function CommandPalette({
   const staticMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     const all = [...ACTIONS, ...PAGES].filter((command) => {
-      if (!nonTaxableEnabled && command.href === "/lolc-receipt") return false;
+      if (!nonTaxableEnabled && (command.href === "/lolc-receipt" || command.href.startsWith("/lolc-receipt/"))) return false;
       if (
         !canAccessStaffFinance(userRole) &&
         SALESPERSON_RESTRICTED_PREFIXES.some(

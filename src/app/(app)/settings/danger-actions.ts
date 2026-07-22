@@ -110,6 +110,7 @@ export async function resetSystemData(
     "/reports",
     "/services",
     "/returns",
+    "/lolc-receipt",
     "/settings",
   ]) {
     revalidatePath(path);

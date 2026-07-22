@@ -46,6 +46,11 @@ model User {
   customerRequestsCreated     CustomerRequest[]                @relation("CustomerRequestCreatedBy")
   customerRequestsAssigned    CustomerRequest[]                @relation("CustomerRequestAssignedTo")
   customerRequestEvents       CustomerRequestEvent[]
+  lolcReceiptsCreated         LolcReceipt[]                    @relation("LolcReceiptCreatedBy")
+  lolcReceiptsRemitted        LolcReceipt[]                    @relation("LolcReceiptRemittedBy")
+  lolcReceiptsConfirmed       LolcReceipt[]                    @relation("LolcReceiptConfirmedBy")
+  lolcReceiptsVoided          LolcReceipt[]                    @relation("LolcReceiptVoidedBy")
+  lolcReceiptEvents           LolcReceiptEvent[]               @relation("LolcReceiptEventActor")
   consignmentVehiclesReceived ConsignmentVehicle[]             @relation("VehicleReceivedBy")
   vehicleSalesCreated         VehicleSale[]                    @relation("VehicleSaleCreatedBy")
   vehicleSalesVoided          VehicleSale[]                    @relation("VehicleSaleVoidedBy")
@@ -642,6 +647,80 @@ model CustomerRequestEvent {
   createdAt       DateTime               @default(now())
 
   @@index([requestId, createdAt])
+}
+
+// ----------------------------------------------------------------------------
+// LOLC custodial collections (operational tracking only; deliberately off-ledger)
+// ----------------------------------------------------------------------------
+
+enum LolcReceiptStatus {
+  COLLECTED
+  MCASH_SENT
+  NEEDS_ATTENTION
+  LOLC_CONFIRMED
+  VOIDED
+}
+
+enum LolcReceiptEventType {
+  CREATED
+  MCASH_SENT
+  ISSUE_REPORTED
+  LOLC_CONFIRMED
+  VOIDED
+}
+
+model LolcReceipt {
+  id                        String             @id @default(cuid())
+  receiptNumber             Int                @unique @default(autoincrement())
+  submissionKey             String             @unique
+  customerName              String
+  customerPhone             String
+  lolcCode                  String
+  amount                    Decimal            @db.Decimal(12, 2)
+  collectedAt               DateTime
+  note                      String?
+  status                    LolcReceiptStatus  @default(COLLECTED)
+  mCashReference            String?
+  remittedAt                DateTime?
+  remittedByUserId          String?
+  remittedBy                User?              @relation("LolcReceiptRemittedBy", fields: [remittedByUserId], references: [id], onDelete: SetNull)
+  lolcConfirmationReference String?
+  confirmedAt               DateTime?
+  confirmedByUserId         String?
+  confirmedBy               User?              @relation("LolcReceiptConfirmedBy", fields: [confirmedByUserId], references: [id], onDelete: SetNull)
+  issueNote                 String?
+  createdByUserId           String?
+  createdBy                 User?              @relation("LolcReceiptCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+  voidReason                String?
+  voidedAt                  DateTime?
+  voidedByUserId            String?
+  voidedBy                  User?              @relation("LolcReceiptVoidedBy", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  events                    LolcReceiptEvent[]
+
+  @@index([status, collectedAt])
+  @@index([lolcCode])
+  @@index([customerPhone])
+  @@index([mCashReference])
+}
+
+model LolcReceiptEvent {
+  id             String               @id @default(cuid())
+  receiptId      String
+  receipt        LolcReceipt          @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  type           LolcReceiptEventType
+  fromStatus     LolcReceiptStatus?
+  toStatus       LolcReceiptStatus
+  reference      String?
+  note           String?
+  occurredAt     DateTime
+  actorUserId    String?
+  actor          User?                @relation("LolcReceiptEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  idempotencyKey String?              @unique
+  createdAt      DateTime             @default(now())
+
+  @@index([receiptId, occurredAt])
 }
 
 // ----------------------------------------------------------------------------

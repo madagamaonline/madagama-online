@@ -100,7 +100,7 @@ const NAV: NavGroup[] = [
     items: [
       {
         href: "/lolc-receipt",
-        label: "Receipts",
+        label: "LOLC Receipts",
         icon: HandCoins,
         requiresNonTaxableMode: true,
       },

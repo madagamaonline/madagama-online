@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock3, Loader2, PackageCheck, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { CustomerSearchPicker, type SaleCustomer } from "@/components/customer-search-picker";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { createLayaway } from "@/app/(app)/layaways/actions";
 import { formatLKR, round2 } from "@/lib/utils";
 import { LayawayJourney } from "@/components/layaway-journey";
+import { QuickCustomerModal } from "@/components/quick-customer-modal";
 
 type ProductHit = { id: string; code: string; name: string; sellingPrice: number; costPrice: number; stock: number; reservedStock?: number; physicalStock?: number };
 type Line = { product: ProductHit; qty: number; unitPrice: number };
@@ -31,6 +32,18 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   const [pickup, setPickup] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [addedCustomers, setAddedCustomers] = useState<SaleCustomer[]>([]);
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
+  const localCustomers = useMemo(
+    () => [...addedCustomers, ...customers],
+    [addedCustomers, customers],
+  );
+
+  function handleQuickCustomerSuccess(customer: { id: string; name: string; phone: string }) {
+    setAddedCustomers((current) => [{ ...customer, nic: null }, ...current]);
+    setCustomerId(customer.id);
+  }
+
   useEffect(() => {
     const q = query.trim();
     const timer = setTimeout(async () => {
@@ -63,7 +76,19 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
         </div>
         <div className="px-3 py-4 sm:px-6"><LayawayJourney activeStep={0}/></div>
       </div>
-      <Card><CardHeader><CardTitle>Customer</CardTitle></CardHeader><CardContent><Label htmlFor="layaway-customer">Customer account</Label><CustomerSearchPicker customers={customers} value={customerId} onChange={setCustomerId} inputId="layaway-customer"/></CardContent></Card>
+      <Card><CardHeader><CardTitle>Customer</CardTitle></CardHeader><CardContent>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <Label htmlFor="layaway-customer">Customer account</Label>
+          <button
+            type="button"
+            onClick={() => setShowQuickCustomer(true)}
+            className="min-h-11 shrink-0 px-2 text-[11px] font-bold text-primary transition-colors hover:underline focus-visible:rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          >
+            + Quick Add
+          </button>
+        </div>
+        <CustomerSearchPicker customers={localCustomers} value={customerId} onChange={setCustomerId} inputId="layaway-customer"/>
+      </CardContent></Card>
       <Card><CardHeader><CardTitle>Reserved products</CardTitle></CardHeader><CardContent>
         <div className="relative"><Search className="absolute left-3 top-3.5 h-4 w-4 text-faint"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, sticker number, model or name…" className="pl-9"/></div>
         {hits.length > 0 && <div className="mt-1 overflow-hidden rounded-xl border border-border">{hits.map((product) => <button type="button" key={product.id} disabled={product.stock < 1} onClick={() => add(product)} className="flex w-full items-center justify-between border-b border-border-subtle px-3 py-3 text-left last:border-0 hover:bg-input disabled:opacity-45"><span><span className="block text-sm font-bold">{product.name}</span><span className="font-mono text-xs text-muted">{product.code}</span></span><span className="text-right"><span className="block font-mono text-sm font-bold">{formatLKR(product.sellingPrice)}</span><span className="text-xs text-muted">{product.stock} available{product.reservedStock ? ` · ${product.reservedStock} reserved` : ""}</span></span></button>)}</div>}
@@ -82,5 +107,11 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
       {error && <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm font-medium text-danger-ink">{error}</p>}
       <Button className="w-full" size="lg" disabled={pending || !customerId || !lines.length || total <= 0} onClick={submit}>{pending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Clock3 className="h-4 w-4"/>}Create & reserve goods</Button>
     </CardContent></Card></div>
+    {showQuickCustomer && (
+      <QuickCustomerModal
+        onClose={() => setShowQuickCustomer(false)}
+        onSuccess={handleQuickCustomerSuccess}
+      />
+    )}
   </div>;
 }

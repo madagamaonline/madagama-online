@@ -12,6 +12,7 @@ export type ShiftSummary = {
   totalCashSales: number;
   totalRepayments: number;
   totalOpenAccountCollections: number;
+  totalLayawayCollections: number;
 };
 
 export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
@@ -55,11 +56,18 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
     where: { method: "CASH", account: { status: { not: "VOIDED" }, invoice: { voidedAt: null } }, createdAt: { gte: startTime } },
     select: { amount: true },
   });
+  const layawayCashPayments = await prisma.layawayPayment.findMany({
+    // Cancellation preserves collection history; until a separate refund is
+    // explicitly recorded, the received cash remains part of the drawer.
+    where: { method: "CASH", paidDate: { gte: startTime } },
+    select: { amount: true },
+  });
 
   const totalCashSales = cashInvoices.reduce((sum, inv) => sum + Number(inv.grandTotal), 0);
   const totalRepayments = cashPayments.reduce((sum, p) => sum + Number(p.amount), 0);
   const totalOpenAccountCollections = openAccountCashPayments.reduce((sum, p) => sum + Number(p.amount), 0);
-  const expectedCash = totalCashSales + totalRepayments + totalOpenAccountCollections;
+  const totalLayawayCollections = layawayCashPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+  const expectedCash = totalCashSales + totalRepayments + totalOpenAccountCollections + totalLayawayCollections;
 
   return {
     startTime,
@@ -67,6 +75,7 @@ export async function getCurrentShiftSummary(): Promise<ShiftSummary> {
     totalCashSales,
     totalRepayments,
     totalOpenAccountCollections,
+    totalLayawayCollections,
   };
 }
 

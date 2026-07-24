@@ -34,6 +34,7 @@ export async function applyInvoiceVoid(
     where: { id: input.invoiceId },
     select: {
       id: true,
+      type: true,
       createdAt: true,
       voidedAt: true,
       items: { select: { productId: true, qty: true } },
@@ -46,6 +47,9 @@ export async function applyInvoiceVoid(
   });
   if (!invoice) throw new VoidInvoiceError("Invoice not found.");
   if (invoice.voidedAt) throw new VoidInvoiceError("This invoice has already been voided.");
+  if (invoice.type === "LAYAWAY") {
+    throw new VoidInvoiceError("A layaway handover invoice cannot be voided as an ordinary sale. Review the linked layaway and process a return instead.");
+  }
 
   const closedShift = await tx.shiftReport.count({
     where: { startTime: { lte: invoice.createdAt }, endTime: { gte: invoice.createdAt } },

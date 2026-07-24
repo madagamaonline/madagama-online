@@ -1,4 +1,5 @@
 import { round2 } from "@/lib/utils";
+import { businessDayKey } from "@/lib/dates";
 
 export type ChequeStatus = "UPCOMING" | "DUE" | "OVERDUE" | "SETTLED";
 
@@ -8,8 +9,8 @@ export function chequeBalance(amount: number, payments: number[]): number {
 
 export function chequeStatus(dueDate: Date, remaining: number, now = new Date()): ChequeStatus {
   if (remaining <= 0) return "SETTLED";
-  const dueKey = Date.UTC(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-  const todayKey = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const dueKey = businessDayKey(dueDate);
+  const todayKey = businessDayKey(now);
   if (dueKey < todayKey) return "OVERDUE";
   if (dueKey === todayKey) return "DUE";
   return "UPCOMING";

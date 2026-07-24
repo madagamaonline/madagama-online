@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, BanknoteArrowDown, Landmark, Plus, Search, WalletCards } from "lucide-react";
+import { AlertTriangle, BanknoteArrowDown, CalendarDays, Landmark, Plus, Search, WalletCards } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { chequeBalance, chequeStatus, type ChequeStatus } from "@/lib/cheques";
 import { formatDate, formatLKR, toNum } from "@/lib/utils";
@@ -53,7 +53,7 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
       <PageHeader
         title="Bank & Cheques"
         subtitle="Supplier cheques, bank exposure, due dates, and repayments"
-        action={<div className="flex flex-wrap gap-2"><Link href="/banking/accounts/new"><Button variant="outline"><Landmark className="h-4 w-4" /> Add account</Button></Link><Link href="/banking/cheques/new"><Button><Plus className="h-4 w-4" /> Issue cheque</Button></Link></div>}
+        action={<div className="flex flex-wrap gap-2"><Link href="/banking/calendar"><Button variant="outline"><CalendarDays className="h-4 w-4" /> Calendar</Button></Link><Link href="/banking/accounts/new"><Button variant="outline"><Landmark className="h-4 w-4" /> Add account</Button></Link><Link href="/banking/cheques/new"><Button><Plus className="h-4 w-4" /> Issue cheque</Button></Link></div>}
       />
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Cheque summary">

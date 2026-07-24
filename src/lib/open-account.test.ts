@@ -17,6 +17,7 @@ describe("open account state", () => {
   });
   it("provides friendly invoice labels", () => {
     expect(invoiceTypeLabel("OPEN_ACCOUNT")).toBe("PAY LATER");
+    expect(invoiceTypeLabel("LAYAWAY")).toBe("LAYAWAY HANDOVER");
     expect(openAccountStatusLabel("CREDIT")).toBe("UNPAID");
     expect(openAccountInvoiceStatus(100, 0)).toBe("CREDIT");
     expect(openAccountInvoiceStatus(100, 50)).toBe("PARTIAL");

@@ -2,9 +2,10 @@ import { describe, expect, it, vi } from "vitest";
 import type { Prisma } from "@prisma/client";
 import { decrementStockForSale, StockConflictError } from "./stock-decrement";
 
-function fakeTx(count: number, balance = 2) {
+function fakeTx(count: number, balance = 2, reserved = 0) {
   return {
     product: {
+      findUnique: vi.fn().mockResolvedValue({ quantityInStock: balance + 2, quantityReserved: reserved }),
       updateMany: vi.fn().mockResolvedValue({ count }),
       findUniqueOrThrow: vi.fn().mockResolvedValue({ quantityInStock: balance }),
     },
@@ -18,7 +19,7 @@ describe("decrementStockForSale", () => {
       decrementStockForSale(tx, { productId: "p1", productCode: "P-1", qty: 2 }),
     ).resolves.toBe(3);
     expect(tx.product.updateMany).toHaveBeenCalledWith({
-      where: { id: "p1", active: true, quantityInStock: { gte: 2 } },
+      where: { id: "p1", active: true, quantityInStock: { gte: 2 }, quantityReserved: 0 },
       data: { quantityInStock: { decrement: 2 } },
     });
   });
@@ -29,5 +30,13 @@ describe("decrementStockForSale", () => {
       decrementStockForSale(tx, { productId: "p1", productCode: "P-1", qty: 1 }),
     ).rejects.toBeInstanceOf(StockConflictError);
     expect(tx.product.findUniqueOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("does not let an ordinary sale consume layaway-reserved units", async () => {
+    const tx = fakeTx(1, 2, 3);
+    await expect(
+      decrementStockForSale(tx, { productId: "p1", productCode: "P-1", qty: 2 }),
+    ).rejects.toBeInstanceOf(StockConflictError);
+    expect(tx.product.updateMany).not.toHaveBeenCalled();
   });
 });

@@ -12,11 +12,19 @@ export async function decrementStockForSale(
   tx: Pick<Prisma.TransactionClient, "product">,
   line: { productId: string; productCode: string; qty: number },
 ): Promise<number> {
+  const current = await tx.product.findUnique({
+    where: { id: line.productId },
+    select: { quantityInStock: true, quantityReserved: true },
+  });
+  if (!current || current.quantityInStock - current.quantityReserved < line.qty) {
+    throw new StockConflictError(line.productCode);
+  }
   const decremented = await tx.product.updateMany({
     where: {
       id: line.productId,
       active: true,
-      quantityInStock: { gte: line.qty },
+      quantityInStock: { gte: line.qty + current.quantityReserved },
+      quantityReserved: current.quantityReserved,
     },
     data: { quantityInStock: { decrement: line.qty } },
   });

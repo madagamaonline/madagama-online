@@ -76,13 +76,14 @@ export default async function ProductsPage({
   };
 
   const rows = products.map((p) => {
-    const low = p.reorderLevel > 0 && p.quantityInStock <= p.reorderLevel;
+    const available = p.quantityInStock - p.quantityReserved;
+    const low = p.reorderLevel > 0 && available <= p.reorderLevel;
     const price = toNum(p.sellingPrice);
     const cost = toNum(p.costPrice);
     const marginPct = grossMarginPct(cost, price);
     const target = p.targetMarginPct == null ? defaultTarget : toNum(p.targetMarginPct);
     const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
-    return { p, low, cost, marginPct, target, belowTarget };
+    return { p, available, low, cost, marginPct, target, belowTarget };
   });
 
   return (
@@ -153,7 +154,7 @@ export default async function ProductsPage({
                     </TR>
                   </THead>
                   <TBody>
-                    {rows.map(({ p, low, cost, marginPct, target, belowTarget }) => (
+                    {rows.map(({ p, available, low, cost, marginPct, target, belowTarget }) => (
                       <TR key={p.id} className={p.active ? "" : "opacity-50"}>
                         <TD className="font-mono text-sm font-bold">
                           <Link href={`/products/${p.id}`} className="text-primary-ink hover:underline">
@@ -195,9 +196,9 @@ export default async function ProductsPage({
                         </TD>
                         <TD className="text-right">
                           {low ? (
-                            <Badge tone="red">{p.quantityInStock} low</Badge>
+                            <Badge tone="red">{available} low</Badge>
                           ) : (
-                            p.quantityInStock
+                            <span>{available}{p.quantityReserved > 0 && <span className="ml-1 text-xs text-muted">({p.quantityReserved} reserved)</span>}</span>
                           )}
                         </TD>
                         <TD className="text-right">
@@ -221,7 +222,7 @@ export default async function ProductsPage({
               </div>
 
               <div className="lg:hidden">
-                {rows.map(({ p, low, marginPct, target, belowTarget }) => (
+                {rows.map(({ p, available, low, marginPct, target, belowTarget }) => (
                   <div
                     key={p.id}
                     className={`border-b border-border-subtle p-4 last:border-0 ${p.active ? "" : "opacity-50"}`}
@@ -273,9 +274,9 @@ export default async function ProductsPage({
                         </Link>
                       )}
                       {low ? (
-                        <Badge tone="red">{p.quantityInStock} low</Badge>
+                        <Badge tone="red">{available} available · low</Badge>
                       ) : (
-                        <span className="text-muted">{p.quantityInStock} in stock</span>
+                        <span className="text-muted">{available} available{p.quantityReserved ? ` · ${p.quantityReserved} reserved` : ""}</span>
                       )}
                       <form action={toggleProductActive.bind(null, p.id, !p.active)} className="ml-auto">
                         <Button variant="ghost" size="sm" type="submit" className="text-muted">

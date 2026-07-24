@@ -51,12 +51,13 @@ export async function createSupplierReturn(
         for (const l of d.lines) {
           const product = await tx.product.findUnique({
             where: { id: l.productId },
-            select: { quantityInStock: true, name: true },
+            select: { quantityInStock: true, quantityReserved: true, name: true },
           });
           if (!product) throw new Error("Product not found");
-          if (product.quantityInStock < l.qty) {
+          const available = product.quantityInStock - product.quantityReserved;
+          if (available < l.qty) {
             throw new Error(
-              `Not enough stock of ${product.name} to return (have ${product.quantityInStock}, returning ${l.qty}).`,
+              `Not enough available stock of ${product.name} to return (${product.quantityReserved} reserved, ${available} available).`,
             );
           }
         }

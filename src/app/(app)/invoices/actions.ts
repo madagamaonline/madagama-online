@@ -95,6 +95,7 @@ async function createSale(
       name: true,
       taxable: true,
       quantityInStock: true,
+      quantityReserved: true,
       costPrice: true,
     },
   });
@@ -111,8 +112,9 @@ async function createSale(
   for (const line of data.lines) {
     const p = byId.get(line.productId);
     if (!p) return { ok: false, error: "One of the items no longer exists." };
-    if (line.qty > p.quantityInStock) {
-      shortages.push(`${p.code} (have ${p.quantityInStock}, need ${line.qty})`);
+    const available = p.quantityInStock - p.quantityReserved;
+    if (line.qty > available) {
+      shortages.push(`${p.code} (available ${available}, ${p.quantityReserved} reserved, need ${line.qty})`);
     }
   }
   if (shortages.length) return { ok: false, error: `Not enough stock: ${shortages.join(", ")}` };

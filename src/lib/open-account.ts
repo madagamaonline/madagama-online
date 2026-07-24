@@ -32,7 +32,7 @@ export function openAccountStatusLabel(status: "CREDIT" | "PARTIAL" | "PAID"): s
 }
 
 export function invoiceTypeLabel(type: string): string {
-  return type === "OPEN_ACCOUNT" ? "PAY LATER" : type === "CREDIT" ? "FORMAL CREDIT" : "CASH";
+  return type === "OPEN_ACCOUNT" ? "PAY LATER" : type === "CREDIT" ? "FORMAL CREDIT" : type === "LAYAWAY" ? "LAYAWAY HANDOVER" : "CASH";
 }
 
 function startOfColomboDay(date: Date): number {

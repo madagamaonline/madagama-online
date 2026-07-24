@@ -194,6 +194,25 @@ input[type="number"] {
   .no-print {
     display: none !important;
   }
+  /* Installment receipts are physical customer documents. Force an explicit
+     paper palette instead of inheriting the active dark application theme. */
+  .layaway-receipt-print {
+    background: #ffffff !important;
+    color: #111827 !important;
+    color-scheme: light !important;
+    border-color: #9ca3af !important;
+    -webkit-print-color-adjust: economy;
+    print-color-adjust: economy;
+  }
+  .layaway-receipt-print *,
+  .layaway-receipt-print .text-muted {
+    color: #111827 !important;
+    border-color: #c4c8cf !important;
+  }
+  .layaway-receipt-print .receipt-note {
+    background: #f3f4f6 !important;
+    border: 1px solid #d1d5db !important;
+  }
   .avoid-print-break,
   .credit-payment-history tr {
     break-inside: avoid;

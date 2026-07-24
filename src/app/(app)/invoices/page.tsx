@@ -36,7 +36,7 @@ export default async function InvoicesPage({
   const cashierId = (cashier ?? "").trim();
 
   const where: Prisma.InvoiceWhereInput = {
-    ...(type === "CASH" || type === "CREDIT" || type === "OPEN_ACCOUNT" ? { type } : {}),
+    ...(type === "CASH" || type === "CREDIT" || type === "OPEN_ACCOUNT" || type === "LAYAWAY" ? { type } : {}),
     ...(cat ? { taxCategory: cat } : {}),
     ...(cashierId ? { createdByUserId: cashierId } : {}),
     // When non-taxable is off this overrides any category filter to taxable-only.
@@ -102,7 +102,7 @@ export default async function InvoicesPage({
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
             <ListSearch placeholder="Search invoice # or customer…" className="relative max-w-md flex-1" />
             <div className="flex flex-wrap items-center gap-2">
-              <div className="flex gap-1">{[["All types", ""], ["Cash", "CASH"], ["Pay Later", "OPEN_ACCOUNT"], ["Formal Credit", "CREDIT"]].map(([label, value]) => <Link key={label} href={buildHref({ type: value })} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium transition-colors", (type ?? "") === value ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border")}>{label}</Link>)}</div>
+              <div className="flex flex-wrap gap-1">{[["All types", ""], ["Cash", "CASH"], ["Pay Later", "OPEN_ACCOUNT"], ["Formal Credit", "CREDIT"], ["Layaway", "LAYAWAY"]].map(([label, value]) => <Link key={label} href={buildHref({ type: value })} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium transition-colors", (type ?? "") === value ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border")}>{label}</Link>)}</div>
               {ntEnabled && (
                 <div className="flex gap-1">
                   {FILTERS.map((f) => {

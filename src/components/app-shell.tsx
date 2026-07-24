@@ -32,6 +32,7 @@ import {
   HandCoins,
   Tractor,
   CircleDollarSign,
+  PackageCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/session";
@@ -65,6 +66,7 @@ const NAV: NavGroup[] = [
       { href: "/invoices/new", label: "New Sale", icon: ShoppingCart },
       { href: "/invoices", label: "Invoices", icon: ReceiptText },
       { href: "/open-accounts", label: "Customer Balances", icon: CircleDollarSign, requiresStaffFinanceAccess: true },
+      { href: "/layaways", label: "Layaways", icon: PackageCheck },
       { href: "/credit-invoices", label: "Credit Invoices", icon: CreditCard },
       { href: "/quotations", label: "Quotations", icon: FileText },
       { href: "/returns", label: "Returns", icon: Undo2 },
@@ -259,7 +261,7 @@ export function AppShell({
       )}
 
       {/* Main */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex h-dvh min-w-0 flex-1 flex-col lg:h-auto">
         <header className="sticky top-0 z-20 flex h-[62px] items-center justify-between border-b border-border-subtle bg-background/85 px-5 backdrop-blur-md lg:px-6 shadow-[0_1px_2px_rgba(30,41,74,0.02)]">
           <button
             className="rounded-lg p-2 text-muted hover:bg-border-subtle lg:hidden"
@@ -294,16 +296,14 @@ export function AppShell({
             </div>
           </div>
         </header>
-        <main className="flex-1 px-5 pt-6 pb-24 lg:px-6 lg:py-6">
+        <main className="min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-10 lg:overflow-visible lg:px-6 lg:py-6">
           <div key={pathname} className="animate-page-in">
             {children}
           </div>
         </main>
-      </div>
-
-      {/* Mobile bottom tab bar — the primary "feels like an app" navigation on
-          phones. Hidden at lg where the sidebar takes over. */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 flex h-16 items-stretch border-t border-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md lg:hidden">
+        {/* Mobile navigation owns a layout row below the scrolling content. It
+            never overlays calendar cells, form controls, or primary actions. */}
+        <nav className="z-40 flex h-[calc(4rem+env(safe-area-inset-bottom))] shrink-0 items-stretch border-t border-border bg-sidebar/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_28px_rgba(18,26,44,.12)] backdrop-blur-md lg:hidden">
         {canAccessStaffFinance(user.role)
           ? mobileTab({ href: "/dashboard", label: "Home", icon: LayoutDashboard })
           : mobileTab({ href: "/invoices/new", label: "New Sale", icon: ShoppingCart })}
@@ -325,7 +325,8 @@ export function AppShell({
           <Menu className="h-[22px] w-[22px]" />
           More
         </button>
-      </nav>
+        </nav>
+      </div>
 
       <Pwa />
       <CommandPalette nonTaxableEnabled={nonTaxableEnabled} userRole={user.role} />

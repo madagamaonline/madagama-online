@@ -309,10 +309,10 @@ export async function adjustStock(
     await prisma.$transaction(async (tx) => {
       const p = await tx.product.findUnique({
         where: { id: productId },
-        select: { quantityInStock: true },
+        select: { quantityInStock: true, quantityReserved: true },
       });
       if (!p) throw new Error("not_found");
-      if (p.quantityInStock + delta < 0) throw new Error("negative");
+      if (p.quantityInStock + delta < p.quantityReserved) throw new Error("reserved");
       const updated = await tx.product.update({
         where: { id: productId },
         data: { quantityInStock: { increment: delta } },
@@ -327,7 +327,7 @@ export async function adjustStock(
       });
     });
   } catch (e) {
-    if ((e as Error).message === "negative") return { error: "That would make stock negative." };
+    if ((e as Error).message === "reserved") return { error: "That would reduce physical stock below the quantity reserved for layaways." };
     if ((e as Error).message === "not_found") return { error: "Product not found." };
     console.error("adjustStock failed", e);
     return { error: "Could not adjust stock." };

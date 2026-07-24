@@ -23,6 +23,9 @@ const typeTone = {
   RETURN: "amber",
   SUPPLIER_RETURN: "red",
   ADJUSTMENT: "amber",
+  RESERVATION: "blue",
+  RESERVATION_RELEASE: "gray",
+  LAYAWAY_HANDOVER: "green",
 } as const;
 
 const reasonMeta = {
@@ -109,9 +112,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 </Link>
               </div>
             )}
-            <Row label="Stock">
-              {low ? <Badge tone="red">{product.quantityInStock} low</Badge> : product.quantityInStock}
-            </Row>
+            <Row label="Physical stock">{product.quantityInStock}</Row>
+            <Row label="Reserved"><Badge tone={product.quantityReserved ? "blue" : "gray"}>{product.quantityReserved}</Badge></Row>
+            <Row label="Available to sell">{low ? <Badge tone="red">{product.quantityInStock - product.quantityReserved} low</Badge> : product.quantityInStock - product.quantityReserved}</Row>
             <Row label="Reorder level">{product.reorderLevel}</Row>
             <Row label="Model no.">{product.modelNumber ?? "—"}</Row>
             <Row label="Serial no.">{product.serialNumber ?? "—"}</Row>

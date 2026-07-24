@@ -233,6 +233,14 @@ export default async function ReportsPage({
   const payLaterIssued = toNum(payLaterIssuedAgg._sum.grandTotal);
   const payLaterCollected = toNum(payLaterCollectedAgg._sum.amount);
   const payLaterOutstanding = round2(payLaterAccounts.reduce((sum, account) => sum + Math.max(0, toNum(account.principal) - account.payments.reduce((paid, payment) => paid + toNum(payment.amount), 0)), 0));
+  const [layawayCollectionsAgg, layawayHandoversAgg, openLayaways] = await Promise.all([
+    prisma.layawayPayment.aggregate({ _sum: { amount: true }, _count: true, where: { paidDate: { gte: monthStart, lt: monthEnd } } }),
+    prisma.invoice.aggregate({ _sum: { grandTotal: true }, _count: true, where: { type: "LAYAWAY", createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
+    prisma.layawayOrder.findMany({ where: { status: { in: ["ACTIVE", "PAID_AWAITING_PICKUP"] } }, select: { total: true, collectedAmount: true } }),
+  ]);
+  const layawayCollected = toNum(layawayCollectionsAgg._sum.amount);
+  const layawayRecognized = toNum(layawayHandoversAgg._sum.grandTotal);
+  const layawayOutstanding = round2(openLayaways.reduce((sum, order) => sum + Math.max(0, toNum(order.total) - toNum(order.collectedAmount)), 0));
 
   const userMap = new Map(users.map((u) => [u.id, u.name]));
   const employeeMap = new Map(employees.map((e) => [e.id, e.name]));
@@ -576,6 +584,7 @@ export default async function ReportsPage({
       </div>
 
       <Card className="mb-4"><CardHeader><CardTitle>Pay Later receivables</CardTitle></CardHeader><CardContent><div className="grid grid-cols-2 gap-4 lg:grid-cols-3"><StatCard label={`Issued (${payLaterIssuedAgg._count})`} value={formatLKR(payLaterIssued)} tone="amber" /><StatCard label={`Collected (${payLaterCollectedAgg._count})`} value={formatLKR(payLaterCollected)} tone="green" /><StatCard label="Outstanding today" value={formatLKR(payLaterOutstanding)} tone={payLaterOutstanding ? "amber" : "default"} /></div></CardContent></Card>
+      <Card className="mb-4"><CardHeader><CardTitle>Layaways · reserve and pay</CardTitle></CardHeader><CardContent><p className="mb-3 text-sm text-muted">Installments are cash-flow collections; sales revenue is recognized only when fully paid goods are handed over.</p><div className="grid grid-cols-2 gap-4 lg:grid-cols-3"><StatCard label={`Installments (${layawayCollectionsAgg._count})`} value={formatLKR(layawayCollected)} tone="green" /><StatCard label={`Handovers (${layawayHandoversAgg._count})`} value={formatLKR(layawayRecognized)} tone="blue" /><StatCard label="Unpaid on open orders" value={formatLKR(layawayOutstanding)} tone={layawayOutstanding ? "amber" : "default"} /></div></CardContent></Card>
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="Purchases (month)" value={formatLKR(purchasesMonth)} tone="amber" />

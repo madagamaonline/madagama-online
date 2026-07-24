@@ -30,6 +30,7 @@ export default async function CustomerDetailPage({
         include: { invoice: { select: { invoiceNumber: true } }, payments: true },
       },
       openAccounts: { where: { status: { not: "VOIDED" }, invoice: { voidedAt: null } }, orderBy: { openedAt: "desc" }, include: { invoice: { select: { invoiceNumber: true } }, payments: true } },
+      layaways: { orderBy: { createdAt: "desc" }, take: 20, select: { id: true, orderNumber: true, status: true, total: true, collectedAmount: true, createdAt: true } },
       customerRequests: {
         orderBy: { createdAt: "desc" },
         take: 20,
@@ -105,6 +106,7 @@ export default async function CustomerDetailPage({
       </div>
 
       <Card className="mb-4"><CardHeader><CardTitle>Pay Later</CardTitle></CardHeader><CardContent className="p-0">{openAccounts.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted">No Pay Later accounts.</div> : <Table><THead><TR><TH>Invoice</TH><TH className="text-right">Original</TH><TH className="text-right">Outstanding</TH><TH>Status</TH></TR></THead><TBody>{openAccounts.map(({ a, state }) => <TR key={a.id}><TD><Link href={`/open-accounts/${a.id}`} className="font-mono text-primary hover:underline">{a.invoice.invoiceNumber}</Link></TD><TD className="text-right">{formatLKR(state.principal)}</TD><TD className="text-right font-medium">{formatLKR(state.outstanding)}</TD><TD><Badge tone={state.isSettled ? "green" : state.isOverdue ? "red" : "amber"}>{state.isSettled ? "Paid" : state.isOverdue ? "Overdue" : state.credited ? "Partial" : "Unpaid"}</Badge></TD></TR>)}</TBody></Table>}</CardContent></Card>
+      <Card className="mb-4"><CardHeader><CardTitle>Layaways</CardTitle></CardHeader><CardContent className="p-0">{customer.layaways.length === 0 ? <div className="px-5 py-8 text-center text-sm text-muted">No reserved-payment orders.</div> : <Table><THead><TR><TH>Order</TH><TH>Created</TH><TH className="text-right">Total</TH><TH className="text-right">Balance</TH><TH>Status</TH></TR></THead><TBody>{customer.layaways.map((order) => <TR key={order.id}><TD><Link href={`/layaways/${order.id}`} className="font-mono text-primary hover:underline">LAY-{String(order.orderNumber).padStart(6,"0")}</Link></TD><TD>{new Date(order.createdAt).toLocaleDateString("en-LK")}</TD><TD className="text-right">{formatLKR(order.total)}</TD><TD className="text-right font-medium">{formatLKR(Math.max(0,toNum(order.total)-toNum(order.collectedAmount)))}</TD><TD><Badge tone={order.status === "RELEASED" ? "green" : order.status === "CANCELLED" ? "red" : order.status === "PAID_AWAITING_PICKUP" ? "amber" : "blue"}>{order.status.replaceAll("_"," ")}</Badge></TD></TR>)}</TBody></Table>}</CardContent></Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-1">

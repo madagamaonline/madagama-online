@@ -118,6 +118,10 @@ export function ShiftReportForm({
               <span className="text-muted">Pay Later collections (Cash):</span>
               <span className="font-semibold text-foreground">{formatLKR(summary.totalOpenAccountCollections)}</span>
             </div>
+            <div className="flex justify-between gap-4 text-sm">
+              <span className="text-muted">Layaway installments</span>
+              <span className="font-semibold text-foreground">{formatLKR(summary.totalLayawayCollections)}</span>
+            </div>
             <div className="border-t border-border pt-3 flex justify-between items-center text-sm font-bold">
               <span>Expected in Drawer:</span>
               <span className="text-primary-ink">{formatLKR(expectedCash)}</span>

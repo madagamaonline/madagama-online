@@ -18,7 +18,7 @@ type Event = {
 };
 const tones: Record<ChequeStatus, "amber" | "red" | "green"> = { UPCOMING: "amber", DUE: "amber", OVERDUE: "red", SETTLED: "green" };
 const dot: Record<ChequeStatus, string> = { UPCOMING: "bg-primary", DUE: "bg-clay", OVERDUE: "bg-danger", SETTLED: "bg-success" };
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 export function ChequeCalendar({ month, today, events, banks }: {
   month: string; today: string; events: Event[]; banks: { id: string; label: string }[];
@@ -43,6 +43,13 @@ export function ChequeCalendar({ month, today, events, banks }: {
 
   function move(delta: number) {
     startTransition(() => router.push(`/banking/calendar?month=${shiftMonth(month, delta)}`, { scroll: false }));
+  }
+  function jumpToToday() {
+    const currentMonth = today.slice(0, 7);
+    if (month !== currentMonth) {
+      startTransition(() => router.push(`/banking/calendar?month=${currentMonth}`, { scroll: false }));
+    }
+    setSelected(today);
   }
   const monthTitle = new Date(`${month}-15T12:00:00Z`).toLocaleDateString("en-LK", { month: "long", year: "numeric", timeZone: "UTC" });
   const selectedTitle = new Date(`${selected}T12:00:00Z`).toLocaleDateString("en-LK", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" });
@@ -78,19 +85,30 @@ export function ChequeCalendar({ month, today, events, banks }: {
 
     <section className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
       <header className="flex items-center justify-between border-b border-border-subtle px-3 py-3 sm:px-5">
-        <Button size="icon" variant="outline" onClick={() => move(-1)} disabled={pending} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></Button>
+        <div className="flex items-center gap-1.5">
+          <Button size="icon" variant="outline" onClick={() => move(-1)} disabled={pending} aria-label="Previous month"><ChevronLeft className="h-4 w-4" /></Button>
+          <Button size="sm" variant="outline" onClick={jumpToToday} disabled={pending} className="h-9 px-2.5 text-xs font-semibold">Today</Button>
+        </div>
         <div className="text-center"><p className="text-[10px] font-bold uppercase tracking-[.18em] text-muted">Cheque commitments</p><h2 className="text-lg font-extrabold">{monthTitle}</h2></div>
         <Button size="icon" variant="outline" onClick={() => move(1)} disabled={pending} aria-label="Next month"><ChevronRight className="h-4 w-4" /></Button>
       </header>
       <div className="grid grid-cols-7 bg-border">
-        {WEEKDAYS.map((day) => <div key={day} className="bg-input py-2 text-center text-[10px] font-bold uppercase text-muted">{day}</div>)}
-        {cells.map((cell) => {
+        {WEEKDAYS.map((day, idx) => <div key={day} className={cn("py-2 text-center text-[10px] font-bold uppercase", idx >= 5 ? "bg-clay-soft/40 text-clay-ink font-black" : "bg-input text-muted")}>{day}</div>)}
+        {cells.map((cell, idx) => {
           const items = byDay.get(cell.key) ?? [];
           const remaining = items.reduce((sum, item) => sum + item.remaining, 0);
           const selectedDay = cell.key === selected;
+          const isWeekendCell = idx % 7 >= 5;
           return <button type="button" key={cell.key} onClick={() => setSelected(cell.key)} aria-pressed={selectedDay} aria-label={`${cell.key}, ${items.length} cheques, ${formatLKR(remaining)} remaining`}
-            className={cn("relative min-h-17 bg-surface p-1.5 text-left transition-colors hover:bg-primary-soft/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:min-h-24 sm:p-2", !cell.inMonth && "bg-input/60 text-faint", items.some((item)=>item.status==="OVERDUE") && "bg-danger-soft/35", items.some((item)=>item.status==="DUE") && "bg-clay-soft/45", selectedDay && "z-10 bg-primary-soft/60 ring-2 ring-inset ring-primary", cell.isToday && !selectedDay && "ring-1 ring-inset ring-clay")}>
-            <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md text-xs font-bold", cell.isToday && "bg-clay text-white")}>{cell.day}</span>
+            className={cn("relative min-h-17 bg-surface p-1.5 text-left transition-colors hover:bg-primary-soft/30 focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary sm:min-h-24 sm:p-2",
+              !cell.inMonth && "bg-input/60 text-faint",
+              isWeekendCell && cell.inMonth && !selectedDay && "bg-surface-elevated/40",
+              items.some((item)=>item.status==="OVERDUE") && "bg-danger-soft/35",
+              items.some((item)=>item.status==="DUE") && "bg-clay-soft/45",
+              selectedDay && "z-10 bg-primary-soft/60 ring-2 ring-inset ring-primary",
+              cell.isToday && !selectedDay && "ring-1 ring-inset ring-clay"
+            )}>
+            <span className={cn("inline-flex h-6 min-w-6 items-center justify-center rounded-md text-xs font-bold", cell.isToday && "bg-clay text-white", isWeekendCell && !cell.isToday && "text-clay-ink font-extrabold")}>{cell.day}</span>
             {items.length > 0 && <div className="mt-1">
               <div className="flex items-center gap-1"><span className="text-[10px] font-bold tabular-nums">{items.length}</span>{[...new Set(items.map((item) => item.status))].map((status) => <span key={status} className={cn("h-1.5 w-1.5 rounded-full", dot[status])} />)}</div>
               <p className={cn("mt-1 truncate font-mono text-[9px] font-black sm:text-[11px]", items.some((item)=>item.status==="OVERDUE") && "text-danger")}>{formatLKR(remaining)}</p>

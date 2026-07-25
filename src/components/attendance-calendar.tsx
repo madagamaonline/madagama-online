@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 type Employee = { id: string; name: string };
 type AttendanceRecord = { employeeId: string; date: string; status: AttendanceStatus };
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 const STATUS_META: Record<
   AttendanceStatus,
@@ -69,6 +69,29 @@ export function AttendanceCalendar({
     return grouped;
   }, [records]);
 
+  const monthStats = useMemo(() => {
+    let present = 0;
+    let halfDay = 0;
+    let absent = 0;
+    for (const date of cells) {
+      if (!date) continue;
+      const dayRecords = recordsByDay.get(date) ?? [];
+      if (employeeId === "all") {
+        for (const rec of dayRecords) {
+          if (rec.status === "PRESENT") present++;
+          else if (rec.status === "HALF_DAY") halfDay++;
+          else if (rec.status === "ABSENT") absent++;
+        }
+      } else {
+        const rec = dayRecords.find((r) => r.employeeId === employeeId);
+        if (rec?.status === "PRESENT") present++;
+        else if (rec?.status === "HALF_DAY") halfDay++;
+        else if (rec?.status === "ABSENT") absent++;
+      }
+    }
+    return { present, halfDay, absent };
+  }, [cells, recordsByDay, employeeId]);
+
   function openDate(date: string) {
     startTransition(() => {
       router.push(`/attendance?date=${date}`, { scroll: false });
@@ -83,16 +106,28 @@ export function AttendanceCalendar({
     <Card className="overflow-hidden" aria-busy={isPending}>
       <CardHeader className="space-y-4">
         <div className="flex items-center justify-between gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            onClick={() => moveMonth(-1)}
-            disabled={isPending}
-            aria-label="View previous month"
-          >
-            <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              onClick={() => moveMonth(-1)}
+              disabled={isPending}
+              aria-label="View previous month"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => openDate(today)}
+              disabled={isPending || selectedDate === today}
+              className="h-9 px-2.5 text-xs font-semibold"
+            >
+              Today
+            </Button>
+          </div>
           <div className="text-center">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted">
               Monthly register
@@ -113,44 +148,74 @@ export function AttendanceCalendar({
           </Button>
         </div>
 
-        <div className="flex items-center gap-3 border-t border-border-subtle pt-4">
-          <label htmlFor="attendance-employee" className="shrink-0 text-xs font-semibold text-muted">
-            Employee
-          </label>
-          <Select
-            id="attendance-employee"
-            value={employeeId}
-            onChange={(event) => setEmployeeId(event.target.value)}
-            className="h-9 min-w-0 sm:ml-auto sm:w-64"
-          >
-            <option value="all">All employees</option>
-            {employees.map((employee) => (
-              <option key={employee.id} value={employee.id}>
-                {employee.name}
-              </option>
-            ))}
-          </Select>
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">
+          <div className="flex items-center gap-3">
+            <label htmlFor="attendance-employee" className="shrink-0 text-xs font-semibold text-muted">
+              Employee
+            </label>
+            <Select
+              id="attendance-employee"
+              value={employeeId}
+              onChange={(event) => setEmployeeId(event.target.value)}
+              className="h-9 min-w-0 sm:w-64"
+            >
+              <option value="all">All employees</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {employee.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-soft px-2.5 py-1 text-success-ink">
+              <span className="h-1.5 w-1.5 rounded-full bg-success" />
+              {monthStats.present} Present
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-clay-soft px-2.5 py-1 text-clay-ink">
+              <span className="h-1.5 w-1.5 rounded-full bg-clay" />
+              {monthStats.halfDay} Half
+            </span>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-danger-soft px-2.5 py-1 text-danger-ink">
+              <span className="h-1.5 w-1.5 rounded-full bg-danger" />
+              {monthStats.absent} Absent
+            </span>
+          </div>
         </div>
       </CardHeader>
 
       <CardContent className="p-3 sm:p-5">
         <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-border bg-border">
-          {WEEKDAYS.map((weekday) => (
-            <div
-              key={weekday}
-              className="bg-input px-0.5 py-2 text-center text-[10px] font-bold uppercase tracking-wide text-muted sm:text-xs"
-            >
-              {weekday}
-            </div>
-          ))}
+          {WEEKDAYS.map((weekday, idx) => {
+            const isWeekendHeader = idx >= 5;
+            return (
+              <div
+                key={weekday}
+                className={cn(
+                  "px-0.5 py-2 text-center text-[10px] font-bold uppercase tracking-wide sm:text-xs",
+                  isWeekendHeader
+                    ? "bg-clay-soft/40 text-clay-ink font-black"
+                    : "bg-input text-muted",
+                )}
+              >
+                {weekday}
+              </div>
+            );
+          })}
 
           {cells.map((date, index) => {
+            const isWeekendCell = index % 7 >= 5;
+
             if (!date) {
               return (
                 <div
                   key={`empty-${index}`}
                   aria-hidden="true"
-                  className="min-h-17 bg-input/70 sm:min-h-24"
+                  className={cn(
+                    "min-h-17 sm:min-h-24",
+                    isWeekendCell ? "bg-input/80 opacity-60" : "bg-input/40",
+                  )}
                 />
               );
             }
@@ -191,6 +256,7 @@ export function AttendanceCalendar({
                 aria-current={isSelected ? "date" : undefined}
                 className={cn(
                   "relative min-h-17 bg-surface p-1 text-left align-top transition-colors hover:z-10 hover:bg-primary-soft/35 focus-visible:z-20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-wait disabled:opacity-70 sm:min-h-24 sm:p-2",
+                  isWeekendCell && !isSelected && "bg-surface-elevated/40",
                   isSelected && "z-10 bg-primary-soft/45 ring-2 ring-inset ring-primary",
                   isToday && !isSelected && "ring-1 ring-inset ring-clay",
                 )}
@@ -199,6 +265,7 @@ export function AttendanceCalendar({
                   className={cn(
                     "tabular inline-flex h-5 min-w-5 items-center justify-center rounded-md text-[11px] font-bold text-foreground sm:text-xs",
                     isSelected && "bg-primary text-primary-foreground",
+                    isWeekendCell && !isSelected && "text-clay-ink font-extrabold",
                   )}
                 >
                   {dayNumber}

@@ -34,7 +34,7 @@ export function shiftDateKeyMonth(dateKey: string, amount: number): string {
 /** The month dates plus leading/trailing blanks needed for complete weeks. */
 export function calendarMonthCells(dateKey: string): Array<string | null> {
   const { start, end } = monthBounds(dateKey);
-  const leading = start.getUTCDay();
+  const leading = (start.getUTCDay() + 6) % 7;
   const days = Math.round((end.getTime() - start.getTime()) / 86_400_000);
   const used = leading + days;
   const trailing = (7 - (used % 7)) % 7;

@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 import { monthGrid, parseMonthKey, shiftMonth } from "@/lib/cheque-calendar";
 
 describe("cheque calendar", () => {
-  it("builds a stable six-week month grid", () => {
+  it("builds a stable month grid starting on Monday", () => {
     const grid = monthGrid("2026-07", new Date("2026-07-24T02:00:00Z"));
     expect(grid).toHaveLength(35);
+    expect(grid[0].key).toBe("2026-06-29"); // Monday before July 1st (Wed)
     expect(grid.filter((day) => day.inMonth)).toHaveLength(31);
     expect(grid.find((day) => day.key === "2026-07-24")?.isToday).toBe(true);
   });

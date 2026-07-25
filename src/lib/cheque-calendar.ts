@@ -21,10 +21,13 @@ export function shiftMonth(month: string, delta: number): string {
 export function monthGrid(month: string, now = new Date()): CalendarDay[] {
   const [year, monthNumber] = month.split("-").map(Number);
   const first = new Date(Date.UTC(year, monthNumber - 1, 1));
+  const leading = (first.getUTCDay() + 6) % 7;
   const start = new Date(first);
-  start.setUTCDate(1 - first.getUTCDay());
+  start.setUTCDate(1 - leading);
   const today = businessDayKey(now);
-  const cellCount = first.getUTCDay() + new Date(Date.UTC(year, monthNumber, 0)).getUTCDate() <= 35 ? 35 : 42;
+  const daysInMonth = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  const totalDays = leading + daysInMonth;
+  const cellCount = totalDays <= 35 ? 35 : 42;
   return Array.from({ length: cellCount }, (_, index) => {
     const date = new Date(start);
     date.setUTCDate(start.getUTCDate() + index);

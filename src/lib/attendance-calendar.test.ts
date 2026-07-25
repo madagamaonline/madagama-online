@@ -28,11 +28,11 @@ describe("attendance calendar date helpers", () => {
     expect(shiftDateKeyMonth("2025-01-31", 1)).toBe("2025-02-28");
   });
 
-  it("builds complete Sunday-to-Saturday weeks", () => {
+  it("builds complete Monday-to-Sunday weeks", () => {
     const cells = calendarMonthCells("2026-07-10");
     expect(cells.length % 7).toBe(0);
-    expect(cells.slice(0, 3)).toEqual([null, null, null]);
-    expect(cells[3]).toBe("2026-07-01");
+    expect(cells.slice(0, 2)).toEqual([null, null]);
+    expect(cells[2]).toBe("2026-07-01");
     expect(cells.filter(Boolean)).toHaveLength(31);
   });
 

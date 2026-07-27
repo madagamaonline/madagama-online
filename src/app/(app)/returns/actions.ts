@@ -53,7 +53,13 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           select: {
             voidedAt: true,
             items: {
-              select: { productId: true, qty: true, unitPrice: true, costSnapshot: true },
+              select: {
+                productId: true,
+                qty: true,
+                unitPrice: true,
+                unitDiscount: true,
+                costSnapshot: true,
+              },
             },
             returns: {
               select: { items: { select: { productId: true, qty: true } } },
@@ -67,7 +73,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           invoice.items.map((item) => ({
             productId: item.productId,
             qty: item.qty,
-            unitPrice: toNum(item.unitPrice),
+            unitPrice: toNum(item.unitPrice) - toNum(item.unitDiscount),
           })),
           invoice.returns.flatMap((ret) => ret.items),
         );

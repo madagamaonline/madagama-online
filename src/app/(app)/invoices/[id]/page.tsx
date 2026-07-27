@@ -120,6 +120,12 @@ export default async function InvoiceViewPage({
     return { ...payment, balanceAfter: runningOpenBalance };
   }) ?? [];
   const isAccountStatement = Boolean(creditAgreement || openAccount);
+  const productDiscount = invoice.items.reduce(
+    (sum, item) => sum + item.qty * toNum(item.unitDiscount),
+    0,
+  );
+  const billDiscount = Math.max(0, toNum(invoice.discount) - productDiscount);
+  const hasProductDiscount = productDiscount > 0;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -228,7 +234,8 @@ export default async function InvoiceViewPage({
               <th className="py-2 pr-2 font-medium">Item</th>
               <th className="px-2 text-right font-medium">Qty</th>
               <th className="px-2 text-right font-medium">Unit Price</th>
-              <th className="py-2 pl-2 text-right font-medium">Amount</th>
+              {hasProductDiscount && <th className="px-2 text-right font-medium">Discount / Unit</th>}
+              <th className="py-2 pl-2 text-right font-medium">Net Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -243,7 +250,18 @@ export default async function InvoiceViewPage({
                 </td>
                 <td className="px-2 text-right">{it.qty}</td>
                 <td className="px-2 text-right">{formatLKR(it.unitPrice)}</td>
-                <td className="py-2 pl-2 text-right">{formatLKR(it.lineTotal)}</td>
+                {hasProductDiscount && (
+                  <td className="px-2 text-right">
+                    {toNum(it.unitDiscount) > 0 ? (
+                      <span className="font-medium text-success">− {formatLKR(it.unitDiscount)}</span>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
+                  </td>
+                )}
+                <td className={`py-2 pl-2 text-right ${toNum(it.unitDiscount) > 0 ? "font-semibold text-success" : ""}`}>
+                  {formatLKR(it.lineTotal)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -253,13 +271,19 @@ export default async function InvoiceViewPage({
         <div className="invoice-totals mt-6 flex justify-end">
           <div className="w-72 space-y-1.5 text-[16.5px] leading-snug">
             <div className="flex justify-between">
-              <span className="text-muted">Subtotal</span>
+              <span className="text-muted">Items subtotal</span>
               <span>{formatLKR(invoice.subtotal)}</span>
             </div>
-            {toNum(invoice.discount) > 0 && (
+            {productDiscount > 0 && (
               <div className="flex justify-between">
-                <span className="text-muted">Discount</span>
-                <span>− {formatLKR(invoice.discount)}</span>
+                <span className="text-muted">Product discounts</span>
+                <span className="text-success">− {formatLKR(productDiscount)}</span>
+              </div>
+            )}
+            {billDiscount > 0 && (
+              <div className="flex justify-between">
+                <span className="text-muted">Bill discount</span>
+                <span>− {formatLKR(billDiscount)}</span>
               </div>
             )}
             <div className="flex justify-between border-t border-border pt-2 text-[19px] font-semibold">
@@ -398,19 +422,31 @@ export default async function InvoiceViewPage({
               </span>
               <span className="shrink-0 tabular">{formatLKR(it.lineTotal)}</span>
             </div>
+            {toNum(it.unitDiscount) > 0 && (
+              <div className="flex justify-between gap-2 text-[12px]">
+                <span>Less {formatLKR(it.unitDiscount)} / unit</span>
+                <span className="font-semibold">Net {formatLKR(it.lineTotal)}</span>
+              </div>
+            )}
           </div>
         ))}
 
         <div className="my-2 border-t border-dashed border-black" />
 
         <div className="flex justify-between gap-2">
-          <span>Subtotal</span>
+          <span>Items subtotal</span>
           <span className="shrink-0 tabular">{formatLKR(invoice.subtotal)}</span>
         </div>
-        {toNum(invoice.discount) > 0 && (
+        {productDiscount > 0 && (
           <div className="flex justify-between gap-2">
-            <span>Discount</span>
-            <span className="shrink-0 tabular">− {formatLKR(invoice.discount)}</span>
+            <span>Product discounts</span>
+            <span className="shrink-0 tabular">− {formatLKR(productDiscount)}</span>
+          </div>
+        )}
+        {billDiscount > 0 && (
+          <div className="flex justify-between gap-2">
+            <span>Bill discount</span>
+            <span className="shrink-0 tabular">− {formatLKR(billDiscount)}</span>
           </div>
         )}
         <div className="mt-1 flex justify-between gap-2 border-t border-black pt-1 text-[16px] font-semibold">

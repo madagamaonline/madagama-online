@@ -27,7 +27,7 @@ type ProductHit = {
   taxable: boolean;
   stock: number;
 };
-type CartLine = { product: ProductHit; qty: number; unitPrice: number };
+type CartLine = { product: ProductHit; qty: number; unitPrice: number; unitDiscount?: number };
 
 const CREDIT_CART_KEY = "madagama:credit-cart";
 
@@ -153,7 +153,7 @@ export function CreditSale({
         c[i] = { ...c[i], qty: c[i].qty + 1 };
         return c;
       }
-      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice }];
+      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice, unitDiscount: 0 }];
     });
     setQuery("");
     setHits([]);
@@ -189,7 +189,11 @@ export function CreditSale({
   }
 
   const totals = sumLines(
-    cart.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice })),
+    cart.map((l) => ({
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      unitDiscount: l.unitDiscount ?? 0,
+    })),
     discount || 0,
   );
   const hasTaxable = cart.some((l) => l.product.taxable);
@@ -221,7 +225,12 @@ export function CreditSale({
     }
     startTransition(async () => {
       const res = await createCreditSale({
-        lines: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        lines: cart.map((l) => ({
+          productId: l.product.id,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          unitDiscount: l.unitDiscount ?? 0,
+        })),
         discount: discount || 0,
         customerId,
         soldByEmployeeId: soldBy || null,
@@ -298,62 +307,91 @@ export function CreditSale({
             </div>
 
             {cart.length > 0 && (
-              <table className="mt-4 w-full text-sm">
-                <tbody>
-                  {cart.map((l) => (
-                    <tr
-                      key={l.product.id}
-                      className={`border-b border-border last:border-0 ${
-                        removing.has(l.product.id) ? "animate-row-out" : "animate-row-in"
-                      }`}
-                    >
-                      <td className="py-2">
-                        <div className="font-mono text-xs font-semibold text-primary">
-                          {l.product.shortCode != null && (
-                            <span className="mr-1.5 font-bold text-primary-ink">#{l.product.shortCode}</span>
+              <div className="mt-4">
+                <div className="hidden grid-cols-[minmax(140px,1fr)_64px_112px_112px_96px_36px] gap-2 border-b border-border pb-2 text-xs font-medium text-muted md:grid">
+                  <span>Product</span><span>Qty</span><span>Unit price</span><span>Discount / unit</span><span className="text-right">Net</span><span />
+                </div>
+                <div className="divide-y divide-border">
+                  {cart.map((l) => {
+                    const unitDiscount = l.unitDiscount ?? 0;
+                    const netUnitPrice = l.unitPrice - unitDiscount;
+                    const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
+                    const update = (patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount">>) =>
+                      setCart((prev) =>
+                        prev.map((line) => {
+                          if (line.product.id !== l.product.id) return line;
+                          const next = { ...line, ...patch };
+                          next.unitDiscount = Math.min(next.unitPrice, Math.max(0, next.unitDiscount ?? 0));
+                          return next;
+                        }),
+                      );
+                    return (
+                      <section
+                        key={l.product.id}
+                        className={`relative grid gap-2 py-3 md:grid-cols-[minmax(140px,1fr)_64px_112px_112px_96px_36px] md:items-center ${
+                          removing.has(l.product.id) ? "animate-row-out" : "animate-row-in"
+                        }`}
+                      >
+                        <div className="min-w-0 pr-10 md:pr-0">
+                          <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
+                          <div className="truncate font-medium">{l.product.name}</div>
+                          {unitDiscount > 0 && (
+                            <div className="text-xs tabular-nums text-muted">
+                              <span className="line-through">{formatLKR(l.qty * l.unitPrice)}</span>
+                              {" → "}
+                              <span className="font-semibold text-success">{formatLKR(l.qty * netUnitPrice)}</span>
+                            </div>
                           )}
-                          {l.product.code}
                         </div>
-                        <div
-                          className={`font-medium ${nonTaxableEnabled ? (l.product.taxable ? "text-success" : "text-danger") : ""}`}
-                          title={nonTaxableEnabled ? (l.product.taxable ? "Taxable" : "Non-taxable") : undefined}
-                        >
-                          {l.product.name}
+                        <div className="grid grid-cols-3 gap-2 md:contents">
+                          <label className="text-[11px] text-muted md:text-[0px]">
+                            Qty
+                            <Input
+                              type="number"
+                              min="1"
+                              value={l.qty}
+                              onChange={(e) => update({ qty: Math.max(1, Number(e.target.value)) })}
+                              className="mt-1 h-10 w-full text-sm md:mt-0 md:h-9"
+                              aria-label={`Quantity for ${l.product.name}`}
+                            />
+                          </label>
+                          <label className="text-[11px] text-muted md:text-[0px]">
+                            Unit price
+                            <NumberInput
+                              value={l.unitPrice}
+                              onValueChange={(c) => update({ unitPrice: Math.max(0, Number(c)) })}
+                              className="mt-1 h-10 w-full text-sm md:mt-0 md:h-9"
+                              aria-label={`Unit price for ${l.product.name}`}
+                            />
+                          </label>
+                          <label className="text-[11px] text-muted md:text-[0px]">
+                            Discount / unit
+                            <NumberInput
+                              value={unitDiscount || ""}
+                              min={0}
+                              max={l.unitPrice}
+                              onValueChange={(c) =>
+                                update({ unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))) })
+                              }
+                              className="mt-1 h-10 w-full text-sm md:mt-0 md:h-9"
+                              placeholder="0.00"
+                              aria-label={`Discount per unit for ${l.product.name}`}
+                            />
+                            {unitDiscount > 0 && (
+                              <span className="mt-0.5 hidden text-[11px] font-semibold text-success md:block">
+                                {discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off
+                              </span>
+                            )}
+                          </label>
                         </div>
-                        {l.product.modelNumber && (
-                          <div className="text-xs text-muted">Model: {l.product.modelNumber}</div>
-                        )}
-                      </td>
-                      <td className="px-2">
-                        <Input
-                          type="number"
-                          min="1"
-                          value={l.qty}
-                          onChange={(e) =>
-                            setCart((prev) =>
-                              prev.map((x) =>
-                                x.product.id === l.product.id ? { ...x, qty: Math.max(1, Number(e.target.value)) } : x,
-                              ),
-                            )
-                          }
-                          className="h-9 w-16"
-                        />
-                      </td>
-                      <td className="px-2">
-                        <NumberInput
-                          value={l.unitPrice}
-                          onValueChange={(c) =>
-                            setCart((prev) =>
-                              prev.map((x) =>
-                                x.product.id === l.product.id ? { ...x, unitPrice: Math.max(0, Number(c)) } : x,
-                              ),
-                            )
-                          }
-                          className="h-9 w-28"
-                        />
-                      </td>
-                      <td className="px-2 text-right font-medium">{formatLKR(l.qty * l.unitPrice)}</td>
-                      <td className="pl-2 text-right">
+                        <div className="flex items-center justify-between md:block md:text-right">
+                          <span className={`text-xs font-semibold ${unitDiscount > 0 ? "text-success" : "text-muted"} md:hidden`}>
+                            {unitDiscount > 0 ? `${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off` : "No product discount"}
+                          </span>
+                          <span className={`font-semibold tabular-nums ${unitDiscount > 0 ? "text-success" : ""}`}>
+                            {formatLKR(l.qty * netUnitPrice)}
+                          </span>
+                        </div>
                         <button
                           onClick={() => {
                             const id = l.product.id;
@@ -367,15 +405,16 @@ export function CreditSale({
                               });
                             }, 170);
                           }}
-                          className="rounded-md p-1.5 text-danger hover:bg-danger-soft"
+                          className="absolute right-0 rounded-md p-2 text-danger hover:bg-danger-soft md:static md:p-1.5"
+                          aria-label={`Remove ${l.product.name}`}
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      </section>
+                    );
+                  })}
+                </div>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -484,16 +523,29 @@ export function CreditSale({
 
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted">Subtotal</span>
+                <span className="text-muted">Items subtotal</span>
                 <span>{formatLKR(totals.subtotal)}</span>
               </div>
+              {totals.productDiscount > 0 && (
+                <div className="flex justify-between text-success">
+                  <span>Product discounts</span>
+                  <span>− {formatLKR(totals.productDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted">Discount</span>
+                <span className="text-muted">Bill discount</span>
                 <NumberInput
                   value={discount || ""}
-                  onValueChange={(c) => setDiscount(Math.max(0, Number(c)))}
+                  min={0}
+                  max={totals.subtotal - totals.productDiscount}
+                  onValueChange={(c) =>
+                    setDiscount(
+                      Math.min(totals.subtotal - totals.productDiscount, Math.max(0, Number(c))),
+                    )
+                  }
                   className="h-9 w-28 text-right"
                   placeholder="0.00"
+                  aria-label="Bill discount"
                 />
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-lg font-semibold">
@@ -511,14 +563,15 @@ export function CreditSale({
                     // Typing the agreed final price back-fills the discount.
                     setTotalInput(c);
                     const pay = Number(c);
-                    setDiscount(c === "" || pay >= totals.subtotal ? 0 : round2(totals.subtotal - pay));
+                    const netBeforeBillDiscount = totals.subtotal - totals.productDiscount;
+                    setDiscount(c === "" || pay >= netBeforeBillDiscount ? 0 : round2(netBeforeBillDiscount - pay));
                   }}
                   className="h-10 w-32 text-right text-lg font-semibold"
                   placeholder="0.00"
                 />
               </div>
               <p className="text-right text-[11px] font-normal text-muted">
-                Type the agreed price in Total — the discount fills in automatically.
+                Product discounts apply to each item. Bill discount applies once to the sale.
               </p>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
                 <span className="text-muted">Down payment</span>

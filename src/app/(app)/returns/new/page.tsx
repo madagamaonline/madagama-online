@@ -89,7 +89,7 @@ export default async function NewReturnPage({
       code: it.codeSnapshot ?? "",
       name: it.nameSnapshot,
       sold: it.qty - (returnedByProduct.get(it.productId as string) ?? 0),
-      unitPrice: toNum(it.unitPrice),
+      unitPrice: toNum(it.unitPrice) - toNum(it.unitDiscount),
     }));
 
   return (

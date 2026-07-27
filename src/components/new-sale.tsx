@@ -45,7 +45,7 @@ type ProductHit = {
   taxable: boolean;
   stock: number;
 };
-type CartLine = { product: ProductHit; qty: number; unitPrice: number };
+type CartLine = { product: ProductHit; qty: number; unitPrice: number; unitDiscount?: number };
 
 const DRAFT_KEY = "madagama:sale-draft";
 const RECENT_KEY = "madagama:recent-invoices";
@@ -225,7 +225,7 @@ export function NewSale({
         copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
         return copy;
       }
-      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice }];
+      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice, unitDiscount: 0 }];
     });
     setQuery("");
     setHits([]);
@@ -260,8 +260,15 @@ export function NewSale({
     }
   }
 
-  function updateLine(id: string, patch: Partial<Pick<CartLine, "qty" | "unitPrice">>) {
-    setCart((prev) => prev.map((l) => (l.product.id === id ? { ...l, ...patch } : l)));
+  function updateLine(id: string, patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount">>) {
+    setCart((prev) =>
+      prev.map((line) => {
+        if (line.product.id !== id) return line;
+        const next = { ...line, ...patch };
+        next.unitDiscount = Math.min(next.unitPrice, Math.max(0, next.unitDiscount ?? 0));
+        return next;
+      }),
+    );
   }
   function removeLine(id: string) {
     // Play the slide-out, then drop the line once the animation finishes.
@@ -335,7 +342,14 @@ export function NewSale({
     try {
       localStorage.setItem(
         CREDIT_CART_KEY,
-        JSON.stringify(cart.map((l) => ({ product: l.product, qty: l.qty, unitPrice: l.unitPrice }))),
+        JSON.stringify(
+          cart.map((l) => ({
+            product: l.product,
+            qty: l.qty,
+            unitPrice: l.unitPrice,
+            unitDiscount: l.unitDiscount ?? 0,
+          })),
+        ),
       );
     } catch {
       /* ignore */
@@ -350,7 +364,11 @@ export function NewSale({
   // With non-taxable off, the cart can only hold taxable items, so never split.
   const willSplit = nonTaxableEnabled && taxableLines.length > 0 && nonTaxableLines.length > 0;
   const totals = sumLines(
-    cart.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice })),
+    cart.map((l) => ({
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      unitDiscount: l.unitDiscount ?? 0,
+    })),
     discount || 0,
   );
   const change = tendered > 0 ? tendered - totals.grandTotal : 0;
@@ -371,7 +389,12 @@ export function NewSale({
     }
     startTransition(async () => {
       const res = await createCashInvoice({
-        lines: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        lines: cart.map((l) => ({
+          productId: l.product.id,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          unitDiscount: l.unitDiscount ?? 0,
+        })),
         discount: discount || 0,
         customerId: customerId || null,
         soldByEmployeeId: soldBy || null,
@@ -414,7 +437,12 @@ export function NewSale({
     if (cart.length === 0) { setError("Add at least one item."); return; }
     startTransition(async () => {
       const res = await createOpenAccountSale({
-        lines: cart.map((l) => ({ productId: l.product.id, qty: l.qty, unitPrice: l.unitPrice })),
+        lines: cart.map((l) => ({
+          productId: l.product.id,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          unitDiscount: l.unitDiscount ?? 0,
+        })),
         discount: discount || 0,
         customerId,
         soldByEmployeeId: soldBy || null,
@@ -595,20 +623,24 @@ export function NewSale({
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  <table className="hidden w-full text-sm sm:table">
                     <thead className="text-left text-muted">
                       <tr className="border-b border-border">
-                        <th className="py-2 pr-2 font-medium">Item</th>
+                        <th className="py-2 pr-2 font-medium">Product</th>
                         <th className="px-2 font-medium">Qty</th>
-                        <th className="px-2 font-medium">Unit Price</th>
-                        <th className="px-2 text-right font-medium">Total</th>
+                        <th className="px-2 font-medium">Unit price</th>
+                        <th className="px-2 font-medium">Discount / unit</th>
+                        <th className="px-2 text-right font-medium">Net</th>
                         <th></th>
                       </tr>
                     </thead>
                     <tbody>
                       {cart.map((l) => {
                         const hasCost = l.product.costPrice > 0;
-                        const lineMargin = grossMarginPct(l.product.costPrice, l.unitPrice);
+                        const unitDiscount = l.unitDiscount ?? 0;
+                        const netUnitPrice = l.unitPrice - unitDiscount;
+                        const lineMargin = grossMarginPct(l.product.costPrice, netUnitPrice);
+                        const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
                         return (
                         <tr
                           key={l.product.id}
@@ -640,6 +672,13 @@ export function NewSale({
                                 </span>
                               </div>
                             )}
+                            {unitDiscount > 0 && (
+                              <div className="mt-0.5 text-xs tabular-nums text-muted">
+                                <span className="line-through">{formatLKR(l.qty * l.unitPrice)}</span>
+                                {" → "}
+                                <span className="font-semibold text-success">{formatLKR(l.qty * netUnitPrice)}</span>
+                              </div>
+                            )}
                           </td>
                           <td className="px-2">
                             <Input
@@ -648,6 +687,7 @@ export function NewSale({
                               value={l.qty}
                               onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Number(e.target.value)) })}
                               className="h-9 w-20"
+                              aria-label={`Quantity for ${l.product.name}`}
                             />
                           </td>
                           <td className="px-2">
@@ -655,9 +695,32 @@ export function NewSale({
                               value={l.unitPrice}
                               onValueChange={(c) => updateLine(l.product.id, { unitPrice: Math.max(0, Number(c)) })}
                               className="h-9 w-28"
+                              aria-label={`Unit price for ${l.product.name}`}
                             />
                           </td>
-                          <td className="px-2 text-right font-medium">{formatLKR(l.qty * l.unitPrice)}</td>
+                          <td className="px-2">
+                            <NumberInput
+                              value={unitDiscount || ""}
+                              min={0}
+                              max={l.unitPrice}
+                              onValueChange={(c) =>
+                                updateLine(l.product.id, {
+                                  unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))),
+                                })
+                              }
+                              className="h-9 w-28"
+                              placeholder="0.00"
+                              aria-label={`Discount per unit for ${l.product.name}`}
+                            />
+                            {unitDiscount > 0 && (
+                              <div className="mt-0.5 text-[11px] font-semibold text-success">
+                                {discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off
+                              </div>
+                            )}
+                          </td>
+                          <td className={`px-2 text-right font-semibold ${unitDiscount > 0 ? "text-success" : ""}`}>
+                            {formatLKR(l.qty * netUnitPrice)}
+                          </td>
                           <td className="pl-2 text-right">
                             <button
                               onClick={() => removeLine(l.product.id)}
@@ -672,6 +735,88 @@ export function NewSale({
                       })}
                     </tbody>
                   </table>
+                  <div className="space-y-3 sm:hidden">
+                    {cart.map((l) => {
+                      const unitDiscount = l.unitDiscount ?? 0;
+                      const netUnitPrice = l.unitPrice - unitDiscount;
+                      const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
+                      return (
+                        <section
+                          key={l.product.id}
+                          className={`border-b border-border pb-3 last:border-0 ${
+                            removing.has(l.product.id) ? "animate-row-out" : "animate-row-in"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
+                              <div className="truncate font-medium">{l.product.name}</div>
+                              {unitDiscount > 0 && (
+                                <div className="text-xs tabular-nums text-muted">
+                                  <span className="line-through">{formatLKR(l.qty * l.unitPrice)}</span>
+                                  {" → "}
+                                  <span className="font-semibold text-success">{formatLKR(l.qty * netUnitPrice)}</span>
+                                </div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => removeLine(l.product.id)}
+                              className="rounded-md p-2 text-danger hover:bg-danger-soft"
+                              aria-label={`Remove ${l.product.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2">
+                            <label className="text-[11px] text-muted">
+                              Qty
+                              <Input
+                                type="number"
+                                min="1"
+                                value={l.qty}
+                                onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Number(e.target.value)) })}
+                                className="mt-1 h-10 w-full"
+                                aria-label={`Quantity for ${l.product.name}`}
+                              />
+                            </label>
+                            <label className="text-[11px] text-muted">
+                              Unit price
+                              <NumberInput
+                                value={l.unitPrice}
+                                onValueChange={(c) => updateLine(l.product.id, { unitPrice: Math.max(0, Number(c)) })}
+                                className="mt-1 h-10 w-full"
+                                aria-label={`Unit price for ${l.product.name}`}
+                              />
+                            </label>
+                            <label className="text-[11px] text-muted">
+                              Discount / unit
+                              <NumberInput
+                                value={unitDiscount || ""}
+                                min={0}
+                                max={l.unitPrice}
+                                onValueChange={(c) =>
+                                  updateLine(l.product.id, {
+                                    unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))),
+                                  })
+                                }
+                                className="mt-1 h-10 w-full"
+                                placeholder="0.00"
+                                aria-label={`Discount per unit for ${l.product.name}`}
+                              />
+                            </label>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between text-xs">
+                            <span className={unitDiscount > 0 ? "font-semibold text-success" : "text-muted"}>
+                              {unitDiscount > 0
+                                ? `${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off`
+                                : "No product discount"}
+                            </span>
+                            <span className="font-semibold tabular-nums">Net {formatLKR(l.qty * netUnitPrice)}</span>
+                          </div>
+                        </section>
+                      );
+                    })}
+                  </div>
                   <div className="mt-3 flex justify-end gap-4">
                     <button onClick={parkSale} className="text-xs font-semibold text-primary hover:underline">
                       Park sale
@@ -744,16 +889,29 @@ export function NewSale({
                 </>
               )}
               <div className="flex justify-between">
-                <span className="text-muted">Subtotal</span>
+                <span className="text-muted">Items subtotal</span>
                 <span>{formatLKR(totals.subtotal)}</span>
               </div>
+              {totals.productDiscount > 0 && (
+                <div className="flex justify-between text-success">
+                  <span>Product discounts</span>
+                  <span>− {formatLKR(totals.productDiscount)}</span>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2">
-                <span className="text-muted">Discount</span>
+                <span className="text-muted">Bill discount</span>
                 <NumberInput
                   value={discount || ""}
-                  onValueChange={(c) => setDiscount(Math.max(0, Number(c)))}
+                  min={0}
+                  max={totals.subtotal - totals.productDiscount}
+                  onValueChange={(c) =>
+                    setDiscount(
+                      Math.min(totals.subtotal - totals.productDiscount, Math.max(0, Number(c))),
+                    )
+                  }
                   className="h-9 w-28 text-right"
                   placeholder="0.00"
+                  aria-label="Bill discount"
                 />
               </div>
               <div className="flex items-center justify-between gap-2 border-t border-border pt-2 text-lg font-semibold">
@@ -771,14 +929,15 @@ export function NewSale({
                     // Typing the agreed final price back-fills the discount.
                     setTotalInput(c);
                     const pay = Number(c);
-                    setDiscount(c === "" || pay >= totals.subtotal ? 0 : round2(totals.subtotal - pay));
+                    const netBeforeBillDiscount = totals.subtotal - totals.productDiscount;
+                    setDiscount(c === "" || pay >= netBeforeBillDiscount ? 0 : round2(netBeforeBillDiscount - pay));
                   }}
                   className="h-10 w-32 text-right text-lg font-semibold"
                   placeholder="0.00"
                 />
               </div>
               <p className="text-right text-[11px] font-normal text-muted">
-                Type the agreed price in Total — the discount fills in automatically.
+                Product discounts apply to each item. Bill discount applies once to the sale.
               </p>
             </div>
 

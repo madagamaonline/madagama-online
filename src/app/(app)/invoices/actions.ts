@@ -13,11 +13,16 @@ import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
+import { isValidUnitDiscount } from "@/lib/sale-discounts";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
   qty: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().min(0),
+  unitDiscount: z.coerce.number().min(0).default(0),
+}).refine((line) => isValidUnitDiscount(line.unitPrice, line.unitDiscount), {
+  message: "A product discount cannot exceed its unit price.",
+  path: ["unitDiscount"],
 });
 
 const inputSchema = z.object({
@@ -45,6 +50,7 @@ type Computed = {
   name: string;
   qty: number;
   unitPrice: number;
+  unitDiscount: number;
   costSnapshot: number;
 };
 
@@ -130,26 +136,33 @@ async function createSale(
       name: p.name,
       qty: line.qty,
       unitPrice: line.unitPrice,
+      unitDiscount: line.unitDiscount,
       costSnapshot: toNum(p.costPrice),
     };
     (p.taxable ? taxable : nonTaxable).push(entry);
   }
 
-  const subTaxable = round2(taxable.reduce((s, l) => s + l.qty * l.unitPrice, 0));
-  const subNon = round2(nonTaxable.reduce((s, l) => s + l.qty * l.unitPrice, 0));
-  const subTotalAll = round2(subTaxable + subNon);
+  const netTaxable = round2(
+    taxable.reduce((s, l) => s + l.qty * (l.unitPrice - l.unitDiscount), 0),
+  );
+  const netNon = round2(
+    nonTaxable.reduce((s, l) => s + l.qty * (l.unitPrice - l.unitDiscount), 0),
+  );
+  const netTotalAll = round2(netTaxable + netNon);
 
-  // Allocate the single discount across the two books, proportional to subtotal.
+  // Product discounts stay on their own lines/category. Allocate only the
+  // bill-level discount across books, proportional to each category's net value.
   let discTaxable = 0;
   let discNon = 0;
-  if (data.discount > 0 && subTotalAll > 0) {
+  if (data.discount > 0 && netTotalAll > 0) {
+    const billDiscount = Math.min(data.discount, netTotalAll);
     if (taxable.length && nonTaxable.length) {
-      discTaxable = round2((data.discount * subTaxable) / subTotalAll);
-      discNon = round2(data.discount - discTaxable);
+      discTaxable = round2((billDiscount * netTaxable) / netTotalAll);
+      discNon = round2(billDiscount - discTaxable);
     } else if (taxable.length) {
-      discTaxable = round2(Math.min(data.discount, subTaxable));
+      discTaxable = round2(Math.min(billDiscount, netTaxable));
     } else {
-      discNon = round2(Math.min(data.discount, subNon));
+      discNon = round2(Math.min(billDiscount, netNon));
     }
   }
 
@@ -186,7 +199,8 @@ async function createSale(
                     codeSnapshot: it.code,
                     qty: it.qty,
                     unitPrice: it.unitPrice,
-                    lineTotal: round2(it.qty * it.unitPrice),
+                    unitDiscount: it.unitDiscount,
+                    lineTotal: round2(it.qty * (it.unitPrice - it.unitDiscount)),
                     costSnapshot: it.costSnapshot,
                   })),
                 },

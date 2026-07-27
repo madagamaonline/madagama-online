@@ -20,11 +20,16 @@ import { logStockMovement } from "@/lib/stock";
 import { validateLkPhone, normalizeLkPhone } from "@/lib/phone";
 import { toNum, formatLKR } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { isValidUnitDiscount } from "@/lib/sale-discounts";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
   qty: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().min(0),
+  unitDiscount: z.coerce.number().min(0).default(0),
+}).refine((line) => isValidUnitDiscount(line.unitPrice, line.unitDiscount), {
+  message: "A product discount cannot exceed its unit price.",
+  path: ["unitDiscount"],
 });
 
 const guarantorSchema = z.object({
@@ -133,10 +138,14 @@ export async function createCreditSale(
 
   const computed = data.lines.map((line) => {
     const p = byId.get(line.productId)!;
-    return { line, p, lineTotal: line.qty * line.unitPrice };
+    return { line, p, lineTotal: line.qty * (line.unitPrice - line.unitDiscount) };
   });
   const totals = sumLines(
-    computed.map((c) => ({ qty: c.line.qty, unitPrice: c.line.unitPrice })),
+    computed.map((c) => ({
+      qty: c.line.qty,
+      unitPrice: c.line.unitPrice,
+      unitDiscount: c.line.unitDiscount,
+    })),
     data.discount,
   );
   const downPaymentError = validateDownPaymentAmount(data.downPayment, totals.grandTotal);
@@ -169,7 +178,8 @@ export async function createCreditSale(
                   codeSnapshot: p.code,
                   qty: line.qty,
                   unitPrice: line.unitPrice,
-                  lineTotal: line.qty * line.unitPrice,
+                  unitDiscount: line.unitDiscount,
+                  lineTotal: line.qty * (line.unitPrice - line.unitDiscount),
                   costSnapshot: toNum(p.costPrice),
                 })),
               },

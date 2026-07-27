@@ -931,6 +931,7 @@ model InvoiceItem {
   codeSnapshot String?
   qty          Int
   unitPrice    Decimal  @db.Decimal(12, 2)
+  unitDiscount Decimal  @default("0") @db.Decimal(12, 2)
   lineTotal    Decimal  @db.Decimal(12, 2)
   // Product cost at the moment of sale, captured so profit reports stay correct
   // even after the product's cost later changes (WAC / bulk re-pricing). Null on

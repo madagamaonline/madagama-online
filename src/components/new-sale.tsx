@@ -643,7 +643,7 @@ export function NewSale({
                         <th className="py-2 pr-2 font-medium">Product</th>
                         <th className="px-2 font-medium">Qty</th>
                         <th className="px-2 font-medium">Unit price</th>
-                        <th className="px-2 font-medium">Discount / unit</th>
+                        <th className="px-2 font-medium">Agreed unit price</th>
                         <th className="px-2 text-right font-medium">Net</th>
                         <th></th>
                       </tr>
@@ -714,20 +714,28 @@ export function NewSale({
                           </td>
                           <td className="px-2">
                             <NumberInput
-                              value={unitDiscount || ""}
+                              value={netUnitPrice}
                               min={0}
                               max={l.unitPrice}
-                              onValueChange={(c) =>
+                              onValueChange={(c) => {
+                                const enteredPrice = Number(c);
+                                const agreedUnitPrice = Number.isFinite(enteredPrice)
+                                  ? Math.min(l.unitPrice, Math.max(0, enteredPrice))
+                                  : 0;
                                 updateLine(l.product.id, {
-                                  unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))),
-                                })
-                              }
+                                  unitDiscount: round2(l.unitPrice - agreedUnitPrice),
+                                });
+                              }}
                               className="h-9 w-28"
                               placeholder="0.00"
-                              aria-label={`Discount per unit for ${l.product.name}`}
+                              aria-label={`Agreed unit price for ${l.product.name}`}
                             />
                             {unitDiscount > 0 && (
-                              <div className="mt-0.5 text-[11px] font-semibold text-success">
+                              <div
+                                className="mt-0.5 text-[11px] font-semibold tabular-nums text-success"
+                                aria-live="polite"
+                              >
+                                Auto discount {formatLKR(unitDiscount)} ·{" "}
                                 {discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off
                               </div>
                             )}
@@ -803,26 +811,33 @@ export function NewSale({
                               />
                             </label>
                             <label className="text-[11px] text-muted">
-                              Discount / unit
+                              Agreed unit price
                               <NumberInput
-                                value={unitDiscount || ""}
+                                value={netUnitPrice}
                                 min={0}
                                 max={l.unitPrice}
-                                onValueChange={(c) =>
+                                onValueChange={(c) => {
+                                  const enteredPrice = Number(c);
+                                  const agreedUnitPrice = Number.isFinite(enteredPrice)
+                                    ? Math.min(l.unitPrice, Math.max(0, enteredPrice))
+                                    : 0;
                                   updateLine(l.product.id, {
-                                    unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))),
-                                  })
-                                }
+                                    unitDiscount: round2(l.unitPrice - agreedUnitPrice),
+                                  });
+                                }}
                                 className="mt-1 h-10 w-full"
                                 placeholder="0.00"
-                                aria-label={`Discount per unit for ${l.product.name}`}
+                                aria-label={`Agreed unit price for ${l.product.name}`}
                               />
                             </label>
                           </div>
                           <div className="mt-2 flex items-center justify-between text-xs">
-                            <span className={unitDiscount > 0 ? "font-semibold text-success" : "text-muted"}>
+                            <span
+                              className={unitDiscount > 0 ? "font-semibold text-success" : "text-muted"}
+                              aria-live="polite"
+                            >
                               {unitDiscount > 0
-                                ? `${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off`
+                                ? `Auto discount ${formatLKR(unitDiscount)} · ${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off`
                                 : "No product discount"}
                             </span>
                             <span className="font-semibold tabular-nums">Net {formatLKR(l.qty * netUnitPrice)}</span>

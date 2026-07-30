@@ -8,8 +8,11 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  CustomerSearchPicker,
+  type SaleCustomer,
+} from "@/components/customer-search-picker";
 import { ServicePhotos } from "@/components/service-photos";
 
 export type ServiceJobInitial = {
@@ -47,7 +50,7 @@ export function ServiceJobForm({
   submitLabel = "Save service job",
 }: {
   action: (prev: ServiceJobFormState, formData: FormData) => Promise<ServiceJobFormState>;
-  customers: { id: string; name: string; phone: string }[];
+  customers: SaleCustomer[];
   initial?: ServiceJobInitial;
   submitLabel?: string;
 }) {
@@ -108,20 +111,14 @@ export function ServiceJobForm({
 
           {/* Customer */}
           <div>
-            <Label htmlFor="customerId">Customer</Label>
-            <Select
-              id="customerId"
-              name="customerId"
+            <Label htmlFor="service-job-customer">Customer</Label>
+            <input type="hidden" name="customerId" value={customerId} />
+            <CustomerSearchPicker
+              customers={customers}
               value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-            >
-              <option value="">Walk-in (no account)</option>
-              {customers.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name} — {c.phone}
-                </option>
-              ))}
-            </Select>
+              onChange={setCustomerId}
+              inputId="service-job-customer"
+            />
             <Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
               + Add a customer record
             </Link>

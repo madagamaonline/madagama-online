@@ -16,7 +16,7 @@ export default async function EditServiceJobPage({
     prisma.serviceJob.findUnique({ where: { id } }),
     prisma.customer.findMany({
       orderBy: { name: "asc" },
-      select: { id: true, name: true, phone: true },
+      select: { id: true, name: true, phone: true, nic: true },
       take: 1000,
     }),
   ]);

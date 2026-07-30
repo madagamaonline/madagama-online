@@ -12,6 +12,7 @@ import { getSession } from "@/lib/auth";
 import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
 import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
+import { formatWarrantyMonths } from "@/lib/warranty";
 
 const CATEGORY_LABEL = { TAXABLE: "TAXABLE", NON_TAXABLE: "NON-TAXABLE" } as const;
 
@@ -379,6 +380,11 @@ export default async function InvoiceViewPage({
           </section>
         )}
 
+        {invoice.warrantyMonths !== null && (
+          <p className="mt-6 border-t border-border pt-4 text-[16.5px] leading-snug">
+            <span className="font-medium">Warranty:</span> {formatWarrantyMonths(invoice.warrantyMonths)}
+          </p>
+        )}
         {invoice.notes && (
           <p className="invoice-notes mt-6 border-t border-border pt-4 text-[16.5px] leading-snug text-muted">{invoice.notes}</p>
         )}
@@ -495,6 +501,9 @@ export default async function InvoiceViewPage({
           <section className="mt-2 border-y-2 border-black py-2"><div className="text-center font-bold">PAY LATER — {openState.isSettled ? "PAID" : openState.isOverdue ? "OVERDUE" : openState.credited ? "PARTIAL" : "UNPAID"}</div><div className="text-center text-[11.5px]">No interest or guarantor</div>{openAccount.dueDate && <div className="text-center text-[11.5px]">Promised {formatDateTime(openAccount.dueDate)}</div>}<div className="mt-2 flex justify-between"><span>Original total</span><span>{formatLKR(openState.principal)}</span></div><div className="flex justify-between"><span>Paid / credited</span><span>− {formatLKR(openState.credited)}</span></div><div className="flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>BALANCE DUE</span><span>{formatLKR(openState.outstanding)}</span></div><div className="my-2 border-t border-dashed border-black" /><p className="font-bold">PAYMENT HISTORY</p>{openLedger.length === 0 ? <p className="italic">No payments received</p> : openLedger.map((payment) => <div key={payment.id} className="mt-1 flex justify-between border-b border-dotted border-black"><span>{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span><span>{formatLKR(payment.amount)} · Bal {formatLKR(payment.balanceAfter)}</span></div>)}</section>
         )}
 
+        {invoice.warrantyMonths !== null && (
+          <p className="mt-2"><span className="font-semibold">Warranty:</span> {formatWarrantyMonths(invoice.warrantyMonths)}</p>
+        )}
         {invoice.notes && <p className="mt-2 break-words">{invoice.notes}</p>}
 
         <div className="my-2 border-t border-dashed border-black" />

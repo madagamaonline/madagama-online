@@ -33,6 +33,11 @@ import {
   CustomerSearchPicker,
   type SaleCustomer,
 } from "@/components/customer-search-picker";
+import {
+  normalizeWarrantyMonths,
+  WARRANTY_OPTIONS,
+  type WarrantyMonths,
+} from "@/lib/warranty";
 
 type ProductHit = {
   id: string;
@@ -61,6 +66,7 @@ type ParkedSale = {
   customerId: string;
   soldBy: string;
   notes: string;
+  warrantyMonths?: number | null;
   ts: number;
 };
 
@@ -88,6 +94,7 @@ export function NewSale({
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
   const [notes, setNotes] = useState("");
+  const [warrantyMonths, setWarrantyMonths] = useState<WarrantyMonths | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CreatedInvoice[] | null>(null);
   const [resultMode, setResultMode] = useState<"cash" | "pay-later">("cash");
@@ -153,7 +160,7 @@ export function NewSale({
 
   // Restore a held draft + the recent-invoices strip on mount (client only).
   useEffect(() => {
-    let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string; notes?: string } | null = null;
+    let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string; notes?: string; warrantyMonths?: number | null } | null = null;
     let recentList: RecentInvoice[] | null = null;
     let parkedList: ParkedSale[] | null = null;
     try {
@@ -173,6 +180,7 @@ export function NewSale({
         setCustomerId(draft.customerId || "");
         setSoldBy(draft.soldBy || "");
         setNotes(draft.notes || "");
+        setWarrantyMonths(normalizeWarrantyMonths(draft.warrantyMonths));
         setResumed(true);
       }
       if (recentList) setRecent(recentList);
@@ -187,14 +195,14 @@ export function NewSale({
     if (!hydrated.current) return;
     try {
       if (cart.length) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy, notes }));
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy, notes, warrantyMonths }));
       } else {
         localStorage.removeItem(DRAFT_KEY);
       }
     } catch {
       /* ignore */
     }
-  }, [cart, discount, customerId, soldBy, notes]);
+  }, [cart, discount, customerId, soldBy, notes, warrantyMonths]);
 
   useEffect(() => {
     const q = query.trim();
@@ -289,6 +297,7 @@ export function NewSale({
     setCustomerId("");
     setSoldBy("");
     setNotes("");
+    setWarrantyMonths(null);
     setError("");
     setResumed(false);
   }
@@ -314,6 +323,7 @@ export function NewSale({
       customerId,
       soldBy,
       notes,
+      warrantyMonths,
       ts: Date.now(),
     };
     persistParked([entry, ...parked]);
@@ -329,6 +339,7 @@ export function NewSale({
     setCustomerId(entry.customerId || "");
     setSoldBy(entry.soldBy || "");
     setNotes(entry.notes || "");
+    setWarrantyMonths(normalizeWarrantyMonths(entry.warrantyMonths));
     setTendered(0);
     setResumed(true);
     persistParked(parked.filter((p) => p.id !== id));
@@ -399,6 +410,7 @@ export function NewSale({
         customerId: customerId || null,
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
+        warrantyMonths,
       });
       if (!res.ok) {
         setError(res.error);
@@ -427,6 +439,7 @@ export function NewSale({
       setCustomerId("");
       setSoldBy("");
       setNotes("");
+      setWarrantyMonths(null);
       setResumed(false);
     });
   }
@@ -447,6 +460,7 @@ export function NewSale({
         customerId,
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
+        warrantyMonths,
         dueDate: promisedDate || null,
       });
       if (!res.ok) { setError(res.error); return; }
@@ -455,7 +469,7 @@ export function NewSale({
       setShowPayLater(false);
       setPromisedDate("");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
-      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setResumed(false);
+      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setWarrantyMonths(null); setResumed(false);
     });
   }
 
@@ -865,11 +879,30 @@ export function NewSale({
               </Select>
             </div>
             <div>
+              <Label htmlFor="sale-warranty">Warranty</Label>
+              <Select
+                id="sale-warranty"
+                value={warrantyMonths ?? ""}
+                onChange={(e) =>
+                  setWarrantyMonths(
+                    normalizeWarrantyMonths(e.target.value ? Number(e.target.value) : null),
+                  )
+                }
+              >
+                {WARRANTY_OPTIONS.map((option) => (
+                  <option key={option.value ?? "none"} value={option.value ?? ""}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
+              <p className="mt-1 text-[11px] text-muted">Applies to the entire sale and prints on the invoice.</p>
+            </div>
+            <div>
               <Label>Notes (optional)</Label>
               <Textarea
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. 6-month warranty on batteries…"
+                placeholder="Add any other invoice note…"
                 className="min-h-[60px]"
               />
               <p className="mt-1 text-[11px] text-muted">Prints on the invoice.</p>

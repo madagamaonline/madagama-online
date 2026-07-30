@@ -14,6 +14,7 @@ import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
+import { isValidWarrantyMonths } from "@/lib/warranty";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -31,6 +32,10 @@ const inputSchema = z.object({
   customerId: z.string().optional().nullable(),
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  warrantyMonths: z.number().int().nullable().optional().refine(
+    (value) => value === undefined || isValidWarrantyMonths(value),
+    { message: "Select a valid warranty period." },
+  ),
 });
 
 export type CreateInvoiceInput = z.input<typeof inputSchema>;
@@ -188,6 +193,7 @@ async function createSale(
                 soldByEmployeeId: data.soldByEmployeeId || null,
                 createdByUserId: session?.id ?? null,
                 notes: data.notes?.trim() || null,
+                warrantyMonths: data.warrantyMonths ?? null,
                 subtotal: totals.subtotal,
                 discount: totals.discount,
                 grandTotal: totals.grandTotal,

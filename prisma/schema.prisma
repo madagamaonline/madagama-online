@@ -776,6 +776,7 @@ model Invoice {
   amountPaid       Decimal       @default("0") @db.Decimal(12, 2)
   status           InvoiceStatus @default(PAID)
   notes            String?
+  warrantyMonths   Int?
   createdBy        User?         @relation("InvoiceCreatedBy", fields: [createdByUserId], references: [id])
   createdByUserId  String?
   createdAt        DateTime      @default(now())

@@ -44,6 +44,7 @@ export default async function InvoiceViewPage({
         items: { include: { product: { select: { modelNumber: true } } } },
         customer: true,
         soldBy: { select: { name: true } },
+        saleGroup: { select: { id: true, _count: { select: { invoices: true } } } },
         voidedBy: { select: { name: true } },
         creditAgreement: {
           include: {
@@ -150,6 +151,11 @@ export default async function InvoiceViewPage({
           )}
           {openAccount && (
             <Link href={`/open-accounts/${openAccount.id}`}><Button variant="outline"><ReceiptText className="h-4 w-4" /> Record / view payments</Button></Link>
+          )}
+          {invoice.saleGroup && invoice.saleGroup._count.invoices > 1 && (
+            <Link href={`/invoices/groups/${invoice.saleGroup.id}`}>
+              <Button variant="outline"><ReceiptText className="h-4 w-4" /> View / print full sale</Button>
+            </Link>
           )}
           {!invoice.voidedAt && (
             <>

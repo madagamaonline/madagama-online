@@ -46,7 +46,7 @@ export type CreatedInvoice = {
   grandTotal: number;
 };
 export type CreateInvoiceResult =
-  | { ok: true; invoices: CreatedInvoice[] }
+  | { ok: true; saleGroupId: string; invoices: CreatedInvoice[] }
   | { ok: false; error: string };
 
 type Computed = {
@@ -181,6 +181,7 @@ async function createSale(
     try {
       const created = await prisma.$transaction(
         async (tx) => {
+          const saleGroup = await tx.saleGroup.create({ data: {} });
           const out: CreatedInvoice[] = [];
           for (const g of groups) {
             const totals = sumLines(g.items, g.discount);
@@ -194,6 +195,7 @@ async function createSale(
                 customerId: data.customerId || null,
                 soldByEmployeeId: data.soldByEmployeeId || null,
                 createdByUserId: session?.id ?? null,
+                saleGroupId: saleGroup.id,
                 notes: data.notes?.trim() || null,
                 subtotal: totals.subtotal,
                 discount: totals.discount,
@@ -241,7 +243,7 @@ async function createSale(
             }
             out.push({ id: inv.id, invoiceNumber, taxCategory: g.category, grandTotal: totals.grandTotal });
           }
-          return out;
+          return { saleGroupId: saleGroup.id, invoices: out };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
       );
@@ -251,7 +253,7 @@ async function createSale(
       revalidatePath("/dashboard");
       revalidatePath("/open-accounts");
       if (data.customerId) revalidatePath(`/customers/${data.customerId}`);
-      return { ok: true, invoices: created };
+      return { ok: true, ...created };
     } catch (e) {
       if (e instanceof StockConflictError) {
         return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };

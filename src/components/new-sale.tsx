@@ -63,7 +63,13 @@ const RECENT_KEY = "madagama:recent-invoices";
 const CREDIT_CART_KEY = "madagama:credit-cart";
 const PARKED_KEY = "madagama:parked-sales";
 
-type RecentInvoice = { id: string; invoiceNumber: string; grandTotal: number };
+type RecentInvoice = {
+  id: string;
+  invoiceNumber: string;
+  grandTotal: number;
+  saleGroupId?: string;
+};
+type CompletedSale = { saleGroupId: string; invoices: CreatedInvoice[] };
 type ParkedSale = {
   id: string;
   label: string;
@@ -115,7 +121,7 @@ export function NewSale({
   const [soldBy, setSoldBy] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
-  const [result, setResult] = useState<CreatedInvoice[] | null>(null);
+  const [result, setResult] = useState<CompletedSale | null>(null);
   const [resultMode, setResultMode] = useState<"cash" | "pay-later">("cash");
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
   const [parked, setParked] = useState<ParkedSale[]>([]);
@@ -412,6 +418,24 @@ export function NewSale({
   );
   const change = tendered > 0 ? tendered - totals.grandTotal : 0;
 
+  function rememberSale(sale: CompletedSale) {
+    const first = sale.invoices[0];
+    if (!first) return;
+    try {
+      const entry: RecentInvoice = {
+        id: first.id,
+        saleGroupId: sale.saleGroupId,
+        invoiceNumber: sale.invoices.map((invoice) => invoice.invoiceNumber).join(" / "),
+        grandTotal: round2(sale.invoices.reduce((sum, invoice) => sum + invoice.grandTotal, 0)),
+      };
+      const next = [entry, ...recent].slice(0, 5);
+      localStorage.setItem(RECENT_KEY, JSON.stringify(next));
+      setRecent(next);
+    } catch {
+      /* ignore */
+    }
+  }
+
   // Keep the agreed total editable while its keystrokes are being used to
   // calculate the discount. Once editing ends, or when the cart/discount is
   // changed elsewhere, show the calculated total again.
@@ -444,23 +468,11 @@ export function NewSale({
         setError(res.error);
         return;
       }
-      setResult(res.invoices);
+      const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      setResult(completed);
       setResultMode("cash");
-      try {
-        const next = [
-          ...res.invoices.map((inv) => ({
-            id: inv.id,
-            invoiceNumber: inv.invoiceNumber,
-            grandTotal: inv.grandTotal,
-          })),
-          ...recent,
-        ].slice(0, 5);
-        localStorage.setItem(RECENT_KEY, JSON.stringify(next));
-        setRecent(next);
-        localStorage.removeItem(DRAFT_KEY);
-      } catch {
-        /* ignore */
-      }
+      rememberSale(completed);
+      try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setCart([]);
       setDiscount(0);
       setTendered(0);
@@ -491,8 +503,10 @@ export function NewSale({
         dueDate: promisedDate || null,
       });
       if (!res.ok) { setError(res.error); return; }
-      setResult(res.invoices);
+      const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      setResult(completed);
       setResultMode("pay-later");
+      rememberSale(completed);
       setShowPayLater(false);
       setPromisedDate("");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
@@ -514,14 +528,19 @@ export function NewSale({
               <CheckCircle2 className="h-6 w-6" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
-            {result.length > 1 && (
+            {result.invoices.length > 1 && (
               <p className="text-sm text-muted">
-                The cart had both taxable and non-taxable items, so it was split into two bills.
+                The cart was saved as separate taxable and non-taxable bills, linked to one customer receipt.
               </p>
             )}
             {resultMode === "pay-later" && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
+            <Link href={`/invoices/groups/${result.saleGroupId}`} className="block">
+              <Button size="lg" className="w-full">
+                <Printer className="h-5 w-5" /> View / Print full sale
+              </Button>
+            </Link>
             <div className="divide-y divide-border rounded-lg border border-border">
-              {result.map((inv) => (
+              {result.invoices.map((inv) => (
                 <div key={inv.id} className="flex items-center justify-between gap-3 p-3">
                   <div>
                     <div className="flex items-center gap-2">
@@ -536,7 +555,7 @@ export function NewSale({
                   </div>
                   <Link href={`/invoices/${inv.id}?new=1`}>
                     <Button variant="outline" size="sm">
-                      <Printer className="h-4 w-4" /> View / Print
+                      View bill details
                     </Button>
                   </Link>
                 </div>
@@ -623,7 +642,7 @@ export function NewSale({
                 {recent.map((r) => (
                   <Link
                     key={r.id}
-                    href={`/invoices/${r.id}`}
+                    href={r.saleGroupId ? `/invoices/groups/${r.saleGroupId}` : `/invoices/${r.id}`}
                     className="inline-flex items-center gap-1 rounded-md bg-input px-2 py-1 font-mono font-semibold text-primary-ink hover:bg-primary-soft"
                   >
                     <Printer className="h-3 w-3" /> {r.invoiceNumber}

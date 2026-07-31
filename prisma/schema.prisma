@@ -784,6 +784,8 @@ model Invoice {
   voidReason       String?
   voidedBy         User?         @relation("InvoiceVoidedBy", fields: [voidedByUserId], references: [id], onDelete: SetNull)
   voidedByUserId   String?
+  saleGroup        SaleGroup?    @relation(fields: [saleGroupId], references: [id], onDelete: Restrict)
+  saleGroupId      String?
 
   items           InvoiceItem[]
   creditAgreement CreditAgreement?
@@ -800,6 +802,18 @@ model Invoice {
   @@index([createdByUserId])
   @@index([voidedAt])
   @@index([voidedByUserId])
+  @@index([saleGroupId])
+}
+
+// One customer checkout can produce separate taxable and non-taxable invoices.
+// The invoices remain the accounting records; this group provides a durable
+// customer-facing combined receipt and reprint path.
+model SaleGroup {
+  id        String    @id @default(cuid())
+  createdAt DateTime  @default(now())
+  invoices  Invoice[]
+
+  @@index([createdAt])
 }
 
 model OpenAccount {

@@ -8,6 +8,7 @@ import { toNum, formatLKR } from "./utils";
 import { ACTIVE_REQUEST_STATUSES, requestNumber } from "./customer-requests";
 import { businessDayKey } from "./dates";
 import { computeOpenAccountState } from "./open-account";
+import { purchaseTaxableWhere } from "./tax-mode";
 
 /** Run `tasks` with at most `size` in flight at once (keeps the cron under the
  *  serverless time limit without a p-limit dependency). */
@@ -193,7 +194,11 @@ export async function runReminders(now: Date = new Date()): Promise<ReminderSumm
   // --- Supplier credit alerts (to admin) ---
   if (adminPhone) {
     const purchases = await prisma.purchase.findMany({
-      where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null } },
+      where: {
+        status: { in: ["CREDIT", "PARTIAL"] },
+        creditDueDate: { not: null },
+        ...purchaseTaxableWhere(setting?.nonTaxableEnabled ?? true),
+      },
       include: { supplier: { select: { name: true } } },
     });
     for (const p of purchases) {

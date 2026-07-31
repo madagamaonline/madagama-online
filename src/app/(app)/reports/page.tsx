@@ -12,7 +12,13 @@ import { computePayroll } from "@/lib/payroll";
 import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
 import { cumulativeRealizedGrossProfit } from "@/lib/realized-profit";
 import { getSettings } from "@/lib/settings";
-import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
+import {
+  nonTaxableEnabled,
+  activeInvoiceWhere,
+  productTaxableWhere,
+  purchaseTaxableWhere,
+  supplierReturnTaxableWhere,
+} from "@/lib/tax-mode";
 import { PageHeader } from "@/components/page-header";
 import { PrintButton } from "@/components/print-button";
 import { StatCard } from "@/components/stat-card";
@@ -90,6 +96,8 @@ export default async function ReportsPage({
   const ntEnabled = await nonTaxableEnabled();
   const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled);
+  const purchaseF = purchaseTaxableWhere(ntEnabled);
+  const supplierReturnF = supplierReturnTaxableWhere(ntEnabled);
   const settings = await getSettings(); // cached — for the print letterhead
 
   const [
@@ -143,8 +151,8 @@ export default async function ReportsPage({
       where: { active: true, ...prodF },
       select: { id: true, code: true, name: true, quantityInStock: true, costPrice: true, reorderLevel: true },
     }),
-    prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart, lt: monthEnd } } }),
-    prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart, lt: monthEnd } } }),
+    prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...purchaseF } }),
+    prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...supplierReturnF } }),
     // Refunds and returned goods follow the same tax filter as revenue/COGS, so
     // gross profit stays consistent when the non-taxable switch is off. The
     // invoice relation is optional, so the filter is only added when narrowing.

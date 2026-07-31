@@ -7,6 +7,7 @@ import { requireActionStaffFinanceAccess } from "@/lib/auth";
 import { chequeBalance, validateChequePayment } from "@/lib/cheques";
 import { prisma } from "@/lib/prisma";
 import { round2, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export type BankingActionState = { error?: string; ok?: boolean; id?: string };
 
@@ -70,6 +71,7 @@ export async function issueCheque(
   const parsed = chequeSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the cheque details" };
   const data = parsed.data;
+  const ntEnabled = await nonTaxableEnabled();
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -81,8 +83,8 @@ export async function issueCheque(
           let purchaseApplied = 0;
           let purchase: { id: string; total: Prisma.Decimal; amountPaid: Prisma.Decimal; supplierId: string } | null = null;
           if (data.purchaseId) {
-            purchase = await tx.purchase.findUnique({
-              where: { id: data.purchaseId },
+            purchase = await tx.purchase.findFirst({
+              where: { id: data.purchaseId, ...purchaseTaxableWhere(ntEnabled) },
               select: { id: true, total: true, amountPaid: true, supplierId: true },
             });
             if (!purchase) throw new Error("The selected purchase no longer exists");

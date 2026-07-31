@@ -6,15 +6,17 @@ import { IssueChequeForm } from "@/components/issue-cheque-form";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewChequePage({ searchParams }: { searchParams: Promise<{ supplier?: string; purchase?: string }> }) {
   const defaults = await searchParams;
+  const ntEnabled = await nonTaxableEnabled();
   const [suppliers, accounts, purchaseRows] = await Promise.all([
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.bankAccount.findMany({ where: { active: true }, orderBy: [{ bankName: "asc" }, { accountName: "asc" }], select: { id: true, bankName: true, accountName: true, accountNumber: true } }),
-    prisma.purchase.findMany({ where: { status: { in: ["CREDIT", "PARTIAL"] } }, orderBy: { date: "desc" }, select: { id: true, supplierId: true, supplierInvoiceNo: true, date: true, total: true, amountPaid: true } }),
+    prisma.purchase.findMany({ where: { status: { in: ["CREDIT", "PARTIAL"] }, ...purchaseTaxableWhere(ntEnabled) }, orderBy: { date: "desc" }, select: { id: true, supplierId: true, supplierInvoiceNo: true, date: true, total: true, amountPaid: true } }),
   ]);
   const purchases = purchaseRows.map((purchase) => ({ id: purchase.id, supplierId: purchase.supplierId, ref: purchase.supplierInvoiceNo?.trim() || `Purchase ${purchase.id.slice(-6)}`, date: purchase.date.toISOString(), remaining: Math.max(0, toNum(purchase.total) - toNum(purchase.amountPaid)) })).filter((purchase) => purchase.remaining > 0);
 

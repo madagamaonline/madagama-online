@@ -15,6 +15,7 @@ import { ACTIVE_REQUEST_STATUSES, requestNumber, requestStatusLabel, requestStat
 import { businessStartOfDay } from "@/lib/dates";
 import { computeOpenAccountState } from "@/lib/open-account";
 import { SendOpenAccountReminder } from "@/components/send-open-account-reminder";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -32,6 +33,7 @@ function badgeTone(u: Urgency): "red" | "amber" | "gray" {
 
 export default async function RemindersPage() {
   const now = new Date();
+  const ntEnabled = await nonTaxableEnabled();
 
   const [agreements, purchases, customerRequests, openAccounts] = await Promise.all([
     prisma.creditAgreement.findMany({
@@ -44,7 +46,11 @@ export default async function RemindersPage() {
       take: 500,
     }),
     prisma.purchase.findMany({
-      where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null } },
+      where: {
+        status: { in: ["CREDIT", "PARTIAL"] },
+        creditDueDate: { not: null },
+        ...purchaseTaxableWhere(ntEnabled),
+      },
       include: { supplier: { select: { id: true, name: true } } },
       take: 500,
     }),

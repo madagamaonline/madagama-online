@@ -10,6 +10,7 @@ import { logStockMovement } from "@/lib/stock";
 import { logPriceChange } from "@/lib/price-change";
 import { weightedAvgCost } from "@/lib/pricing";
 import { round2, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -51,6 +52,15 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
   const amountPaid = d.type === "CASH" ? total : round2(Math.min(d.amountPaid, total));
   const status = statusFor(total, amountPaid);
   const session = await requireActionUser();
+  const ntEnabled = await nonTaxableEnabled();
+  if (!ntEnabled) {
+    const visibleProductCount = await prisma.product.count({
+      where: { id: { in: d.lines.map((line) => line.productId) }, taxable: true },
+    });
+    if (visibleProductCount !== new Set(d.lines.map((line) => line.productId)).size) {
+      return { ok: false, error: "Non-taxable products are currently hidden." };
+    }
+  }
 
   try {
     const purchase = await prisma.$transaction(
@@ -150,11 +160,14 @@ export async function recordPurchasePayment(
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid payment" };
 
   await requireActionUser();
+  const ntEnabled = await nonTaxableEnabled();
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await prisma.$transaction(
         async (tx) => {
-          const purchase = await tx.purchase.findUnique({ where: { id: purchaseId } });
+          const purchase = await tx.purchase.findFirst({
+            where: { id: purchaseId, ...purchaseTaxableWhere(ntEnabled) },
+          });
           if (!purchase) return { error: "Purchase not found" };
           const outstanding = round2(toNum(purchase.total) - toNum(purchase.amountPaid));
           const paymentError = validatePaymentAmount(parsed.data.amount, outstanding);

@@ -28,7 +28,7 @@ import { computeCreditState } from "@/lib/credit";
 import { Badge } from "@/components/ui/badge";
 import { SalesChart } from "@/components/sales-chart";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
-import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere } from "@/lib/tax-mode";
+import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere, purchaseTaxableWhere } from "@/lib/tax-mode";
 import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +50,7 @@ export default async function DashboardPage() {
   const ntEnabled = await nonTaxableEnabled();
   const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled); // {} or { taxable: true }
+  const purchaseF = purchaseTaxableWhere(ntEnabled);
 
   const [
     todaySales,
@@ -115,7 +116,7 @@ export default async function DashboardPage() {
     }),
     prisma.employee.findMany({ select: { id: true, name: true } }),
     prisma.purchase.findMany({
-      where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null } },
+      where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null }, ...purchaseF },
       include: { supplier: { select: { name: true } } },
     }),
     // Refunds follow the same tax filter as today's sales so the profit figure

@@ -27,6 +27,25 @@ export function productTaxableWhere(enabled: boolean): Prisma.ProductWhereInput 
 }
 
 /**
+ * Purchase `where` filter. A purchase is only visible in taxable-only mode
+ * when every line points at a taxable product. Hiding mixed historical
+ * purchases as a whole prevents their non-taxable lines and totals leaking
+ * through purchase details, supplier balances, reminders, or reports.
+ */
+export function purchaseTaxableWhere(enabled: boolean): Prisma.PurchaseWhereInput {
+  return enabled ? {} : { items: { every: { product: { taxable: true } } } };
+}
+
+/**
+ * Supplier returns follow the visibility of their product lines for the same
+ * reason as purchases. Current returns always have lines, so `every` is the
+ * strict, composable relation filter needed by list and aggregate queries.
+ */
+export function supplierReturnTaxableWhere(enabled: boolean): Prisma.SupplierReturnWhereInput {
+  return enabled ? {} : { items: { every: { product: { taxable: true } } } };
+}
+
+/**
  * Invoice `where` filter. When the switch is off, only taxable invoices are
  * visible; when on, no constraint is added. Also usable on relations, e.g.
  * `invoice: { ...invoiceTaxableWhere(enabled) }`.

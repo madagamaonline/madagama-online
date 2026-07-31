@@ -7,6 +7,7 @@ import { SupplierReturnForm, type SupplierReturnLine } from "@/components/suppli
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatDate, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -35,8 +36,8 @@ export default async function NewSupplierReturnPage({
     );
   }
 
-  const purchase = await prisma.purchase.findUnique({
-    where: { id: purchaseId },
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: purchaseId, ...purchaseTaxableWhere(await nonTaxableEnabled()) },
     include: {
       supplier: { select: { name: true } },
       items: {

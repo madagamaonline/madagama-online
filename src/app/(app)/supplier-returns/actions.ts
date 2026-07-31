@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requireActionUser } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
 import { round2, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -38,8 +39,8 @@ export async function createSupplierReturn(
   const session = await requireActionUser();
   const total = round2(d.lines.reduce((s, l) => s + l.qty * l.unitCost, 0));
 
-  const purchase = await prisma.purchase.findUnique({
-    where: { id: d.purchaseId },
+  const purchase = await prisma.purchase.findFirst({
+    where: { id: d.purchaseId, ...purchaseTaxableWhere(await nonTaxableEnabled()) },
     select: { id: true, supplierId: true, total: true, amountPaid: true },
   });
   if (!purchase) return { ok: false, error: "Purchase not found" };

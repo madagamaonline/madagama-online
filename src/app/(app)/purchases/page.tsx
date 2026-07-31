@@ -8,13 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDate, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
 const statusTone = { PAID: "green", PARTIAL: "amber", CREDIT: "red" } as const;
 
 export default async function PurchasesPage() {
+  const ntEnabled = await nonTaxableEnabled();
   const purchases = await prisma.purchase.findMany({
+    where: purchaseTaxableWhere(ntEnabled),
     orderBy: { date: "desc" },
     include: { supplier: { select: { name: true } } },
     take: 200,

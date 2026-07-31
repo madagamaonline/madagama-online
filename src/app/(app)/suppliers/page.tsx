@@ -6,13 +6,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
+import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuppliersPage() {
+  const ntEnabled = await nonTaxableEnabled();
   const suppliers = await prisma.supplier.findMany({
     orderBy: { name: "asc" },
-    include: { purchases: { select: { total: true, amountPaid: true } } },
+    include: {
+      purchases: {
+        where: purchaseTaxableWhere(ntEnabled),
+        select: { total: true, amountPaid: true },
+      },
+    },
   });
 
   const rows = suppliers.map((s) => {

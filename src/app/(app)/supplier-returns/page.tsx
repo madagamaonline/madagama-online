@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDateTime } from "@/lib/utils";
+import { nonTaxableEnabled, supplierReturnTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ const methodTone: Record<string, "green" | "amber" | "gray"> = {
 };
 
 export default async function SupplierReturnsPage() {
+  const ntEnabled = await nonTaxableEnabled();
   const returns = await prisma.supplierReturn.findMany({
+    where: supplierReturnTaxableWhere(ntEnabled),
     orderBy: { createdAt: "desc" },
     include: {
       supplier: { select: { name: true, id: true } },

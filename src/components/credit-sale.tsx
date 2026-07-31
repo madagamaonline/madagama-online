@@ -309,7 +309,7 @@ export function CreditSale({
             {cart.length > 0 && (
               <div className="mt-4">
                 <div className="hidden grid-cols-[minmax(140px,1fr)_64px_112px_112px_96px_36px] gap-2 border-b border-border pb-2 text-xs font-medium text-muted md:grid">
-                  <span>Product</span><span>Qty</span><span>Unit price</span><span>Discount / unit</span><span className="text-right">Net</span><span />
+                  <span>Product</span><span>Qty</span><span>Unit price</span><span>Agreed unit price</span><span className="text-right">Net</span><span />
                 </div>
                 <div className="divide-y divide-border">
                   {cart.map((l) => {
@@ -365,28 +365,41 @@ export function CreditSale({
                             />
                           </label>
                           <label className="text-[11px] text-muted md:text-[0px]">
-                            Discount / unit
+                            Agreed unit price
                             <NumberInput
-                              value={unitDiscount || ""}
+                              value={netUnitPrice}
                               min={0}
                               max={l.unitPrice}
-                              onValueChange={(c) =>
-                                update({ unitDiscount: Math.min(l.unitPrice, Math.max(0, Number(c))) })
-                              }
+                              onValueChange={(c) => {
+                                const enteredPrice = Number(c);
+                                const agreedUnitPrice = Number.isFinite(enteredPrice)
+                                  ? Math.min(l.unitPrice, Math.max(0, enteredPrice))
+                                  : 0;
+                                update({ unitDiscount: round2(l.unitPrice - agreedUnitPrice) });
+                              }}
                               className="mt-1 h-10 w-full text-sm md:mt-0 md:h-9"
                               placeholder="0.00"
-                              aria-label={`Discount per unit for ${l.product.name}`}
+                              aria-label={`Agreed unit price for ${l.product.name}`}
                             />
                             {unitDiscount > 0 && (
-                              <span className="mt-0.5 hidden text-[11px] font-semibold text-success md:block">
+                              <span
+                                className="mt-0.5 hidden text-[11px] font-semibold tabular-nums text-success md:block"
+                                aria-live="polite"
+                              >
+                                Auto discount {formatLKR(unitDiscount)} ·{" "}
                                 {discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off
                               </span>
                             )}
                           </label>
                         </div>
                         <div className="flex items-center justify-between md:block md:text-right">
-                          <span className={`text-xs font-semibold ${unitDiscount > 0 ? "text-success" : "text-muted"} md:hidden`}>
-                            {unitDiscount > 0 ? `${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off` : "No product discount"}
+                          <span
+                            className={`text-xs font-semibold ${unitDiscount > 0 ? "text-success" : "text-muted"} md:hidden`}
+                            aria-live="polite"
+                          >
+                            {unitDiscount > 0
+                              ? `Auto discount ${formatLKR(unitDiscount)} · ${discountPct.toFixed(discountPct >= 10 ? 0 : 1)}% off`
+                              : "No product discount"}
                           </span>
                           <span className={`font-semibold tabular-nums ${unitDiscount > 0 ? "text-success" : ""}`}>
                             {formatLKR(l.qty * netUnitPrice)}

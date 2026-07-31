@@ -528,11 +528,6 @@ export function NewSale({
               <CheckCircle2 className="h-6 w-6" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
-            {result.invoices.length > 1 && (
-              <p className="text-sm text-muted">
-                The cart was saved as separate taxable and non-taxable bills, linked to one customer receipt.
-              </p>
-            )}
             {resultMode === "pay-later" && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
             <Link href={`/invoices/groups/${result.saleGroupId}`} className="block">
               <Button size="lg" className="w-full">

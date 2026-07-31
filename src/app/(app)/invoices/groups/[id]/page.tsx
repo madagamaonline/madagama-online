@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, Undo2 } from "lucide-react";
+import { ArrowLeft, Ban } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { computeOpenAccountState } from "@/lib/open-account";
@@ -8,15 +8,9 @@ import { orderSaleGroupInvoices, summarizeSaleGroup } from "@/lib/sale-group";
 import { formatDateTime, formatLKR, round2, toNum } from "@/lib/utils";
 import { formatWarrantyMonths } from "@/lib/warranty";
 import { InvoicePrintControls } from "@/components/invoice-print-controls";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
-
-const CATEGORY_LABEL = {
-  TAXABLE: "Taxable",
-  NON_TAXABLE: "Non-taxable",
-} as const;
 
 function paymentMethodLabel(method: string): string {
   return {
@@ -76,6 +70,10 @@ export default async function SaleGroupReceiptPage({
   const summary = summarizeSaleGroup(invoices);
   const first = invoices[0];
   const references = invoices.map((invoice) => invoice.invoiceNumber).join(" / ");
+  const itemRows = invoices.flatMap((invoice) =>
+    invoice.items.map((item) => ({ item, invoice })),
+  );
+  const hasReturns = invoices.some((invoice) => invoice._count.returns > 0);
   const notes = [...new Set(invoices.map((invoice) => invoice.notes?.trim()).filter(Boolean))] as string[];
   const accountRows = invoices.flatMap((invoice) => {
     if (!invoice.openAccount) return [];
@@ -129,9 +127,9 @@ export default async function SaleGroupReceiptPage({
           </div>
           <div className="text-right">
             <h2 className="text-[22px] font-semibold">
-              {saleType === "OPEN_ACCOUNT" ? "PAY LATER SALE / ACCOUNT SUMMARY" : "COMBINED SALES RECEIPT"}
+              {saleType === "OPEN_ACCOUNT" ? "PAY LATER SALE / ACCOUNT SUMMARY" : "SALES RECEIPT"}
             </h2>
-            <p className="font-mono text-[15px] font-semibold">{references}</p>
+            <p className="font-mono text-[13px] text-muted">Ref: {references}</p>
             <p className="text-[15px] text-muted">{formatDateTime(group.createdAt)}</p>
           </div>
         </header>
@@ -151,56 +149,41 @@ export default async function SaleGroupReceiptPage({
           )}
         </section>
 
-        <div className="space-y-7">
-          {invoices.map((invoice) => (
-            <section key={invoice.id} className={invoice.voidedAt ? "border-2 border-danger p-3" : undefined}>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <h3 className="text-[16px] font-bold uppercase tracking-[0.08em]">
-                  {CATEGORY_LABEL[invoice.taxCategory]} items
-                </h3>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-semibold">{invoice.invoiceNumber}</span>
-                  {invoice.voidedAt && <Badge tone="red">VOIDED</Badge>}
-                  {invoice._count.returns > 0 && <Badge tone="red"><Undo2 className="h-3 w-3" /> Return recorded</Badge>}
-                </div>
-              </div>
-              <table className="w-full text-[15.5px]">
-                <thead>
-                  <tr className="border-y border-border text-left text-muted">
-                    <th className="py-2 pr-2 font-medium">Code</th>
-                    <th className="py-2 pr-2 font-medium">Item</th>
-                    <th className="px-2 text-right font-medium">Qty</th>
-                    <th className="px-2 text-right font-medium">Unit price</th>
-                    <th className="py-2 pl-2 text-right font-medium">Net amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.items.map((item) => {
-                    const warrantyMonths = item.warrantyMonths ?? invoice.warrantyMonths;
-                    return (
-                      <tr key={item.id} className="border-b border-border">
-                        <td className="py-2 pr-2 font-mono text-[13px]">{item.codeSnapshot}</td>
-                        <td className="py-2 pr-2">
-                          <div>{item.nameSnapshot}</div>
-                          {item.product?.modelNumber && <div className="text-[13px] text-muted">Model: {item.product.modelNumber}</div>}
-                          {warrantyMonths !== null && <div className="text-[13px] font-medium">Warranty: {formatWarrantyMonths(warrantyMonths)}</div>}
-                          {toNum(item.unitDiscount) > 0 && <div className="text-[13px] text-success">Less {formatLKR(item.unitDiscount)} per unit</div>}
-                        </td>
-                        <td className="px-2 text-right">{item.qty}</td>
-                        <td className="px-2 text-right">{formatLKR(item.unitPrice)}</td>
-                        <td className="py-2 pl-2 text-right font-semibold">{formatLKR(item.lineTotal)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-              <div className="mt-2 flex justify-end gap-5 text-[15px]">
-                <span className="text-muted">Bill total</span>
-                <strong className={invoice.voidedAt ? "line-through" : undefined}>{formatLKR(invoice.grandTotal)}</strong>
-              </div>
-            </section>
-          ))}
-        </div>
+        {hasReturns && (
+          <p className="mb-3 border border-danger px-3 py-2 text-sm font-semibold text-danger">
+            Return activity has been recorded for this sale.
+          </p>
+        )}
+        <table className="w-full text-[15.5px]">
+          <thead>
+            <tr className="border-y border-border text-left text-muted">
+              <th className="py-2 pr-2 font-medium">Code</th>
+              <th className="py-2 pr-2 font-medium">Item</th>
+              <th className="px-2 text-right font-medium">Qty</th>
+              <th className="px-2 text-right font-medium">Unit price</th>
+              <th className="py-2 pl-2 text-right font-medium">Net amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {itemRows.map(({ item, invoice }) => {
+              const warrantyMonths = item.warrantyMonths ?? invoice.warrantyMonths;
+              return (
+                <tr key={item.id} className={`border-b border-border ${invoice.voidedAt ? "line-through" : ""}`}>
+                  <td className="py-2 pr-2 font-mono text-[13px]">{item.codeSnapshot}</td>
+                  <td className="py-2 pr-2">
+                    <div>{item.nameSnapshot}{invoice.voidedAt ? " — VOIDED" : ""}</div>
+                    {item.product?.modelNumber && <div className="text-[13px] text-muted">Model: {item.product.modelNumber}</div>}
+                    {warrantyMonths !== null && <div className="text-[13px] font-medium">Warranty: {formatWarrantyMonths(warrantyMonths)}</div>}
+                    {toNum(item.unitDiscount) > 0 && <div className="text-[13px] text-success">Less {formatLKR(item.unitDiscount)} per unit</div>}
+                  </td>
+                  <td className="px-2 text-right">{item.qty}</td>
+                  <td className="px-2 text-right">{formatLKR(item.unitPrice)}</td>
+                  <td className="py-2 pl-2 text-right font-semibold">{formatLKR(item.lineTotal)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
 
         <section className="mt-7 flex justify-end">
           <div className="w-80 space-y-1.5 text-[16px]">
@@ -208,7 +191,7 @@ export default async function SaleGroupReceiptPage({
             {summary.productDiscount > 0 && <div className="flex justify-between"><span className="text-muted">Product discounts</span><span>− {formatLKR(summary.productDiscount)}</span></div>}
             {summary.billDiscount > 0 && <div className="flex justify-between"><span className="text-muted">Bill discount</span><span>− {formatLKR(summary.billDiscount)}</span></div>}
             <div className="flex justify-between border-t-2 border-slate-800 pt-2 text-[20px] font-black">
-              <span>Combined total</span><span>{formatLKR(summary.grandTotal)}</span>
+              <span>Total</span><span>{formatLKR(summary.grandTotal)}</span>
             </div>
             {summary.voidStatus !== "ACTIVE" && (
               <div className="flex justify-between font-bold text-danger"><span>Still active</span><span>{formatLKR(summary.activeGrandTotal)}</span></div>
@@ -236,7 +219,7 @@ export default async function SaleGroupReceiptPage({
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr className="border-t-2 border-slate-800 font-bold"><td className="pt-2" colSpan={2}>Combined balance</td><td className="pt-2 text-right">{formatLKR(accountPrincipal)}</td><td className="pt-2 text-right">{formatLKR(accountCredited)}</td><td className="pt-2 text-right">{formatLKR(accountOutstanding)}</td></tr></tfoot>
+              <tfoot><tr className="border-t-2 border-slate-800 font-bold"><td className="pt-2" colSpan={2}>Total balance</td><td className="pt-2 text-right">{formatLKR(accountPrincipal)}</td><td className="pt-2 text-right">{formatLKR(accountCredited)}</td><td className="pt-2 text-right">{formatLKR(accountOutstanding)}</td></tr></tfoot>
             </table>
           </section>
         )}
@@ -251,43 +234,35 @@ export default async function SaleGroupReceiptPage({
           <p className="text-[18px] font-semibold uppercase">{setting?.businessName ?? "Madagama Pvt Ltd"}</p>
           {setting?.address && <p>{setting.address}</p>}
           {setting?.phone && <p>Tel: {setting.phone}</p>}
-          <p className="mt-2 font-bold">{saleType === "OPEN_ACCOUNT" ? "PAY LATER SALE" : "COMBINED SALES RECEIPT"}</p>
-          <p className="break-words font-mono text-[12px]">{references}</p>
+          <p className="mt-2 font-bold">{saleType === "OPEN_ACCOUNT" ? "PAY LATER SALE" : "SALES RECEIPT"}</p>
+          <p className="break-words font-mono text-[11px]">Ref: {references}</p>
           <p>{formatDateTime(group.createdAt)}</p>
         </div>
         <div className="my-2 border-t border-dashed border-black" />
         <p>Bill To: {first.customer?.name ?? "Walk-in Customer"}</p>
         {first.soldBy?.name && <p>Served By: {first.soldBy.name}</p>}
 
-        {invoices.map((invoice) => (
-          <section key={invoice.id} className="mt-3">
-            <div className="flex justify-between gap-2 border-y border-black py-1 font-bold">
-              <span>{CATEGORY_LABEL[invoice.taxCategory].toUpperCase()}</span>
-              <span className="font-mono">{invoice.invoiceNumber}</span>
-            </div>
-            {invoice.voidedAt && <p className="text-center font-black">VOIDED BILL</p>}
-            {invoice._count.returns > 0 && <p className="text-center font-bold">RETURN ACTIVITY RECORDED</p>}
-            {invoice.items.map((item) => {
-              const warrantyMonths = item.warrantyMonths ?? invoice.warrantyMonths;
-              return (
-                <div key={item.id} className="mt-1.5">
-                  <p className="break-words">{item.nameSnapshot}</p>
-                  {item.product?.modelNumber && <p className="text-[12px]">Model: {item.product.modelNumber}</p>}
-                  {warrantyMonths !== null && <p className="text-[12px] font-semibold">Warranty: {formatWarrantyMonths(warrantyMonths)}</p>}
-                  <div className="flex justify-between gap-2"><span>{item.qty} × {formatLKR(item.unitPrice)}</span><span>{formatLKR(item.lineTotal)}</span></div>
-                  {toNum(item.unitDiscount) > 0 && <p className="text-[12px]">Less {formatLKR(item.unitDiscount)} / unit</p>}
-                </div>
-              );
-            })}
-            <div className="mt-1 flex justify-between border-t border-dotted border-black pt-1 font-semibold"><span>Bill total</span><span className={invoice.voidedAt ? "line-through" : undefined}>{formatLKR(invoice.grandTotal)}</span></div>
-          </section>
-        ))}
+        {hasReturns && <p className="mt-2 border-y border-black py-1 text-center font-bold">RETURN ACTIVITY RECORDED</p>}
+        <div className="mt-2 border-t border-black pt-1">
+          {itemRows.map(({ item, invoice }) => {
+            const warrantyMonths = item.warrantyMonths ?? invoice.warrantyMonths;
+            return (
+              <div key={item.id} className={`mt-1.5 ${invoice.voidedAt ? "line-through" : ""}`}>
+                <p className="break-words">{item.nameSnapshot}{invoice.voidedAt ? " — VOIDED" : ""}</p>
+                {item.product?.modelNumber && <p className="text-[12px]">Model: {item.product.modelNumber}</p>}
+                {warrantyMonths !== null && <p className="text-[12px] font-semibold">Warranty: {formatWarrantyMonths(warrantyMonths)}</p>}
+                <div className="flex justify-between gap-2"><span>{item.qty} × {formatLKR(item.unitPrice)}</span><span>{formatLKR(item.lineTotal)}</span></div>
+                {toNum(item.unitDiscount) > 0 && <p className="text-[12px]">Less {formatLKR(item.unitDiscount)} / unit</p>}
+              </div>
+            );
+          })}
+        </div>
 
         <div className="my-2 border-t border-dashed border-black" />
         <div className="flex justify-between"><span>Items subtotal</span><span>{formatLKR(summary.subtotal)}</span></div>
         {summary.productDiscount > 0 && <div className="flex justify-between"><span>Product discounts</span><span>− {formatLKR(summary.productDiscount)}</span></div>}
         {summary.billDiscount > 0 && <div className="flex justify-between"><span>Bill discount</span><span>− {formatLKR(summary.billDiscount)}</span></div>}
-        <div className="mt-1 flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>COMBINED TOTAL</span><span>{formatLKR(summary.grandTotal)}</span></div>
+        <div className="mt-1 flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>TOTAL</span><span>{formatLKR(summary.grandTotal)}</span></div>
         {summary.voidStatus !== "ACTIVE" && <div className="flex justify-between font-black"><span>STILL ACTIVE</span><span>{formatLKR(summary.activeGrandTotal)}</span></div>}
         {saleType === "CASH" && summary.voidStatus === "ACTIVE" && <div className="flex justify-between font-semibold"><span>PAID</span><span>{formatLKR(summary.amountPaid)}</span></div>}
 

@@ -50,7 +50,13 @@ type ProductHit = {
   taxable: boolean;
   stock: number;
 };
-type CartLine = { product: ProductHit; qty: number; unitPrice: number; unitDiscount?: number };
+type CartLine = {
+  product: ProductHit;
+  qty: number;
+  unitPrice: number;
+  unitDiscount?: number;
+  warrantyMonths?: WarrantyMonths | null;
+};
 
 const DRAFT_KEY = "madagama:sale-draft";
 const RECENT_KEY = "madagama:recent-invoices";
@@ -66,9 +72,23 @@ type ParkedSale = {
   customerId: string;
   soldBy: string;
   notes: string;
+  // Kept only so parked sales created before per-product warranties can migrate.
   warrantyMonths?: number | null;
   ts: number;
 };
+
+function normalizeCartWarranties(
+  cart: CartLine[],
+  legacyWarrantyMonths?: number | null,
+): CartLine[] {
+  const legacyWarranty = normalizeWarrantyMonths(legacyWarrantyMonths);
+  return cart.map((line) => ({
+    ...line,
+    warrantyMonths: normalizeWarrantyMonths(
+      line.warrantyMonths === undefined ? legacyWarranty : line.warrantyMonths,
+    ),
+  }));
+}
 
 export function NewSale({
   employees,
@@ -94,7 +114,6 @@ export function NewSale({
   const [customerId, setCustomerId] = useState("");
   const [soldBy, setSoldBy] = useState("");
   const [notes, setNotes] = useState("");
-  const [warrantyMonths, setWarrantyMonths] = useState<WarrantyMonths | null>(null);
   const [error, setError] = useState("");
   const [result, setResult] = useState<CreatedInvoice[] | null>(null);
   const [resultMode, setResultMode] = useState<"cash" | "pay-later">("cash");
@@ -175,12 +194,11 @@ export function NewSale({
     }
     const t = setTimeout(() => {
       if (draft?.cart?.length) {
-        setCart(draft.cart);
+        setCart(normalizeCartWarranties(draft.cart, draft.warrantyMonths));
         setDiscount(draft.discount || 0);
         setCustomerId(draft.customerId || "");
         setSoldBy(draft.soldBy || "");
         setNotes(draft.notes || "");
-        setWarrantyMonths(normalizeWarrantyMonths(draft.warrantyMonths));
         setResumed(true);
       }
       if (recentList) setRecent(recentList);
@@ -195,14 +213,14 @@ export function NewSale({
     if (!hydrated.current) return;
     try {
       if (cart.length) {
-        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy, notes, warrantyMonths }));
+        localStorage.setItem(DRAFT_KEY, JSON.stringify({ cart, discount, customerId, soldBy, notes }));
       } else {
         localStorage.removeItem(DRAFT_KEY);
       }
     } catch {
       /* ignore */
     }
-  }, [cart, discount, customerId, soldBy, notes, warrantyMonths]);
+  }, [cart, discount, customerId, soldBy, notes]);
 
   useEffect(() => {
     const q = query.trim();
@@ -233,7 +251,16 @@ export function NewSale({
         copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
         return copy;
       }
-      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice, unitDiscount: 0 }];
+      return [
+        ...prev,
+        {
+          product: p,
+          qty: 1,
+          unitPrice: p.sellingPrice,
+          unitDiscount: 0,
+          warrantyMonths: null,
+        },
+      ];
     });
     setQuery("");
     setHits([]);
@@ -268,7 +295,10 @@ export function NewSale({
     }
   }
 
-  function updateLine(id: string, patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount">>) {
+  function updateLine(
+    id: string,
+    patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount" | "warrantyMonths">>,
+  ) {
     setCart((prev) =>
       prev.map((line) => {
         if (line.product.id !== id) return line;
@@ -297,7 +327,6 @@ export function NewSale({
     setCustomerId("");
     setSoldBy("");
     setNotes("");
-    setWarrantyMonths(null);
     setError("");
     setResumed(false);
   }
@@ -323,7 +352,6 @@ export function NewSale({
       customerId,
       soldBy,
       notes,
-      warrantyMonths,
       ts: Date.now(),
     };
     persistParked([entry, ...parked]);
@@ -334,12 +362,11 @@ export function NewSale({
   function resumeParked(id: string) {
     const entry = parked.find((p) => p.id === id);
     if (!entry) return;
-    setCart(entry.cart);
+    setCart(normalizeCartWarranties(entry.cart, entry.warrantyMonths));
     setDiscount(entry.discount || 0);
     setCustomerId(entry.customerId || "");
     setSoldBy(entry.soldBy || "");
     setNotes(entry.notes || "");
-    setWarrantyMonths(normalizeWarrantyMonths(entry.warrantyMonths));
     setTendered(0);
     setResumed(true);
     persistParked(parked.filter((p) => p.id !== id));
@@ -405,12 +432,12 @@ export function NewSale({
           qty: l.qty,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
+          warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
         })),
         discount: discount || 0,
         customerId: customerId || null,
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
-        warrantyMonths,
       });
       if (!res.ok) {
         setError(res.error);
@@ -439,7 +466,6 @@ export function NewSale({
       setCustomerId("");
       setSoldBy("");
       setNotes("");
-      setWarrantyMonths(null);
       setResumed(false);
     });
   }
@@ -455,12 +481,12 @@ export function NewSale({
           qty: l.qty,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
+          warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
         })),
         discount: discount || 0,
         customerId,
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
-        warrantyMonths,
         dueDate: promisedDate || null,
       });
       if (!res.ok) { setError(res.error); return; }
@@ -469,7 +495,7 @@ export function NewSale({
       setShowPayLater(false);
       setPromisedDate("");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
-      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setWarrantyMonths(null); setResumed(false);
+      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setResumed(false);
     });
   }
 
@@ -678,6 +704,27 @@ export function NewSale({
                             {l.product.modelNumber && (
                               <div className="text-xs text-muted">Model: {l.product.modelNumber}</div>
                             )}
+                            <label className="mt-1.5 flex max-w-52 items-center gap-2 text-[11px] text-muted">
+                              <span className="shrink-0">Warranty</span>
+                              <Select
+                                value={l.warrantyMonths ?? ""}
+                                onChange={(e) =>
+                                  updateLine(l.product.id, {
+                                    warrantyMonths: normalizeWarrantyMonths(
+                                      e.target.value ? Number(e.target.value) : null,
+                                    ),
+                                  })
+                                }
+                                className="h-8 min-w-0 py-1 text-xs"
+                                aria-label={`Warranty for ${l.product.name}`}
+                              >
+                                {WARRANTY_OPTIONS.map((option) => (
+                                  <option key={option.value ?? "none"} value={option.value ?? ""}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </Select>
+                            </label>
                             {hasCost && (
                               <div className="text-xs text-muted">
                                 WAC {formatLKR(l.product.costPrice)} · margin{" "}
@@ -831,6 +878,27 @@ export function NewSale({
                               />
                             </label>
                           </div>
+                          <label className="mt-2 block text-[11px] text-muted">
+                            Warranty
+                            <Select
+                              value={l.warrantyMonths ?? ""}
+                              onChange={(e) =>
+                                updateLine(l.product.id, {
+                                  warrantyMonths: normalizeWarrantyMonths(
+                                    e.target.value ? Number(e.target.value) : null,
+                                  ),
+                                })
+                              }
+                              className="mt-1 h-10 w-full"
+                              aria-label={`Warranty for ${l.product.name}`}
+                            >
+                              {WARRANTY_OPTIONS.map((option) => (
+                                <option key={option.value ?? "none"} value={option.value ?? ""}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </label>
                           <div className="mt-2 flex items-center justify-between text-xs">
                             <span
                               className={unitDiscount > 0 ? "font-semibold text-success" : "text-muted"}
@@ -892,25 +960,6 @@ export function NewSale({
                   </option>
                 ))}
               </Select>
-            </div>
-            <div>
-              <Label htmlFor="sale-warranty">Warranty</Label>
-              <Select
-                id="sale-warranty"
-                value={warrantyMonths ?? ""}
-                onChange={(e) =>
-                  setWarrantyMonths(
-                    normalizeWarrantyMonths(e.target.value ? Number(e.target.value) : null),
-                  )
-                }
-              >
-                {WARRANTY_OPTIONS.map((option) => (
-                  <option key={option.value ?? "none"} value={option.value ?? ""}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
-              <p className="mt-1 text-[11px] text-muted">Applies to the entire sale and prints on the invoice.</p>
             </div>
             <div>
               <Label>Notes (optional)</Label>

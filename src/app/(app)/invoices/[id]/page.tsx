@@ -127,6 +127,12 @@ export default async function InvoiceViewPage({
   );
   const billDiscount = Math.max(0, toNum(invoice.discount) - productDiscount);
   const hasProductDiscount = productDiscount > 0;
+  // Invoice-level warranties were used before warranty terms moved to each
+  // product. Show that legacy value beside every item only when no item-level
+  // warranty data exists.
+  const legacyWarrantyMonths = invoice.items.some((item) => item.warrantyMonths !== null)
+    ? null
+    : invoice.warrantyMonths;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -240,31 +246,39 @@ export default async function InvoiceViewPage({
             </tr>
           </thead>
           <tbody>
-            {invoice.items.map((it) => (
-              <tr key={it.id} className="border-b border-border">
-                <td className="py-2 pr-2 font-mono text-[14px]">{it.codeSnapshot}</td>
-                <td className="py-2 pr-2">
-                  <div>{it.nameSnapshot}</div>
-                  {it.product?.modelNumber && (
-                    <div className="text-[14px] text-muted">Model: {it.product.modelNumber}</div>
-                  )}
-                </td>
-                <td className="px-2 text-right">{it.qty}</td>
-                <td className="px-2 text-right">{formatLKR(it.unitPrice)}</td>
-                {hasProductDiscount && (
-                  <td className="px-2 text-right">
-                    {toNum(it.unitDiscount) > 0 ? (
-                      <span className="font-medium text-success">− {formatLKR(it.unitDiscount)}</span>
-                    ) : (
-                      <span className="text-muted">—</span>
+            {invoice.items.map((it) => {
+              const warrantyMonths = it.warrantyMonths ?? legacyWarrantyMonths;
+              return (
+                <tr key={it.id} className="border-b border-border">
+                  <td className="py-2 pr-2 font-mono text-[14px]">{it.codeSnapshot}</td>
+                  <td className="py-2 pr-2">
+                    <div>{it.nameSnapshot}</div>
+                    {it.product?.modelNumber && (
+                      <div className="text-[14px] text-muted">Model: {it.product.modelNumber}</div>
+                    )}
+                    {warrantyMonths !== null && (
+                      <div className="mt-0.5 text-[14px] font-medium">
+                        Warranty: {formatWarrantyMonths(warrantyMonths)}
+                      </div>
                     )}
                   </td>
-                )}
-                <td className={`py-2 pl-2 text-right ${toNum(it.unitDiscount) > 0 ? "font-semibold text-success" : ""}`}>
-                  {formatLKR(it.lineTotal)}
-                </td>
-              </tr>
-            ))}
+                  <td className="px-2 text-right">{it.qty}</td>
+                  <td className="px-2 text-right">{formatLKR(it.unitPrice)}</td>
+                  {hasProductDiscount && (
+                    <td className="px-2 text-right">
+                      {toNum(it.unitDiscount) > 0 ? (
+                        <span className="font-medium text-success">− {formatLKR(it.unitDiscount)}</span>
+                      ) : (
+                        <span className="text-muted">—</span>
+                      )}
+                    </td>
+                  )}
+                  <td className={`py-2 pl-2 text-right ${toNum(it.unitDiscount) > 0 ? "font-semibold text-success" : ""}`}>
+                    {formatLKR(it.lineTotal)}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -380,11 +394,6 @@ export default async function InvoiceViewPage({
           </section>
         )}
 
-        {invoice.warrantyMonths !== null && (
-          <p className="mt-6 border-t border-border pt-4 text-[16.5px] leading-snug">
-            <span className="font-medium">Warranty:</span> {formatWarrantyMonths(invoice.warrantyMonths)}
-          </p>
-        )}
         {invoice.notes && (
           <p className="invoice-notes mt-6 border-t border-border pt-4 text-[16.5px] leading-snug text-muted">{invoice.notes}</p>
         )}
@@ -416,26 +425,34 @@ export default async function InvoiceViewPage({
 
         <div className="my-2 border-t border-dashed border-black" />
 
-        {invoice.items.map((it) => (
-          <div key={it.id} className="mb-1.5">
-            <p className="break-words">{it.nameSnapshot}</p>
-            {it.product?.modelNumber && (
-              <p className="break-words text-[12px]">Model: {it.product.modelNumber}</p>
-            )}
-            <div className="flex justify-between gap-2">
-              <span className="min-w-0">
-                {it.qty} × {formatLKR(it.unitPrice)}
-              </span>
-              <span className="shrink-0 tabular">{formatLKR(it.lineTotal)}</span>
-            </div>
-            {toNum(it.unitDiscount) > 0 && (
-              <div className="flex justify-between gap-2 text-[12px]">
-                <span>Less {formatLKR(it.unitDiscount)} / unit</span>
-                <span className="font-semibold">Net {formatLKR(it.lineTotal)}</span>
+        {invoice.items.map((it) => {
+          const warrantyMonths = it.warrantyMonths ?? legacyWarrantyMonths;
+          return (
+            <div key={it.id} className="mb-1.5">
+              <p className="break-words">{it.nameSnapshot}</p>
+              {it.product?.modelNumber && (
+                <p className="break-words text-[12px]">Model: {it.product.modelNumber}</p>
+              )}
+              {warrantyMonths !== null && (
+                <p className="break-words text-[12px] font-semibold">
+                  Warranty: {formatWarrantyMonths(warrantyMonths)}
+                </p>
+              )}
+              <div className="flex justify-between gap-2">
+                <span className="min-w-0">
+                  {it.qty} × {formatLKR(it.unitPrice)}
+                </span>
+                <span className="shrink-0 tabular">{formatLKR(it.lineTotal)}</span>
               </div>
-            )}
-          </div>
-        ))}
+              {toNum(it.unitDiscount) > 0 && (
+                <div className="flex justify-between gap-2 text-[12px]">
+                  <span>Less {formatLKR(it.unitDiscount)} / unit</span>
+                  <span className="font-semibold">Net {formatLKR(it.lineTotal)}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
         <div className="my-2 border-t border-dashed border-black" />
 
@@ -501,9 +518,6 @@ export default async function InvoiceViewPage({
           <section className="mt-2 border-y-2 border-black py-2"><div className="text-center font-bold">PAY LATER — {openState.isSettled ? "PAID" : openState.isOverdue ? "OVERDUE" : openState.credited ? "PARTIAL" : "UNPAID"}</div><div className="text-center text-[11.5px]">No interest or guarantor</div>{openAccount.dueDate && <div className="text-center text-[11.5px]">Promised {formatDateTime(openAccount.dueDate)}</div>}<div className="mt-2 flex justify-between"><span>Original total</span><span>{formatLKR(openState.principal)}</span></div><div className="flex justify-between"><span>Paid / credited</span><span>− {formatLKR(openState.credited)}</span></div><div className="flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>BALANCE DUE</span><span>{formatLKR(openState.outstanding)}</span></div><div className="my-2 border-t border-dashed border-black" /><p className="font-bold">PAYMENT HISTORY</p>{openLedger.length === 0 ? <p className="italic">No payments received</p> : openLedger.map((payment) => <div key={payment.id} className="mt-1 flex justify-between border-b border-dotted border-black"><span>{formatDateTime(payment.paidDate)} · {paymentMethodLabel(payment.method)}</span><span>{formatLKR(payment.amount)} · Bal {formatLKR(payment.balanceAfter)}</span></div>)}</section>
         )}
 
-        {invoice.warrantyMonths !== null && (
-          <p className="mt-2"><span className="font-semibold">Warranty:</span> {formatWarrantyMonths(invoice.warrantyMonths)}</p>
-        )}
         {invoice.notes && <p className="mt-2 break-words">{invoice.notes}</p>}
 
         <div className="my-2 border-t border-dashed border-black" />

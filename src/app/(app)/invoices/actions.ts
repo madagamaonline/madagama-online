@@ -21,6 +21,10 @@ const lineSchema = z.object({
   qty: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
+  warrantyMonths: z.number().int().nullable().optional().refine(
+    (value) => value === undefined || isValidWarrantyMonths(value),
+    { message: "Select a valid warranty period." },
+  ),
 }).refine((line) => isValidUnitDiscount(line.unitPrice, line.unitDiscount), {
   message: "A product discount cannot exceed its unit price.",
   path: ["unitDiscount"],
@@ -32,10 +36,6 @@ const inputSchema = z.object({
   customerId: z.string().optional().nullable(),
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
-  warrantyMonths: z.number().int().nullable().optional().refine(
-    (value) => value === undefined || isValidWarrantyMonths(value),
-    { message: "Select a valid warranty period." },
-  ),
 });
 
 export type CreateInvoiceInput = z.input<typeof inputSchema>;
@@ -56,6 +56,7 @@ type Computed = {
   qty: number;
   unitPrice: number;
   unitDiscount: number;
+  warrantyMonths: number | null;
   costSnapshot: number;
 };
 
@@ -142,6 +143,7 @@ async function createSale(
       qty: line.qty,
       unitPrice: line.unitPrice,
       unitDiscount: line.unitDiscount,
+      warrantyMonths: line.warrantyMonths ?? null,
       costSnapshot: toNum(p.costPrice),
     };
     (p.taxable ? taxable : nonTaxable).push(entry);
@@ -193,7 +195,6 @@ async function createSale(
                 soldByEmployeeId: data.soldByEmployeeId || null,
                 createdByUserId: session?.id ?? null,
                 notes: data.notes?.trim() || null,
-                warrantyMonths: data.warrantyMonths ?? null,
                 subtotal: totals.subtotal,
                 discount: totals.discount,
                 grandTotal: totals.grandTotal,
@@ -206,6 +207,7 @@ async function createSale(
                     qty: it.qty,
                     unitPrice: it.unitPrice,
                     unitDiscount: it.unitDiscount,
+                    warrantyMonths: it.warrantyMonths,
                     lineTotal: round2(it.qty * (it.unitPrice - it.unitDiscount)),
                     costSnapshot: it.costSnapshot,
                   })),

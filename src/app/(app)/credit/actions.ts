@@ -21,12 +21,17 @@ import { validateLkPhone, normalizeLkPhone } from "@/lib/phone";
 import { toNum, formatLKR } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
+import { isValidWarrantyMonths } from "@/lib/warranty";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
   qty: z.coerce.number().int().positive(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
+  warrantyMonths: z.number().int().nullable().optional().refine(
+    (value) => value === undefined || isValidWarrantyMonths(value),
+    { message: "Select a valid warranty period." },
+  ),
 }).refine((line) => isValidUnitDiscount(line.unitPrice, line.unitDiscount), {
   message: "A product discount cannot exceed its unit price.",
   path: ["unitDiscount"],
@@ -179,6 +184,7 @@ export async function createCreditSale(
                   qty: line.qty,
                   unitPrice: line.unitPrice,
                   unitDiscount: line.unitDiscount,
+                  warrantyMonths: line.warrantyMonths ?? null,
                   lineTotal: line.qty * (line.unitPrice - line.unitDiscount),
                   costSnapshot: toNum(p.costPrice),
                 })),

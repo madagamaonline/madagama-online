@@ -386,6 +386,7 @@ export function NewSale({
             qty: l.qty,
             unitPrice: l.unitPrice,
             unitDiscount: l.unitDiscount ?? 0,
+            warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
           })),
         ),
       );

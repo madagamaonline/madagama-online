@@ -16,6 +16,11 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import { createCreditSale } from "@/app/(app)/credit/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
+import {
+  normalizeWarrantyMonths,
+  WARRANTY_OPTIONS,
+  type WarrantyMonths,
+} from "@/lib/warranty";
 
 type ProductHit = {
   id: string;
@@ -27,7 +32,13 @@ type ProductHit = {
   taxable: boolean;
   stock: number;
 };
-type CartLine = { product: ProductHit; qty: number; unitPrice: number; unitDiscount?: number };
+type CartLine = {
+  product: ProductHit;
+  qty: number;
+  unitPrice: number;
+  unitDiscount?: number;
+  warrantyMonths?: WarrantyMonths | null;
+};
 
 const CREDIT_CART_KEY = "madagama:credit-cart";
 
@@ -119,7 +130,10 @@ export function CreditSale({
       /* ignore */
     }
     if (!carried?.length) return;
-    const items = carried;
+    const items = carried.map((line) => ({
+      ...line,
+      warrantyMonths: normalizeWarrantyMonths(line.warrantyMonths),
+    }));
     const t = setTimeout(() => setCart(items), 0);
     return () => clearTimeout(t);
   }, []);
@@ -153,7 +167,16 @@ export function CreditSale({
         c[i] = { ...c[i], qty: c[i].qty + 1 };
         return c;
       }
-      return [...prev, { product: p, qty: 1, unitPrice: p.sellingPrice, unitDiscount: 0 }];
+      return [
+        ...prev,
+        {
+          product: p,
+          qty: 1,
+          unitPrice: p.sellingPrice,
+          unitDiscount: 0,
+          warrantyMonths: null,
+        },
+      ];
     });
     setQuery("");
     setHits([]);
@@ -230,6 +253,7 @@ export function CreditSale({
           qty: l.qty,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
+          warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
         })),
         discount: discount || 0,
         customerId,
@@ -316,7 +340,11 @@ export function CreditSale({
                     const unitDiscount = l.unitDiscount ?? 0;
                     const netUnitPrice = l.unitPrice - unitDiscount;
                     const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
-                    const update = (patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount">>) =>
+                    const update = (
+                      patch: Partial<
+                        Pick<CartLine, "qty" | "unitPrice" | "unitDiscount" | "warrantyMonths">
+                      >,
+                    ) =>
                       setCart((prev) =>
                         prev.map((line) => {
                           if (line.product.id !== l.product.id) return line;
@@ -335,6 +363,27 @@ export function CreditSale({
                         <div className="min-w-0 pr-10 md:pr-0">
                           <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
                           <div className="truncate font-medium">{l.product.name}</div>
+                          <label className="mt-1.5 flex max-w-52 items-center gap-2 text-[11px] text-muted">
+                            <span className="shrink-0">Warranty</span>
+                            <Select
+                              value={l.warrantyMonths ?? ""}
+                              onChange={(e) =>
+                                update({
+                                  warrantyMonths: normalizeWarrantyMonths(
+                                    e.target.value ? Number(e.target.value) : null,
+                                  ),
+                                })
+                              }
+                              className="h-8 min-w-0 py-1 text-xs"
+                              aria-label={`Warranty for ${l.product.name}`}
+                            >
+                              {WARRANTY_OPTIONS.map((option) => (
+                                <option key={option.value ?? "none"} value={option.value ?? ""}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </label>
                           {unitDiscount > 0 && (
                             <div className="text-xs tabular-nums text-muted">
                               <span className="line-through">{formatLKR(l.qty * l.unitPrice)}</span>

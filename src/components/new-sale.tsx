@@ -8,7 +8,6 @@ import {
   Trash2,
   ShoppingCart,
   Loader2,
-  CheckCircle2,
   Printer,
   CreditCard,
   Clock3,
@@ -38,6 +37,11 @@ import {
   WARRANTY_OPTIONS,
   type WarrantyMonths,
 } from "@/lib/warranty";
+import {
+  AnimatedMoney,
+  DrawnSuccessIcon,
+  flyProductToCart,
+} from "@/components/ui/signature-motion";
 
 type ProductHit = {
   id: string;
@@ -132,6 +136,8 @@ export function NewSale({
   const [showPayLater, setShowPayLater] = useState(false);
   const [promisedDate, setPromisedDate] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
+  const cartDestinationRef = useRef<HTMLDivElement>(null);
+  const searchResultRefs = useRef(new Map<string, HTMLButtonElement>());
   const hydrated = useRef(false);
   const submissionLock = useRef(false);
 
@@ -251,7 +257,8 @@ export function NewSale({
     return () => clearTimeout(t);
   }, [query]);
 
-  const addProduct = useCallback((p: ProductHit) => {
+  const addProduct = useCallback((p: ProductHit, source?: HTMLElement | null) => {
+    // Cart persistence happens immediately; the flight is non-blocking feedback only.
     setCart((prev) => {
       const idx = prev.findIndex((l) => l.product.id === p.id);
       if (idx >= 0) {
@@ -274,6 +281,7 @@ export function NewSale({
     setHits([]);
     setOpen(false);
     setActiveIdx(0);
+    flyProductToCart(p, source ?? null, cartDestinationRef.current);
     searchRef.current?.focus();
   }, []);
 
@@ -294,7 +302,7 @@ export function NewSale({
     } else if (e.key === "Enter") {
       e.preventDefault();
       const pick = hits[activeIdx] ?? hits[0];
-      if (pick) addProduct(pick);
+      if (pick) addProduct(pick, searchResultRefs.current.get(pick.id));
     } else if (e.key === "Escape") {
       e.preventDefault();
       setQuery("");
@@ -476,7 +484,7 @@ export function NewSale({
       const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
       setCompletionState("success");
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        await new Promise((resolve) => window.setTimeout(resolve, 360));
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
       }
       setResult(completed);
       setResultMode("cash");
@@ -519,7 +527,7 @@ export function NewSale({
       const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
       setCompletionState("success");
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        await new Promise((resolve) => window.setTimeout(resolve, 360));
+        await new Promise((resolve) => window.setTimeout(resolve, 500));
       }
       setResult(completed);
       setResultMode("pay-later");
@@ -540,22 +548,23 @@ export function NewSale({
 
   if (result) {
     return (
-      <div className="motion-panel-in mx-auto max-w-xl">
-        <Card>
+      <div className="motion-receipt-stage mx-auto max-w-xl">
+        <div className="motion-receipt-slot" aria-hidden="true" />
+        <Card className="motion-receipt-paper">
           <CardContent className="space-y-4">
-            <div className="flex items-center gap-2 text-primary-ink">
-              <CheckCircle2 className="motion-check-in h-6 w-6" />
+            <div className="motion-success-sweep flex items-center gap-2 overflow-hidden rounded-xl px-2 py-1.5 text-primary-ink">
+              <DrawnSuccessIcon className="h-7 w-7" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
-            {resultMode === "pay-later" && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
-            <Link href={`/invoices/groups/${result.saleGroupId}`} className="block">
+            {resultMode === "pay-later" && <p className="motion-receipt-item rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
+            <Link href={`/invoices/groups/${result.saleGroupId}`} className="motion-receipt-item block">
               <Button size="lg" className="w-full">
                 <Printer className="h-5 w-5" /> View / Print full sale
               </Button>
             </Link>
-            <div className="divide-y divide-border rounded-lg border border-border">
-              {result.invoices.map((inv) => (
-                <div key={inv.id} className="motion-record-flash flex items-center justify-between gap-3 p-3">
+            <div className="motion-receipt-item divide-y divide-border rounded-lg border border-border">
+              {result.invoices.map((inv, index) => (
+                <div key={inv.id} className="motion-receipt-line flex items-center justify-between gap-3 p-3" style={{ animationDelay: `${360 + index * 70}ms` }}>
                   <div>
                     <div className="flex items-center gap-2">
                       <span
@@ -575,7 +584,7 @@ export function NewSale({
                 </div>
               ))}
             </div>
-            <Button onClick={startNewSale} size="lg" className="w-full">
+            <Button onClick={startNewSale} size="lg" className="motion-receipt-item w-full">
               <ShoppingCart className="h-5 w-5" /> New Sale
             </Button>
           </CardContent>
@@ -615,7 +624,11 @@ export function NewSale({
                   {hits.map((h, i) => (
                     <button
                       key={h.id}
-                      onClick={() => addProduct(h)}
+                      ref={(node) => {
+                        if (node) searchResultRefs.current.set(h.id, node);
+                        else searchResultRefs.current.delete(h.id);
+                      }}
+                      onClick={(event) => addProduct(h, event.currentTarget)}
                       onMouseEnter={() => setActiveIdx(i)}
                       className={`flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm ${
                         i === activeIdx ? "bg-input" : "hover:bg-input"
@@ -689,7 +702,7 @@ export function NewSale({
               </div>
             )}
 
-            <div className="mt-4">
+            <div ref={cartDestinationRef} className="mt-4 rounded-xl">
               <div className="motion-collapse" data-closed={cart.length > 0} inert={cart.length > 0 ? true : undefined}>
                 <div className="motion-collapse-inner">
                 <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted">
@@ -1077,6 +1090,14 @@ export function NewSale({
               </p>
             </div>
 
+            <div className="motion-total-stage flex items-end justify-between overflow-hidden rounded-xl border border-primary/20 bg-primary-soft px-4 py-3">
+              <div>
+                <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-ink">Payable now</div>
+                <div className="mt-0.5 text-xs text-muted">Grand total</div>
+              </div>
+              <AnimatedMoney value={totals.grandTotal} className="text-xl font-extrabold tabular-nums text-primary-ink sm:text-2xl" />
+            </div>
+
             <div>
               <Label>Payment method</Label>
               <div className="relative mt-1 grid grid-cols-2 rounded-xl border border-input-border bg-input/60 p-1" role="radiogroup" aria-label="Payment method">
@@ -1117,7 +1138,7 @@ export function NewSale({
                   }`}
                 >
                   <span>{change < 0 ? "Short by" : "Change due"}</span>
-                  <span key={change} className="motion-value-change">{formatLKR(Math.abs(change))}</span>
+                  <AnimatedMoney value={Math.abs(change)} className="motion-value-change tabular-nums" />
                 </div>
               )}
             </div>
@@ -1134,8 +1155,8 @@ export function NewSale({
 
             <div className="motion-collapse" data-closed={showPayLater} inert={showPayLater ? true : undefined} aria-hidden={showPayLater}>
             <div className="motion-collapse-inner pt-0.5">
-            <Button onClick={completeSale} size="lg" className={completionState === "success" ? "w-full bg-success hover:bg-success" : "w-full"} disabled={pending || cart.length === 0} aria-live="polite">
-              {completionState === "success" ? <CheckCircle2 className="motion-check-in h-5 w-5" /> : pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
+            <Button onClick={completeSale} size="lg" className={completionState === "success" ? "motion-success-sweep w-full overflow-hidden bg-success hover:bg-success" : "w-full"} disabled={pending || cart.length === 0} aria-live="polite">
+              {completionState === "success" ? <DrawnSuccessIcon className="h-5 w-5" /> : pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
               {completionState === "success" ? "Sale saved" : pending ? "Saving…" : "Complete Cash Sale"}
             </Button>
             </div>
@@ -1146,8 +1167,8 @@ export function NewSale({
                 <div><div className="font-semibold">Pay Later account</div><div className="text-xs text-amber-800">The customer takes the items now and owes the full balance. No interest or guarantor.</div></div>
                 {!customerId && <p className="rounded-lg bg-surface px-3 py-2 text-xs font-medium">Select or quick-add the customer above.</p>}
                 <div><Label htmlFor="promised-date">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setPromisedDate(event.target.value)} /></div>
-                <div className="space-y-1 border-t border-amber-300 pt-2 text-sm"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(0)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><strong>{formatLKR(totals.grandTotal)}</strong></div></div>
-                <Button onClick={completePayLater} disabled={pending || !customerId} className={`w-full text-white ${completionState === "success" ? "bg-success hover:bg-success" : "bg-amber-700 hover:bg-amber-800"}`} aria-live="polite">{completionState === "success" ? <CheckCircle2 className="motion-check-in h-4 w-4" /> : pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} {completionState === "success" ? "Invoice created" : "Create Pay Later Invoice"}</Button>
+                <div className="space-y-1 border-t border-amber-300 pt-2 text-sm"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(0)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><AnimatedMoney value={totals.grandTotal} className="font-bold tabular-nums" /></div></div>
+                <Button onClick={completePayLater} disabled={pending || !customerId} className={`w-full overflow-hidden text-white ${completionState === "success" ? "motion-success-sweep bg-success hover:bg-success" : "bg-amber-700 hover:bg-amber-800"}`} aria-live="polite">{completionState === "success" ? <DrawnSuccessIcon className="h-4 w-4" /> : pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} {completionState === "success" ? "Invoice created" : "Create Pay Later Invoice"}</Button>
               </div>
               </div>
             </div>

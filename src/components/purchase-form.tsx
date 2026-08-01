@@ -16,7 +16,14 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
 
-type ProductHit = { id: string; code: string; name: string; costPrice: number; stock: number };
+type ProductHit = {
+  id: string;
+  code: string;
+  name: string;
+  modelNumber?: string | null;
+  costPrice: number;
+  stock: number;
+};
 type Line = { product: ProductHit; qty: number; costPrice: number };
 
 export function PurchaseForm({
@@ -143,7 +150,7 @@ export function PurchaseForm({
                       addProduct(hits[0]);
                     }
                   }}
-                  placeholder="Search product code or name to add stock…"
+                  placeholder="Search product code, name, or model number to add stock…"
                   className="h-12 pl-10 pr-10 text-base"
                 />
                 {searching && (
@@ -159,12 +166,17 @@ export function PurchaseForm({
                         onClick={() => addProduct(h)}
                         className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-input"
                       >
-                        <span>
-                          <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
-                          <span className="font-medium">{h.name}</span>
-                          <span className="ml-2 text-xs text-muted">stock: {h.stock}</span>
+                        <span className="min-w-0">
+                          <span className="block">
+                            <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
+                            <span className="font-medium">{h.name}</span>
+                          </span>
+                          <span className="block text-xs text-muted">
+                            {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
+                            <span>stock: {h.stock}</span>
+                          </span>
                         </span>
-                        <span className="text-muted">cost {formatLKR(h.costPrice)}</span>
+                        <span className="shrink-0 text-muted">cost {formatLKR(h.costPrice)}</span>
                       </button>
                     ))
                   ) : (

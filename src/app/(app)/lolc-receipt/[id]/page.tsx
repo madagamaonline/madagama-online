@@ -60,7 +60,7 @@ export default async function LolcReceiptDetailPage({ params }: { params: Promis
         <div className="hidden h-16 w-px bg-border sm:block" />
       </div>
       <div className={`border-t px-5 py-4 lg:px-6 ${attention ? "border-danger/20 bg-danger-soft/40" : "border-border bg-input/45"}`}>
-        <LolcWorkflowRail status={receipt.status} collectedAt={receipt.collectedAt} mCashSent={Boolean(receipt.remittedAt)} lolcConfirmed={Boolean(receipt.confirmedAt)} />
+        <LolcWorkflowRail status={receipt.status} collectedAt={receipt.collectedAt} lolcConfirmed={Boolean(receipt.confirmedAt)} />
       </div>
     </section>
 

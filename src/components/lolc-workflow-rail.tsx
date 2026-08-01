@@ -18,14 +18,12 @@ export function lolcNextAction(status: LolcReceiptStatus): string {
 export function LolcWorkflowRail({
   status,
   collectedAt,
-  mCashSent,
   lolcConfirmed,
   compact = false,
   className,
 }: {
   status: LolcReceiptStatus;
   collectedAt: Date;
-  mCashSent: boolean;
   lolcConfirmed: boolean;
   compact?: boolean;
   className?: string;
@@ -35,14 +33,13 @@ export function LolcWorkflowRail({
   const age = ageInDays(collectedAt);
   const steps = [
     { label: "Collected", done: true },
-    { label: "mCash sent", done: mCashSent },
     { label: attention ? "Attention required" : "LOLC confirmed", done: lolcConfirmed },
   ];
 
   return <div className={cn("min-w-0", className)}>
-    <div className={cn("flex items-start", compact ? "max-w-[210px]" : "w-full")} aria-label={`Workflow: ${lolcStatusLabel(status)}`}>
+    <div className={cn("flex items-start", compact ? "max-w-[132px]" : "w-full")} aria-label={`Workflow: ${lolcStatusLabel(status)}`}>
       {steps.map((step, index) => {
-        const interrupted = attention && index === 2;
+        const interrupted = attention && index === 1;
         const current = !voided && !interrupted && ((status === "COLLECTED" && index === 0) || (status === "MCASH_SENT" && index === 1));
         const Icon = interrupted ? AlertTriangle : Check;
         return <div key={step.label} className="contents">

@@ -22,11 +22,13 @@ export function CustomerSearchPicker({
   value,
   onChange,
   inputId = "sale-customer",
+  emptyText = "Walk-in customer",
 }: {
   customers: SaleCustomer[];
   value: string;
   onChange: (customerId: string) => void;
   inputId?: string;
+  emptyText?: string;
 }) {
   const [mode, setMode] = useState<SearchMode>("name");
   const [query, setQuery] = useState("");
@@ -261,13 +263,13 @@ export function CustomerSearchPicker({
             onClick={clearCustomer}
             className="shrink-0 rounded-md p-1 text-primary-ink hover:bg-surface/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             aria-label={`Clear selected customer ${selected.name}`}
-            title="Clear customer and use walk-in"
+            title="Clear selected customer"
           >
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
       ) : (
-        <p className="mt-1.5 text-[11px] text-muted">Walk-in customer</p>
+        <p className="mt-1.5 text-[11px] text-muted">{emptyText}</p>
       )}
     </div>
   );

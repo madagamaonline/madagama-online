@@ -17,6 +17,10 @@ import { sumLines } from "@/lib/totals";
 import { createCreditSale } from "@/app/(app)/credit/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
 import {
+  CustomerSearchPicker,
+  type SaleCustomer,
+} from "@/components/customer-search-picker";
+import {
   normalizeWarrantyMonths,
   WARRANTY_OPTIONS,
   type WarrantyMonths,
@@ -49,7 +53,7 @@ export function CreditSale({
   freeMonths,
   nonTaxableEnabled = true,
 }: {
-  customers: { id: string; name: string; phone: string }[];
+  customers: SaleCustomer[];
   employees: { id: string; name: string }[];
   interestRatePct: number;
   freeMonths: number;
@@ -81,7 +85,7 @@ export function CreditSale({
   // Customers added via the quick-add modal during this session, kept separate
   // from the `customers` prop and merged during render — mirroring the prop into
   // state via an effect triggers cascading renders (react-hooks/set-state-in-effect).
-  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
+  const [addedCustomers, setAddedCustomers] = useState<SaleCustomer[]>([]);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const localCustomers = useMemo(
     () => [...addedCustomers, ...customers],
@@ -89,7 +93,7 @@ export function CreditSale({
   );
 
   function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
-    setAddedCustomers((prev) => [newCust, ...prev]);
+    setAddedCustomers((prev) => [{ ...newCust, nic: null }, ...prev]);
     setCustomerId(newCust.id);
   }
 
@@ -536,7 +540,7 @@ export function CreditSale({
           <CardContent className="space-y-4">
             <div>
               <div className="flex items-center justify-between">
-                <Label>Customer</Label>
+                <Label htmlFor="credit-sale-customer">Customer</Label>
                 <button
                   type="button"
                   onClick={() => setShowQuickCustomer(true)}
@@ -545,14 +549,13 @@ export function CreditSale({
                   + Quick Add
                 </button>
               </div>
-              <Select value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
-                <option value="">Select customer…</option>
-                {localCustomers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} — {c.phone}
-                  </option>
-                ))}
-              </Select>
+              <CustomerSearchPicker
+                customers={localCustomers}
+                value={customerId}
+                onChange={setCustomerId}
+                inputId="credit-sale-customer"
+                emptyText="Select a customer to continue"
+              />
               <Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
                 + Add detailed customer
               </Link>

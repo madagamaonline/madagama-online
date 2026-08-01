@@ -56,6 +56,7 @@ export function AttendanceCalendar({
 }) {
   const router = useRouter();
   const [employeeId, setEmployeeId] = useState("all");
+  const [direction, setDirection] = useState<-1 | 0 | 1>(0);
   const [isPending, startTransition] = useTransition();
   const cells = useMemo(() => calendarMonthCells(selectedDate), [selectedDate]);
 
@@ -93,6 +94,7 @@ export function AttendanceCalendar({
   }, [cells, recordsByDay, employeeId]);
 
   function openDate(date: string) {
+    setDirection(date < selectedDate ? -1 : date > selectedDate ? 1 : 0);
     startTransition(() => {
       router.push(`/attendance?date=${date}`, { scroll: false });
     });
@@ -186,7 +188,11 @@ export function AttendanceCalendar({
       </CardHeader>
 
       <CardContent className="p-3 sm:p-5">
-        <div className="grid grid-cols-7 overflow-hidden rounded-xl border border-border bg-border">
+        <div
+          key={selectedDate.slice(0, 7)}
+          className={cn("motion-content-handoff grid grid-cols-7 overflow-hidden rounded-xl border border-border bg-border", direction < 0 ? "motion-content-right" : direction > 0 ? "motion-content-left" : "")}
+          aria-busy={isPending}
+        >
           {WEEKDAYS.map((weekday, idx) => {
             const isWeekendHeader = idx >= 5;
             return (

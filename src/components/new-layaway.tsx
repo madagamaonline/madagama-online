@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Clock3, Loader2, PackageCheck, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { Clock3, PackageCheck, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { CustomerSearchPicker, type SaleCustomer } from "@/components/customer-search-picker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { createLayaway } from "@/app/(app)/layaways/actions";
 import { formatLKR, round2 } from "@/lib/utils";
 import { LayawayJourney } from "@/components/layaway-journey";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
+import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 
 type ProductHit = { id: string; code: string; name: string; sellingPrice: number; costPrice: number; stock: number; reservedStock?: number; physicalStock?: number };
 type Line = { product: ProductHit; qty: number; unitPrice: number };
@@ -32,6 +33,7 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   const [pickup, setPickup] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [saved, setSaved] = useState(false);
   const [addedCustomers, setAddedCustomers] = useState<SaleCustomer[]>([]);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const localCustomers = useMemo(
@@ -61,9 +63,12 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   }
   function submit() {
     setError("");
+    setSaved(false);
     startTransition(async () => {
       const result = await createLayaway({ customerId, lines: lines.map((line) => ({ productId: line.product.id, qty: line.qty, unitPrice: line.unitPrice })), discount, initialPayment, paymentMethod: method, paymentReference: reference, promisedPickupDate: pickup, notes });
       if (!result.ok || !result.id) return setError(result.error ?? "Could not create layaway.");
+      setSaved(true);
+      await waitForSuccessFrame();
       router.push(`/layaways/${result.id}${result.paymentId ? `?receipt=${result.paymentId}` : ""}`);
       router.refresh();
     });
@@ -104,8 +109,8 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
       {initialPayment > 0 && <div className="grid grid-cols-2 gap-2"><div><Label>Method</Label><Select value={method} onChange={(event) => setMethod(event.target.value as typeof method)}><option>CASH</option><option>BANK</option><option>CHEQUE</option><option>CARD</option></Select></div><div><Label>Reference</Label><Input value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Optional"/></div></div>}
       <div><Label htmlFor="layaway-pickup">Promised pickup date</Label><Input id="layaway-pickup" type="date" value={pickup} onChange={(event) => setPickup(event.target.value)}/></div>
       <div><Label htmlFor="layaway-notes">Notes</Label><Textarea id="layaway-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Agreement details, preferred contact time…"/></div>
-      {error && <p role="alert" className="rounded-xl bg-danger-soft px-3 py-2 text-sm font-medium text-danger-ink">{error}</p>}
-      <Button className="w-full" size="lg" disabled={pending || !customerId || !lines.length || total <= 0} onClick={submit}>{pending ? <Loader2 className="h-4 w-4 animate-spin"/> : <Clock3 className="h-4 w-4"/>}Create & reserve goods</Button>
+      <ActionFeedback error={error} />
+      <Button className={saved ? "w-full bg-success hover:bg-success" : "w-full"} size="lg" disabled={pending || !customerId || !lines.length || total <= 0} onClick={submit} aria-live="polite"><ActionButtonContent pending={pending} success={saved} idleLabel="Create & reserve goods" pendingLabel="Reserving…" successLabel="Goods reserved" idleIcon={<Clock3 className="h-4 w-4"/>} /></Button>
     </CardContent></Card></div>
     {showQuickCustomer && (
       <QuickCustomerModal

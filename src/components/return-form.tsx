@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Undo2 } from "lucide-react";
+import { Undo2 } from "lucide-react";
 import { createReturn } from "@/app/(app)/returns/actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatLKR } from "@/lib/utils";
+import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 
 export type ReturnLine = {
   productId: string;
@@ -37,6 +38,7 @@ export function ReturnForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  const [saved, setSaved] = useState(false);
 
   const refund = lines.reduce((s, l) => s + (qtys[l.productId] || 0) * l.unitPrice, 0);
 
@@ -46,6 +48,7 @@ export function ReturnForm({
 
   function submit() {
     setError("");
+    setSaved(false);
     const out = lines
       .filter((l) => (qtys[l.productId] || 0) > 0)
       .map((l) => ({ productId: l.productId, qty: qtys[l.productId], unitPrice: l.unitPrice }));
@@ -53,6 +56,8 @@ export function ReturnForm({
     start(async () => {
       const res = await createReturn({ invoiceId, method, reason, lines: out });
       if (!res.ok) return setError(res.error);
+      setSaved(true);
+      await waitForSuccessFrame();
       router.push("/returns");
     });
   }
@@ -60,7 +65,7 @@ export function ReturnForm({
   return (
     <Card>
       <CardContent className="space-y-4">
-        {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+        <ActionFeedback error={error} />
 
         <table className="w-full text-sm">
           <thead>
@@ -140,9 +145,8 @@ export function ReturnForm({
           <span className="text-lg font-semibold">{formatLKR(refund)}</span>
         </div>
 
-        <Button onClick={submit} disabled={pending} className="w-full" size="lg">
-          {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Undo2 className="h-5 w-5" />}
-          {pending ? "Saving…" : "Process return & restock"}
+        <Button onClick={submit} disabled={pending} className={saved ? "w-full bg-success hover:bg-success" : "w-full"} size="lg" aria-live="polite">
+          <ActionButtonContent pending={pending} success={saved} idleLabel="Process return & restock" pendingLabel="Saving…" successLabel="Return processed" idleIcon={<Undo2 className="h-5 w-5" />} />
         </Button>
       </CardContent>
     </Card>

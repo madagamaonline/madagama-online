@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
+import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 
 type ProductHit = {
   id: string;
@@ -53,6 +54,7 @@ export function PurchaseForm({
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const costRefs = useRef(new Map<string, HTMLInputElement>());
 
@@ -110,6 +112,7 @@ export function PurchaseForm({
 
   function submit() {
     setError("");
+    setSaved(false);
     if (!supplierId) return setError("Select a supplier.");
     if (lines.length === 0) return setError("Add at least one item.");
     if (type === "CREDIT" && !creditDueDate) return setError("Choose a credit due date.");
@@ -125,6 +128,8 @@ export function PurchaseForm({
         lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, costPrice: l.costPrice })),
       });
       if (!res.ok) return setError(res.error);
+      setSaved(true);
+      await waitForSuccessFrame();
       router.push(`/purchases/${res.id}`);
     });
   }
@@ -345,11 +350,10 @@ export function PurchaseForm({
               <span>{formatLKR(total)}</span>
             </div>
 
-            {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+            <ActionFeedback error={error} />
 
-            <Button onClick={submit} size="lg" className="w-full" disabled={pending}>
-              {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <PackagePlus className="h-5 w-5" />}
-              {pending ? "Saving…" : "Save Purchase"}
+            <Button onClick={submit} size="lg" className={saved ? "w-full bg-success hover:bg-success" : "w-full"} disabled={pending} aria-live="polite">
+              <ActionButtonContent pending={pending} success={saved} idleLabel="Save Purchase" pendingLabel="Saving…" successLabel="Purchase saved" idleIcon={<PackagePlus className="h-5 w-5" />} />
             </Button>
           </CardContent>
         </Card>

@@ -46,6 +46,17 @@ body {
   height: 100%;
 }
 
+:root {
+  --motion-fast: 120ms;
+  --motion-overlay: 180ms;
+  --motion-panel: 240ms;
+  --motion-page: 280ms;
+  --motion-success: 420ms;
+  --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
 /* A credit statement is a literal paper preview, not an application surface.
    Keep it stable across both application themes before print is invoked. */
 .credit-print-a4 {
@@ -330,31 +341,124 @@ input:focus, select:focus, textarea:focus {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.animate-page-in { animation: page-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-page-in { animation: page-in var(--motion-page) var(--ease-enter) both; }
 
 @keyframes row-in {
   from { opacity: 0; transform: translateY(-6px) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
-.animate-row-in { animation: row-in 0.22s ease-out both; }
+.animate-row-in { animation: row-in 220ms var(--ease-enter) both; }
 
 @keyframes row-out {
   from { opacity: 1; transform: translateX(0); }
   to { opacity: 0; transform: translateX(14px); }
 }
-.animate-row-out { animation: row-out 0.18s ease-in both; }
+.animate-row-out { animation: row-out 180ms var(--ease-exit) both; }
 
 @keyframes pop-in {
   from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
-.animate-pop-in { animation: pop-in 0.16s ease-out both; }
+.animate-pop-in { animation: pop-in var(--motion-overlay) var(--ease-enter) both; }
 
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.animate-fade-in { animation: fade-in 0.15s ease-out both; }
+.animate-fade-in,
+.motion-backdrop-in { animation: fade-in var(--motion-overlay) var(--ease-enter) both; }
+
+@keyframes panel-in {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.motion-panel-in { animation: panel-in var(--motion-panel) var(--ease-enter) both; }
+
+@keyframes menu-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.motion-menu-in {
+  transform-origin: top center;
+  animation: menu-in var(--motion-overlay) var(--ease-enter) both;
+}
+
+@keyframes check-in {
+  0% { opacity: 0; transform: scale(0.72) rotate(-10deg); }
+  70% { opacity: 1; transform: scale(1.06) rotate(0); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.motion-check-in { animation: check-in var(--motion-success) var(--ease-enter) both; }
+
+@keyframes record-flash {
+  0%, 100% { background-color: transparent; }
+  22% { background-color: color-mix(in srgb, var(--color-primary-soft) 82%, transparent); }
+}
+.motion-record-flash { animation: record-flash 900ms var(--ease-standard) both; }
+
+@keyframes value-emphasis {
+  0% { opacity: 0.55; transform: translateY(2px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+.motion-value-change { animation: value-emphasis 180ms var(--ease-enter) both; }
+
+@keyframes content-left-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes content-right-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.motion-content-left { animation: content-left-in var(--motion-panel) var(--ease-enter) both; }
+.motion-content-right { animation: content-right-in var(--motion-panel) var(--ease-enter) both; }
+
+.motion-interactive {
+  transition: transform var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
+}
+.motion-interactive:not(:disabled):active { transform: scale(0.98); }
+
+.motion-chevron {
+  transition: transform var(--motion-overlay) var(--ease-standard);
+}
+.motion-chevron[data-open="true"] { transform: rotate(180deg); }
+
+.motion-selection-indicator {
+  transition: transform var(--motion-panel) var(--ease-enter),
+    opacity var(--motion-overlay) var(--ease-standard),
+    background-color var(--motion-overlay) var(--ease-standard),
+    border-color var(--motion-overlay) var(--ease-standard);
+}
+
+.motion-content-handoff {
+  transition: opacity var(--motion-overlay) var(--ease-standard),
+    transform var(--motion-overlay) var(--ease-standard);
+}
+.motion-content-handoff[aria-busy="true"] {
+  opacity: 0.62;
+  transform: translateY(2px);
+}
+
+.motion-collapse {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition: grid-template-rows var(--motion-panel) var(--ease-standard),
+    opacity var(--motion-overlay) var(--ease-standard);
+}
+.motion-collapse[data-closed="true"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+.motion-collapse > .motion-collapse-inner {
+  min-height: 0;
+  overflow: hidden;
+}
 
 /* Shimmer skeleton — themed pulse over a subtle base. */
 @keyframes shimmer {
@@ -383,8 +487,26 @@ input:focus, select:focus, textarea:focus {
   .animate-row-in,
   .animate-row-out,
   .animate-pop-in,
-  .animate-fade-in {
+  .animate-fade-in,
+  .motion-backdrop-in,
+  .motion-panel-in,
+  .motion-menu-in,
+  .motion-check-in,
+  .motion-record-flash,
+  .motion-value-change,
+  .motion-content-left,
+  .motion-content-right {
     animation: none !important;
   }
+  .motion-interactive,
+  .motion-chevron,
+  .motion-selection-indicator,
+  .motion-content-handoff,
+  .motion-collapse,
+  [class*="transition-"] {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+  html:focus-within { scroll-behavior: auto; }
   .skeleton::after { animation: none !important; }
 }

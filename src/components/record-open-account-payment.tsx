@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Banknote, CheckCircle2 } from "lucide-react";
+import { Banknote } from "lucide-react";
 import { recordOpenAccountPayment, type OpenAccountPaymentState } from "@/app/(app)/open-accounts/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatLKR } from "@/lib/utils";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 export function RecordOpenAccountPayment({ accountId, outstanding }: { accountId: string; outstanding: number }) {
   const router = useRouter();
@@ -27,9 +28,8 @@ export function RecordOpenAccountPayment({ accountId, outstanding }: { accountId
         <div><Label htmlFor="oa-method">Method</Label><Select id="oa-method" name="method" defaultValue="CASH"><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="CARD">Card</option></Select></div>
       </div>
       <div><Label htmlFor="oa-note">Note (optional)</Label><Textarea id="oa-note" name="note" className="min-h-16" /></div>
-      {state.error && <p className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</p>}
-      {state.ok && <p className="flex items-center gap-2 text-sm text-success"><CheckCircle2 className="h-4 w-4" /> Payment recorded.</p>}
-      <Button className="min-h-11 w-full" disabled={pending}><Banknote className="h-4 w-4" /> {pending ? "Recording…" : "Record payment"}</Button>
+      <ActionFeedback error={state.error} success={state.ok ? "Payment recorded." : undefined} />
+      <Button className="min-h-11 w-full" disabled={pending}><ActionButtonContent pending={pending} success={state.ok} idleLabel="Record payment" pendingLabel="Recording…" successLabel="Payment recorded" idleIcon={<Banknote className="h-4 w-4" />} /></Button>
     </form>
   );
 }

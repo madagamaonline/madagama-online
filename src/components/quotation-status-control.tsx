@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { setQuotationStatus } from "@/app/(app)/quotations/actions";
 import { quotationStatusLabel } from "@/components/quotation-status-badge";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 const ORDER: QuotationStatus[] = ["DRAFT", "SENT", "ACCEPTED", "DECLINED", "EXPIRED"];
 
@@ -15,15 +16,18 @@ export function QuotationStatusControl({ id, current }: { id: string; current: Q
   const [status, setStatus] = useState<QuotationStatus>(current);
   const [err, setErr] = useState("");
   const [pending, start] = useTransition();
+  const [updated, setUpdated] = useState(false);
 
   function apply() {
     setErr("");
+    setUpdated(false);
     start(async () => {
       const r = await setQuotationStatus(id, status);
       if (!r.ok) {
         setErr(r.error);
         return;
       }
+      setUpdated(true);
       router.refresh();
     });
   }
@@ -44,9 +48,9 @@ export function QuotationStatusControl({ id, current }: { id: string; current: Q
         disabled={pending || status === current}
         onClick={apply}
       >
-        {pending ? "Updating…" : "Update status"}
+        <ActionButtonContent pending={pending} success={updated} idleLabel="Update status" pendingLabel="Updating…" successLabel="Status updated" />
       </Button>
-      {err && <p className="text-xs text-danger">{err}</p>}
+      <ActionFeedback error={err} success={updated ? "Quotation status updated." : undefined} />
     </div>
   );
 }

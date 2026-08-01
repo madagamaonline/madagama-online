@@ -82,7 +82,7 @@ export function VoidInvoiceButton({ invoiceId, invoiceNumber }: { invoiceId: str
       </Button>
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
+          className="motion-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-xs"
           onMouseDown={(event) => event.target === event.currentTarget && closeDialog()}
         >
           <section
@@ -91,7 +91,7 @@ export function VoidInvoiceButton({ invoiceId, invoiceNumber }: { invoiceId: str
             aria-modal="true"
             aria-labelledby="void-invoice-title"
             aria-describedby="void-invoice-description"
-            className="relative w-full max-w-lg rounded-2xl border border-danger/25 bg-surface p-5 shadow-xl sm:p-6"
+            className="motion-panel-in relative w-full max-w-lg rounded-2xl border border-danger/25 bg-surface p-5 shadow-xl sm:p-6"
           >
             <button type="button" onClick={closeDialog} disabled={pending} aria-label="Close void invoice dialog" className="absolute right-4 top-4 rounded-lg p-1 text-muted hover:bg-border-subtle hover:text-foreground disabled:opacity-50">
               <X className="h-5 w-5" />
@@ -102,7 +102,7 @@ export function VoidInvoiceButton({ invoiceId, invoiceNumber }: { invoiceId: str
               Stock will be restored and this invoice will remain in audit history. This action cannot be undone.
             </p>
             <form onSubmit={submit} className="mt-5 space-y-4">
-              {error && <div role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+              {error && <div role="alert" className="motion-panel-in rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
               <div>
                 <Label htmlFor="void-reason">Reason for voiding</Label>
                 <Textarea ref={reasonRef} id="void-reason" value={reason} onChange={(event) => setReason(event.target.value)} required minLength={3} maxLength={500} placeholder="Describe why this invoice was created accidentally…" className="min-h-28" />

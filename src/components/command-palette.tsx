@@ -260,12 +260,15 @@ export function CommandPalette({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[12vh] backdrop-blur-sm animate-fade-in"
+      className="motion-backdrop-in fixed inset-0 z-[70] flex items-start justify-center bg-black/30 p-4 pt-[12vh] backdrop-blur-sm"
       onClick={close}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-pop-in"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="motion-menu-in w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl"
       >
         <div className="flex items-center gap-3 border-b border-border-subtle px-4">
           <Search className="h-5 w-5 shrink-0 text-muted" />
@@ -302,7 +305,7 @@ export function CommandPalette({
                     data-idx={i}
                     onMouseMove={() => setActive(i)}
                     onClick={() => run(cmd)}
-                    className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                    className={`motion-interactive flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left ${
                       i === active ? "bg-primary-soft" : "hover:bg-border-subtle"
                     }`}
                   >

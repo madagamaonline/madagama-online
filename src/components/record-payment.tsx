@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 const initial: PaymentFormState = {};
 
@@ -22,12 +23,7 @@ export function RecordPayment({ agreementId, outstanding }: { agreementId: strin
 
   return (
     <form ref={ref} action={formAction} className="space-y-3">
-      {state.error && (
-        <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</div>
-      )}
-      {state.ok && (
-        <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">Account updated.</div>
-      )}
+      <ActionFeedback error={state.error} success={state.ok ? "Account updated." : undefined} />
       <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="amount">Amount (LKR)</Label>
@@ -62,7 +58,7 @@ export function RecordPayment({ agreementId, outstanding }: { agreementId: strin
         <Input id="note" name="note" />
       </div>
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? "Recording…" : "Record Payment"}
+        <ActionButtonContent pending={pending} success={state.ok} idleLabel="Record Payment" pendingLabel="Recording…" successLabel="Payment recorded" />
       </Button>
     </form>
   );

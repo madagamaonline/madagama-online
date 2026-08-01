@@ -128,10 +128,12 @@ export function NewSale({
   const [resumed, setResumed] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(() => new Set());
   const [pending, startTransition] = useTransition();
+  const [completionState, setCompletionState] = useState<"idle" | "success">("idle");
   const [showPayLater, setShowPayLater] = useState(false);
   const [promisedDate, setPromisedDate] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
   const hydrated = useRef(false);
+  const submissionLock = useRef(false);
 
   // Customers added via the quick-add modal during this session, merged with the
   // `customers` prop during render — mirroring the prop into state via an effect
@@ -445,11 +447,13 @@ export function NewSale({
   }, [cart.length, totals.grandTotal]);
 
   function completeSale() {
+    if (submissionLock.current) return;
     setError("");
     if (cart.length === 0) {
       setError("Add at least one item.");
       return;
     }
+    submissionLock.current = true;
     startTransition(async () => {
       const res = await createCashInvoice({
         lines: cart.map((l) => ({
@@ -466,9 +470,14 @@ export function NewSale({
       });
       if (!res.ok) {
         setError(res.error);
+        submissionLock.current = false;
         return;
       }
       const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      setCompletionState("success");
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        await new Promise((resolve) => window.setTimeout(resolve, 360));
+      }
       setResult(completed);
       setResultMode("cash");
       rememberSale(completed);
@@ -480,13 +489,17 @@ export function NewSale({
       setSoldBy("");
       setNotes("");
       setResumed(false);
+      setCompletionState("idle");
+      submissionLock.current = false;
     });
   }
 
   function completePayLater() {
+    if (submissionLock.current) return;
     setError("");
     if (!customerId) { setError("Select or quick-add a customer for Pay Later."); return; }
     if (cart.length === 0) { setError("Add at least one item."); return; }
+    submissionLock.current = true;
     startTransition(async () => {
       const res = await createOpenAccountSale({
         lines: cart.map((l) => ({
@@ -502,8 +515,12 @@ export function NewSale({
         notes: notes.trim() || null,
         dueDate: promisedDate || null,
       });
-      if (!res.ok) { setError(res.error); return; }
+      if (!res.ok) { setError(res.error); submissionLock.current = false; return; }
       const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      setCompletionState("success");
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        await new Promise((resolve) => window.setTimeout(resolve, 360));
+      }
       setResult(completed);
       setResultMode("pay-later");
       rememberSale(completed);
@@ -511,6 +528,8 @@ export function NewSale({
       setPromisedDate("");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setResumed(false);
+      setCompletionState("idle");
+      submissionLock.current = false;
     });
   }
 
@@ -521,11 +540,11 @@ export function NewSale({
 
   if (result) {
     return (
-      <div className="mx-auto max-w-xl">
+      <div className="motion-panel-in mx-auto max-w-xl">
         <Card>
           <CardContent className="space-y-4">
             <div className="flex items-center gap-2 text-primary-ink">
-              <CheckCircle2 className="h-6 w-6" />
+              <CheckCircle2 className="motion-check-in h-6 w-6" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
             {resultMode === "pay-later" && <p className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
@@ -536,7 +555,7 @@ export function NewSale({
             </Link>
             <div className="divide-y divide-border rounded-lg border border-border">
               {result.invoices.map((inv) => (
-                <div key={inv.id} className="flex items-center justify-between gap-3 p-3">
+                <div key={inv.id} className="motion-record-flash flex items-center justify-between gap-3 p-3">
                   <div>
                     <div className="flex items-center gap-2">
                       <span
@@ -671,12 +690,16 @@ export function NewSale({
             )}
 
             <div className="mt-4">
-              {cart.length === 0 ? (
+              <div className="motion-collapse" data-closed={cart.length > 0} inert={cart.length > 0 ? true : undefined}>
+                <div className="motion-collapse-inner">
                 <div className="rounded-lg border border-dashed border-border py-12 text-center text-sm text-muted">
                   <ShoppingCart className="mx-auto mb-2 h-8 w-8 opacity-40" />
                   Search and add products to start a sale.
                 </div>
-              ) : (
+                </div>
+              </div>
+              <div className="motion-collapse" data-closed={cart.length === 0} inert={cart.length === 0 ? true : undefined}>
+                <div className="motion-collapse-inner">
                 <div className="overflow-x-auto">
                   <table className="hidden w-full text-sm sm:table">
                     <thead className="text-left text-muted">
@@ -938,7 +961,8 @@ export function NewSale({
                     </button>
                   </div>
                 </div>
-              )}
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -1055,14 +1079,17 @@ export function NewSale({
 
             <div>
               <Label>Payment method</Label>
-              <div className="mt-1 grid grid-cols-2 rounded-xl border border-input-border bg-input/60 p-1" role="radiogroup" aria-label="Payment method">
-                <button type="button" role="radio" aria-checked={!showPayLater} onClick={() => { setShowPayLater(false); setError(""); }} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors ${!showPayLater ? "bg-surface text-foreground shadow-sm ring-1 ring-border" : "text-muted hover:text-foreground"}`}><Banknote className="h-4 w-4" /> Cash</button>
-                {canPayLater ? <button type="button" role="radio" aria-checked={showPayLater} onClick={() => { setShowPayLater(true); setTendered(0); setError(""); }} disabled={cart.length === 0} className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold transition-colors disabled:opacity-50 ${showPayLater ? "bg-amber-50 text-amber-900 shadow-sm ring-1 ring-amber-300" : "text-muted hover:text-amber-900"}`}><Clock3 className="h-4 w-4" /> Pay Later</button> : <span className="flex min-h-11 items-center justify-center text-xs text-muted">Pay Later unavailable</span>}
+              <div className="relative mt-1 grid grid-cols-2 rounded-xl border border-input-border bg-input/60 p-1" role="radiogroup" aria-label="Payment method">
+                {canPayLater && <span aria-hidden="true" className={`motion-selection-indicator absolute bottom-1 left-1 top-1 w-[calc(50%_-_0.375rem)] rounded-lg border shadow-sm ${showPayLater ? "border-amber-300 bg-amber-50" : "border-border bg-surface"}`} style={{ transform: showPayLater ? "translateX(calc(100% + 0.25rem))" : "translateX(0)" }} />}
+                <button type="button" role="radio" aria-checked={!showPayLater} onClick={() => { setShowPayLater(false); setError(""); }} className={`motion-interactive relative z-10 flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold ${!showPayLater ? "text-foreground" : "text-muted hover:text-foreground"}`}><Banknote className="h-4 w-4" /> Cash</button>
+                {canPayLater ? <button type="button" role="radio" aria-checked={showPayLater} onClick={() => { setShowPayLater(true); setTendered(0); setError(""); }} disabled={cart.length === 0} className={`motion-interactive relative z-10 flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:opacity-50 ${showPayLater ? "text-amber-900" : "text-muted hover:text-amber-900"}`}><Clock3 className="h-4 w-4" /> Pay Later</button> : <span className="flex min-h-11 items-center justify-center text-xs text-muted">Pay Later unavailable</span>}
               </div>
             </div>
 
             {/* Cash tendered + change */}
-            {!showPayLater && <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
+            <div className="motion-collapse" data-closed={showPayLater} inert={showPayLater ? true : undefined} aria-hidden={showPayLater}>
+            <div className="motion-collapse-inner">
+            <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Cash received</span>
                 <NumberInput
@@ -1077,7 +1104,7 @@ export function NewSale({
                   <button
                     key={amt}
                     onClick={() => setTendered(amt)}
-                    className="rounded-md bg-surface px-2 py-1 text-xs font-semibold text-foreground ring-1 ring-border hover:bg-primary-soft"
+                    className="motion-interactive rounded-md bg-surface px-2 py-1 text-xs font-semibold text-foreground ring-1 ring-border hover:bg-primary-soft"
                   >
                     {formatLKR(amt).replace(".00", "")}
                   </button>
@@ -1090,10 +1117,12 @@ export function NewSale({
                   }`}
                 >
                   <span>{change < 0 ? "Short by" : "Change due"}</span>
-                  <span>{formatLKR(Math.abs(change))}</span>
+                  <span key={change} className="motion-value-change">{formatLKR(Math.abs(change))}</span>
                 </div>
               )}
-            </div>}
+            </div>
+            </div>
+            </div>
 
             {willSplit && (
               <div className="rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
@@ -1101,21 +1130,27 @@ export function NewSale({
               </div>
             )}
 
-            {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+            {error && <div role="alert" className="motion-panel-in rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
 
-            {!showPayLater && <Button onClick={completeSale} size="lg" className="w-full" disabled={pending || cart.length === 0}>
-              {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
-              {pending ? "Saving…" : "Complete Cash Sale"}
-            </Button>}
-            {showPayLater && (
+            <div className="motion-collapse" data-closed={showPayLater} inert={showPayLater ? true : undefined} aria-hidden={showPayLater}>
+            <div className="motion-collapse-inner pt-0.5">
+            <Button onClick={completeSale} size="lg" className={completionState === "success" ? "w-full bg-success hover:bg-success" : "w-full"} disabled={pending || cart.length === 0} aria-live="polite">
+              {completionState === "success" ? <CheckCircle2 className="motion-check-in h-5 w-5" /> : pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
+              {completionState === "success" ? "Sale saved" : pending ? "Saving…" : "Complete Cash Sale"}
+            </Button>
+            </div>
+            </div>
+            <div className="motion-collapse" data-closed={!showPayLater} inert={!showPayLater ? true : undefined} aria-hidden={!showPayLater}>
+              <div className="motion-collapse-inner">
               <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950">
                 <div><div className="font-semibold">Pay Later account</div><div className="text-xs text-amber-800">The customer takes the items now and owes the full balance. No interest or guarantor.</div></div>
                 {!customerId && <p className="rounded-lg bg-surface px-3 py-2 text-xs font-medium">Select or quick-add the customer above.</p>}
                 <div><Label htmlFor="promised-date">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setPromisedDate(event.target.value)} /></div>
                 <div className="space-y-1 border-t border-amber-300 pt-2 text-sm"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(0)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><strong>{formatLKR(totals.grandTotal)}</strong></div></div>
-                <Button onClick={completePayLater} disabled={pending || !customerId} className="w-full bg-amber-700 text-white hover:bg-amber-800">{pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} Create Pay Later Invoice</Button>
+                <Button onClick={completePayLater} disabled={pending || !customerId} className={`w-full text-white ${completionState === "success" ? "bg-success hover:bg-success" : "bg-amber-700 hover:bg-amber-800"}`} aria-live="polite">{completionState === "success" ? <CheckCircle2 className="motion-check-in h-4 w-4" /> : pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} {completionState === "success" ? "Invoice created" : "Create Pay Later Invoice"}</Button>
               </div>
-            )}
+              </div>
+            </div>
             <button
               onClick={switchToCredit}
               disabled={cart.length === 0}

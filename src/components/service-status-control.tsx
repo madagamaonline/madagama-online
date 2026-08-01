@@ -8,6 +8,7 @@ import { Select } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { updateServiceJobStatus } from "@/app/(app)/services/actions";
 import { serviceStatusLabel } from "@/components/service-status-badge";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 const ORDER: ServiceJobStatus[] = ["PENDING", "IN_PROGRESS", "COMPLETED", "CANCELLED"];
 
@@ -17,9 +18,11 @@ export function ServiceStatusControl({ id, current }: { id: string; current: Ser
   const [note, setNote] = useState("");
   const [err, setErr] = useState("");
   const [pending, start] = useTransition();
+  const [updated, setUpdated] = useState(false);
 
   function apply() {
     setErr("");
+    setUpdated(false);
     start(async () => {
       const r = await updateServiceJobStatus(id, status, note || undefined);
       if (!r.ok) {
@@ -27,6 +30,7 @@ export function ServiceStatusControl({ id, current }: { id: string; current: Ser
         return;
       }
       setNote("");
+      setUpdated(true);
       router.refresh();
     });
   }
@@ -52,9 +56,9 @@ export function ServiceStatusControl({ id, current }: { id: string; current: Ser
         disabled={pending || status === current}
         onClick={apply}
       >
-        {pending ? "Updating…" : "Update status"}
+        <ActionButtonContent pending={pending} success={updated} idleLabel="Update status" pendingLabel="Updating…" successLabel="Status updated" />
       </Button>
-      {err && <p className="text-xs text-danger">{err}</p>}
+      <ActionFeedback error={err} success={updated ? "Service status updated." : undefined} />
     </div>
   );
 }

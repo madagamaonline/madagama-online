@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { VehicleCombobox } from "@/components/vehicle-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatLKR, round2 } from "@/lib/utils";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 export type VehicleSaleFormState = { error?: string; ok?: boolean };
 
@@ -65,7 +66,7 @@ export function VehicleSaleForm({
       <input type="hidden" name="soldByEmployeeId" value={employeeId} />
 
       <div className="space-y-4">
-        <div aria-live="polite">{state.error ? <div className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-ink">{state.error}</div> : null}</div>
+        <ActionFeedback error={state.error} />
 
         <Card className="overflow-hidden">
           <div className="border-b border-border-subtle bg-input/50 px-5 py-3">
@@ -121,7 +122,7 @@ export function VehicleSaleForm({
           </CardContent>
         </Card>
 
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button><Button type="submit" disabled={pending || !customerId}>{pending ? "Confirming sale…" : "Confirm vehicle sale"}</Button></div>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button><Button type="submit" disabled={pending || !customerId}><ActionButtonContent pending={pending} idleLabel="Confirm vehicle sale" pendingLabel="Confirming sale…" /></Button></div>
       </div>
 
       <aside className="xl:sticky xl:top-4 xl:self-start">

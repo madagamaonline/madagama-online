@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Trash2, Plus, Loader2, FileText } from "lucide-react";
+import { Search, Trash2, Plus, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatLKR } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import type { QuotationInput, QuotationResult } from "@/app/(app)/quotations/actions";
+import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 
 type ProductHit = {
   id: string;
@@ -89,6 +90,7 @@ export function QuotationForm({
   const [notes, setNotes] = useState(initial.notes);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
+  const [saved, setSaved] = useState(false);
 
   // Catalog search for adding lines.
   const [query, setQuery] = useState("");
@@ -183,6 +185,7 @@ export function QuotationForm({
 
   function submit() {
     setError("");
+    setSaved(false);
     const filled = lines.filter((l) => l.name.trim());
     if (filled.length === 0) {
       setError("Add at least one line with an item name.");
@@ -211,6 +214,8 @@ export function QuotationForm({
         setError(res.error);
         return;
       }
+      setSaved(true);
+      await waitForSuccessFrame();
       router.push(`/quotations/${res.id}`);
       router.refresh();
     });
@@ -436,11 +441,10 @@ export function QuotationForm({
               />
             </div>
 
-            {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+            <ActionFeedback error={error} />
 
-            <Button onClick={submit} size="lg" className="w-full" disabled={pending}>
-              {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileText className="h-5 w-5" />}
-              {pending ? "Saving…" : submitLabel}
+            <Button onClick={submit} size="lg" className={saved ? "w-full bg-success hover:bg-success" : "w-full"} disabled={pending} aria-live="polite">
+              <ActionButtonContent pending={pending} success={saved} idleLabel={submitLabel} pendingLabel="Saving…" successLabel="Quotation saved" idleIcon={<FileText className="h-5 w-5" />} />
             </Button>
             <Button type="button" variant="outline" className="w-full" onClick={() => router.back()}>
               Cancel

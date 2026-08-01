@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ChevronDown, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +35,9 @@ export function SearchSelect({
   const [activeIdx, setActiveIdx] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const generatedId = useId();
+  const listboxId = `${generatedId}-listbox`;
+  const inputId = `${generatedId}-input`;
 
   const selected = useMemo(() => options.find((o) => o.value === value), [options, value]);
 
@@ -79,20 +82,24 @@ export function SearchSelect({
         type="button"
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={listboxId}
         className={cn(
-          "flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-input-border bg-input px-3.5 text-left text-sm outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60",
+          "motion-interactive flex h-11 w-full items-center justify-between gap-2 rounded-xl border border-input-border bg-input px-3.5 text-left text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60",
           selected ? "text-foreground" : "text-faint",
         )}
       >
         <span className="truncate">{selected ? selected.label : placeholder}</span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-muted" />
+        <ChevronDown data-open={open} className="motion-chevron h-4 w-4 shrink-0 text-muted" />
       </button>
 
       {open && (
-        <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
+        <div className="motion-menu-in absolute z-40 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
           <div className="relative border-b border-border p-2">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
             <input
+              id={inputId}
               ref={inputRef}
               value={query}
               onChange={(e) => {
@@ -115,6 +122,11 @@ export function SearchSelect({
                 }
               }}
               placeholder={searchPlaceholder}
+              role="combobox"
+              aria-autocomplete="list"
+              aria-expanded={open}
+              aria-controls={listboxId}
+              aria-activedescendant={filtered[activeIdx] ? `${generatedId}-option-${activeIdx}` : undefined}
               className="h-9 w-full rounded-lg border border-input-border bg-input pl-8 pr-8 text-sm text-foreground outline-none placeholder:text-faint focus:border-primary"
             />
             {query && (
@@ -132,18 +144,21 @@ export function SearchSelect({
             )}
           </div>
 
-          <div className="max-h-64 overflow-y-auto py-1">
+          <div id={listboxId} role="listbox" aria-labelledby={inputId} className="max-h-64 overflow-y-auto py-1">
             {filtered.length === 0 ? (
               <div className="px-3.5 py-3 text-sm text-muted">{emptyText}</div>
             ) : (
               filtered.map((o, i) => (
                 <button
+                  id={`${generatedId}-option-${i}`}
                   key={o.value}
                   type="button"
+                  role="option"
+                  aria-selected={o.value === value}
                   onClick={() => pick(o.value)}
                   onMouseEnter={() => setActiveIdx(i)}
                   className={cn(
-                    "flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-sm",
+                    "motion-interactive flex w-full items-center justify-between gap-3 px-3.5 py-2 text-left text-sm",
                     i === activeIdx ? "bg-input" : "hover:bg-input",
                     o.value === value ? "font-semibold text-primary-ink" : "text-foreground",
                   )}
@@ -154,6 +169,9 @@ export function SearchSelect({
               ))
             )}
           </div>
+          <p className="sr-only" role="status" aria-live="polite">
+            {filtered.length === 0 ? emptyText : `${filtered.length} option${filtered.length === 1 ? "" : "s"} available.`}
+          </p>
         </div>
       )}
     </div>

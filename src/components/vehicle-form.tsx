@@ -12,6 +12,7 @@ import { Select } from "@/components/ui/select";
 import { VehicleCombobox } from "@/components/vehicle-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { ServicePhotos } from "@/components/service-photos";
+import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
 
 export type VehicleFormState = { error?: string; ok?: boolean };
 export type VehicleFormInitial = {
@@ -67,9 +68,7 @@ export function VehicleForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      <div aria-live="polite">
-        {state.error ? <div className="rounded-xl bg-danger-soft px-4 py-3 text-sm text-danger-ink">{state.error}</div> : null}
-      </div>
+      <ActionFeedback error={state.error} />
 
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2"><Tractor className="h-4 w-4 text-muted" />Identity</CardTitle></CardHeader>
@@ -106,7 +105,7 @@ export function VehicleForm({
 
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
-        <Button type="submit" disabled={pending}>{pending ? "Saving…" : submitLabel}</Button>
+        <Button type="submit" disabled={pending}><ActionButtonContent pending={pending} idleLabel={submitLabel} pendingLabel="Saving…" /></Button>
       </div>
     </form>
   );

@@ -82,7 +82,7 @@ export function QuickProductModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs"
+      className="motion-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !pending) onClose();
       }}
@@ -92,13 +92,13 @@ export function QuickProductModal({
         aria-modal="true"
         aria-labelledby="quick-product-title"
         aria-describedby="quick-product-description"
-        className="relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-xl animate-in fade-in zoom-in-95 duration-150 sm:p-6"
+        className="motion-panel-in relative max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-2xl border border-border bg-surface p-5 shadow-xl sm:p-6"
       >
         <button
           type="button"
           onClick={onClose}
           disabled={pending}
-          className="absolute right-4 top-4 rounded-full p-1 text-muted transition-colors hover:bg-border-subtle hover:text-foreground disabled:opacity-50"
+          className="motion-interactive absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground disabled:opacity-50"
           aria-label="Close quick add product"
         >
           <X className="h-5 w-5" />
@@ -113,7 +113,7 @@ export function QuickProductModal({
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
           {error && (
-            <div role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
+            <div role="alert" className="motion-panel-in rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
               {error}
             </div>
           )}

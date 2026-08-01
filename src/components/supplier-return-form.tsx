@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, PackageX } from "lucide-react";
+import { PackageX } from "lucide-react";
 import { createSupplierReturn } from "@/app/(app)/supplier-returns/actions";
 import { NumberInput } from "@/components/ui/number-input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatLKR } from "@/lib/utils";
+import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 
 export type SupplierReturnLine = {
   productId: string;
@@ -39,6 +40,7 @@ export function SupplierReturnForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
+  const [saved, setSaved] = useState(false);
 
   const value = lines.reduce((s, l) => s + (qtys[l.productId] || 0) * (costs[l.productId] ?? 0), 0);
   const applied = method === "REDUCE_PAYABLE" ? Math.min(balance, value) : 0;
@@ -51,6 +53,7 @@ export function SupplierReturnForm({
 
   function submit() {
     setError("");
+    setSaved(false);
     const out = lines
       .filter((l) => (qtys[l.productId] || 0) > 0)
       .map((l) => ({ productId: l.productId, qty: qtys[l.productId], unitCost: costs[l.productId] ?? 0 }));
@@ -58,6 +61,8 @@ export function SupplierReturnForm({
     start(async () => {
       const res = await createSupplierReturn({ purchaseId, method, reason, lines: out });
       if (!res.ok) return setError(res.error);
+      setSaved(true);
+      await waitForSuccessFrame();
       router.push("/supplier-returns");
     });
   }
@@ -65,7 +70,7 @@ export function SupplierReturnForm({
   return (
     <Card>
       <CardContent className="space-y-4">
-        {error && <div className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{error}</div>}
+        <ActionFeedback error={error} />
 
         <table className="w-full text-sm">
           <thead>
@@ -152,9 +157,8 @@ export function SupplierReturnForm({
           )}
         </div>
 
-        <Button onClick={submit} disabled={pending} className="w-full" size="lg">
-          {pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <PackageX className="h-5 w-5" />}
-          {pending ? "Saving…" : "Return to supplier & remove stock"}
+        <Button onClick={submit} disabled={pending} className={saved ? "w-full bg-success hover:bg-success" : "w-full"} size="lg" aria-live="polite">
+          <ActionButtonContent pending={pending} success={saved} idleLabel="Return to supplier & remove stock" pendingLabel="Saving…" successLabel="Supplier return saved" idleIcon={<PackageX className="h-5 w-5" />} />
         </Button>
       </CardContent>
     </Card>

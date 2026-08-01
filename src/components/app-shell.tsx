@@ -161,7 +161,7 @@ export function AppShell({
         href={item.href}
         onClick={() => handleNavClick(item)}
         className={cn(
-          "mb-0.5 flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px] transition-colors",
+          "motion-interactive mb-0.5 flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-[13.5px]",
           active
             ? "bg-primary-soft font-semibold text-primary-ink"
             : "font-medium text-muted hover:bg-border-subtle hover:text-foreground",
@@ -182,10 +182,17 @@ export function AppShell({
         href={item.href}
         onClick={() => handleNavClick(item)}
         className={cn(
-          "flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium transition-colors",
+          "motion-interactive relative flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium",
           active ? "text-primary-ink" : "text-faint",
         )}
       >
+        <span
+          aria-hidden="true"
+          className={cn(
+            "motion-selection-indicator absolute inset-x-[22%] top-1 h-0.5 rounded-full bg-primary",
+            active ? "scale-x-100 opacity-100" : "scale-x-50 opacity-0",
+          )}
+        />
         <Icon className="h-[22px] w-[22px]" />
         {item.label}
       </Link>
@@ -198,7 +205,7 @@ export function AppShell({
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-border bg-sidebar transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-border bg-sidebar transition-transform duration-200 ease-[var(--ease-enter)] lg:static lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
@@ -246,7 +253,7 @@ export function AppShell({
             </div>
             <button
               onClick={logout}
-              className="rounded-lg p-1.5 text-faint transition-colors hover:bg-danger-soft hover:text-danger"
+              className="motion-interactive rounded-lg p-1.5 text-faint hover:bg-danger-soft hover:text-danger"
               aria-label="Sign out"
             >
               <LogOut className="h-4 w-4" />
@@ -257,14 +264,14 @@ export function AppShell({
 
       {/* Mobile backdrop */}
       {open && (
-        <div className="fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={() => setOpen(false)} />
+        <div className="motion-backdrop-in fixed inset-0 z-30 bg-black/20 lg:hidden" onClick={() => setOpen(false)} />
       )}
 
       {/* Main */}
       <div className="flex h-dvh min-w-0 flex-1 flex-col lg:h-auto">
         <header className="sticky top-0 z-20 flex h-[62px] items-center justify-between border-b border-border-subtle bg-background/85 px-5 backdrop-blur-md lg:px-6 shadow-[0_1px_2px_rgba(30,41,74,0.02)]">
           <button
-            className="rounded-lg p-2 text-muted hover:bg-border-subtle lg:hidden"
+            className="motion-interactive rounded-lg p-2 text-muted hover:bg-border-subtle lg:hidden"
             onClick={() => setOpen(true)}
             aria-label="Open menu"
           >
@@ -274,7 +281,7 @@ export function AppShell({
           <div className="ml-auto flex items-center gap-3">
             <button
               onClick={() => window.dispatchEvent(new CustomEvent("madagama:command-palette"))}
-              className="flex h-9 items-center gap-2 rounded-xl border border-input-border bg-surface px-3 text-[13px] font-medium text-muted transition-colors hover:bg-input hover:text-foreground"
+              className="motion-interactive flex h-9 items-center gap-2 rounded-xl border border-input-border bg-surface px-3 text-[13px] font-medium text-muted hover:bg-input hover:text-foreground"
               aria-label="Open command palette"
             >
               <Search className="h-4 w-4" />
@@ -310,7 +317,7 @@ export function AppShell({
         {mobileTab({ href: "/reminders", label: "Reminders", icon: Bell })}
         <button
           onClick={() => window.dispatchEvent(new CustomEvent("madagama:command-palette"))}
-          className="flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
+          className="motion-interactive flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
           aria-label="Search"
         >
           <Search className="h-[22px] w-[22px]" />
@@ -319,7 +326,7 @@ export function AppShell({
         {mobileTab({ href: "/credit", label: "Credit", icon: CreditCard })}
         <button
           onClick={() => setOpen(true)}
-          className="flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
+          className="motion-interactive flex flex-1 flex-col items-center justify-center gap-1 text-[10px] font-medium text-faint"
           aria-label="More"
         >
           <Menu className="h-[22px] w-[22px]" />

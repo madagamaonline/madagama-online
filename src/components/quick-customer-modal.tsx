@@ -44,22 +44,22 @@ export function QuickCustomerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs">
-      <div className="relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl animate-in fade-in zoom-in-95 duration-150">
+    <div className="motion-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs">
+      <div role="dialog" aria-modal="true" aria-labelledby="quick-customer-title" className="motion-panel-in relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground cursor-pointer transition-colors"
+          className="motion-interactive absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground cursor-pointer"
           aria-label="Close"
         >
           <X className="h-5 w-5" />
         </button>
 
-        <h3 className="text-base font-bold text-foreground">Quick Add Customer</h3>
+        <h3 id="quick-customer-title" className="text-base font-bold text-foreground">Quick Add Customer</h3>
         <p className="mt-0.5 text-xs text-muted">Create a customer profile without leaving checkout.</p>
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4">
           {error && (
-            <div className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
+            <div role="alert" className="motion-panel-in rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
               {error}
             </div>
           )}

@@ -58,14 +58,15 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       {children}
       {pending && o && (
         <div
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs animate-fade-in"
+          className="motion-backdrop-in fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs"
           onClick={() => close(false)}
         >
           <div
             role="alertdialog"
             aria-modal="true"
+            aria-label={o.title ?? "Confirm action"}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl animate-pop-in"
+            className="motion-panel-in w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-xl"
           >
             <div className="flex items-start gap-3">
               <div
@@ -85,7 +86,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <div className="mt-5 flex justify-end gap-2">
               <button
                 onClick={() => close(false)}
-                className="rounded-xl border border-input-border bg-surface px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-input"
+                className="motion-interactive rounded-xl border border-input-border bg-surface px-4 py-2 text-sm font-semibold text-foreground hover:bg-input"
               >
                 {o.cancelLabel ?? "Cancel"}
               </button>
@@ -94,8 +95,8 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => close(true)}
                 className={
                   tone === "danger"
-                    ? "rounded-xl bg-danger px-4 py-2 text-sm font-semibold text-white transition hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
-                    : "rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                    ? "motion-interactive rounded-xl bg-danger px-4 py-2 text-sm font-semibold text-white hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/40"
+                    : "motion-interactive rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 }
               >
                 {o.confirmLabel ?? "Confirm"}

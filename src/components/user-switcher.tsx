@@ -110,7 +110,6 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
         aria-label="Switch active user"
       >
         <span className="relative flex h-2 w-2">
-          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
         </span>
         <span className="flex items-center gap-1.5">
@@ -124,12 +123,12 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
       {isOpen &&
         typeof document !== "undefined" &&
         createPortal(
-          <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-xs">
-            <div className="relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="motion-backdrop-in fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/45 p-4 backdrop-blur-xs">
+            <div role="dialog" aria-modal="true" aria-label="Switch active user" className="motion-panel-in relative w-full max-w-sm rounded-2xl border border-border bg-surface p-6 shadow-2xl">
               <button
                 onClick={close}
                 disabled={pending}
-                className="absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground cursor-pointer transition-colors disabled:opacity-50"
+                className="motion-interactive absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground cursor-pointer disabled:opacity-50"
                 aria-label="Close"
               >
                 <X className="h-5 w-5" />
@@ -156,7 +155,7 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
                             key={u.id}
                             onClick={() => pickUser(u)}
                             disabled={u.isCurrent || !u.hasPin}
-                            className={`flex w-full items-center justify-between rounded-xl border p-3 text-left transition-all ${
+                            className={`motion-interactive flex w-full items-center justify-between rounded-xl border p-3 text-left ${
                               u.isCurrent
                                 ? "border-primary bg-primary-soft text-primary-ink"
                                 : switchable

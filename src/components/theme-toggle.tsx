@@ -33,9 +33,10 @@ export function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       title={dark ? "Light mode" : "Dark mode"}
-      className="flex h-9 w-9 items-center justify-center rounded-xl border border-input-border bg-surface text-muted transition-colors hover:bg-input hover:text-foreground"
+      className="motion-interactive relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl border border-input-border bg-surface text-muted hover:bg-input hover:text-foreground"
     >
-      {dark ? <Sun className="h-[18px] w-[18px]" /> : <Moon className="h-[18px] w-[18px]" />}
+      <Sun className={`absolute h-[18px] w-[18px] transition-[opacity,transform] duration-200 ${dark ? "rotate-0 opacity-100" : "-rotate-45 opacity-0"}`} />
+      <Moon className={`absolute h-[18px] w-[18px] transition-[opacity,transform] duration-200 ${dark ? "rotate-45 opacity-0" : "rotate-0 opacity-100"}`} />
     </button>
   );
 }

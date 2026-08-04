@@ -25,6 +25,8 @@ import {
   WARRANTY_OPTIONS,
   type WarrantyMonths,
 } from "@/lib/warranty";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, formatQuantity, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
 
 type ProductHit = {
   id: string;
@@ -35,10 +37,14 @@ type ProductHit = {
   sellingPrice: number;
   taxable: boolean;
   stock: number;
+  trackingType?: InventoryTracking;
+  defaultUnit?: UnitOfMeasure;
 };
 type CartLine = {
   product: ProductHit;
   qty: number;
+  enteredQty: number;
+  enteredUnit: UnitOfMeasure;
   unitPrice: number;
   unitDiscount?: number;
   warrantyMonths?: WarrantyMonths | null;
@@ -136,6 +142,8 @@ export function CreditSale({
     if (!carried?.length) return;
     const items = carried.map((line) => ({
       ...line,
+      enteredQty: line.enteredQty ?? line.qty,
+      enteredUnit: line.enteredUnit ?? line.product.defaultUnit ?? (line.product.trackingType === "LENGTH" ? "METER" : "EACH"),
       warrantyMonths: normalizeWarrantyMonths(line.warrantyMonths),
     }));
     const t = setTimeout(() => setCart(items), 0);
@@ -168,7 +176,9 @@ export function CreditSale({
       const i = prev.findIndex((l) => l.product.id === p.id);
       if (i >= 0) {
         const c = [...prev];
-        c[i] = { ...c[i], qty: c[i].qty + 1 };
+        const line = c[i];
+        const enteredQty = line.enteredQty + 1;
+        c[i] = { ...line, enteredQty, qty: toCanonicalQuantity(enteredQty, line.enteredUnit, line.product.trackingType ?? "PIECE") };
         return c;
       }
       return [
@@ -176,6 +186,8 @@ export function CreditSale({
         {
           product: p,
           qty: 1,
+          enteredQty: 1,
+          enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"),
           unitPrice: p.sellingPrice,
           unitDiscount: 0,
           warrantyMonths: null,
@@ -255,6 +267,8 @@ export function CreditSale({
         lines: cart.map((l) => ({
           productId: l.product.id,
           qty: l.qty,
+          enteredQty: l.enteredQty,
+          enteredUnit: l.enteredUnit,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
           warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
@@ -324,10 +338,10 @@ export function CreditSale({
                         </span>
                         <span className="block text-xs text-muted">
                           {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
-                          <span>stock: {h.stock}</span>
+                          <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                         </span>
                       </span>
-                      <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
+                      <span className="font-medium">{formatLKR(h.sellingPrice)}{h.trackingType === "LENGTH" ? "/m" : ""}</span>
                     </button>
                   ))}
                 </div>
@@ -337,7 +351,7 @@ export function CreditSale({
             {cart.length > 0 && (
               <div className="mt-4">
                 <div className="hidden grid-cols-[minmax(140px,1fr)_64px_112px_112px_96px_36px] gap-2 border-b border-border pb-2 text-xs font-medium text-muted md:grid">
-                  <span>Product</span><span>Qty</span><span>Unit price</span><span>Agreed unit price</span><span className="text-right">Net</span><span />
+                  <span>Product</span><span>Qty</span><span>Price / base unit</span><span>Agreed / base unit</span><span className="text-right">Net</span><span />
                 </div>
                 <div className="divide-y divide-border">
                   {cart.map((l) => {
@@ -346,7 +360,7 @@ export function CreditSale({
                     const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
                     const update = (
                       patch: Partial<
-                        Pick<CartLine, "qty" | "unitPrice" | "unitDiscount" | "warrantyMonths">
+                        Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths">
                       >,
                     ) =>
                       setCart((prev) =>
@@ -398,15 +412,19 @@ export function CreditSale({
                         </div>
                         <div className="grid grid-cols-3 gap-2 md:contents">
                           <label className="text-[11px] text-muted md:text-[0px]">
-                            Qty
+                            Quantity
                             <Input
                               type="number"
-                              min="1"
-                              value={l.qty}
-                              onChange={(e) => update({ qty: Math.max(1, Number(e.target.value)) })}
+                              min={l.product.trackingType === "LENGTH" ? "0.0001" : "1"}
+                              step={l.product.trackingType === "LENGTH" ? "0.0001" : "1"}
+                              value={l.enteredQty}
+                              onChange={(e) => { const enteredQty = Math.max(l.product.trackingType === "LENGTH" ? 0.0001 : 1, Number(e.target.value)); update({ enteredQty, qty: toCanonicalQuantity(enteredQty, l.enteredUnit, l.product.trackingType ?? "PIECE") }); }}
                               className="mt-1 h-10 w-full text-sm md:mt-0 md:h-9"
                               aria-label={`Quantity for ${l.product.name}`}
                             />
+                            <Select value={l.enteredUnit} onChange={(e) => { const enteredUnit = e.target.value as UnitOfMeasure; update({ enteredUnit, enteredQty: fromCanonicalQuantity(l.qty, enteredUnit, l.product.trackingType ?? "PIECE") }); }} className="mt-1 h-9 w-full text-sm">
+                              {unitsForTracking(l.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+                            </Select>
                           </label>
                           <label className="text-[11px] text-muted md:text-[0px]">
                             Unit price

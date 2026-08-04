@@ -48,7 +48,7 @@ export default async function ProductLabelsPage({
         prisma.product.findMany({
           where,
           orderBy: { shortCode: "asc" },
-          select: { id: true, code: true, shortCode: true, name: true, sellingPrice: true, quantityInStock: true },
+          select: { id: true, code: true, shortCode: true, name: true, sellingPrice: true, quantityInStock: true, trackingType: true },
           take: 2000,
         }),
       ]);
@@ -58,7 +58,8 @@ export default async function ProductLabelsPage({
   // each physical item. Zero-stock products drop out in per-unit mode.
   const labels: LabelItem[] = oneLabelPerUnit
     ? products.flatMap((p) => {
-        const copies = Math.min(Math.max(p.quantityInStock, 0), MAX_COPIES_PER_PRODUCT);
+        // Length products need one spool/rack label, never one label per metre.
+        const copies = p.trackingType === "LENGTH" ? (toNum(p.quantityInStock) > 0 ? 1 : 0) : Math.min(Math.max(Math.trunc(toNum(p.quantityInStock)), 0), MAX_COPIES_PER_PRODUCT);
         return Array.from({ length: copies }, (_, i) => ({
           key: `${p.id}-${i}`,
           shortCode: p.shortCode,

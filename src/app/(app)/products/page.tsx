@@ -16,6 +16,7 @@ import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
 import { parseShortCode } from "@/lib/product-code";
 import { toggleProductActive } from "./actions";
+import { canonicalUnit, formatQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -76,14 +77,15 @@ export default async function ProductsPage({
   };
 
   const rows = products.map((p) => {
-    const available = p.quantityInStock - p.quantityReserved;
-    const low = p.reorderLevel > 0 && available <= p.reorderLevel;
+    const available = toNum(p.quantityInStock) - toNum(p.quantityReserved);
+    const low = toNum(p.reorderLevel) > 0 && available <= toNum(p.reorderLevel);
+    const unit = canonicalUnit(p.trackingType);
     const price = toNum(p.sellingPrice);
     const cost = toNum(p.costPrice);
     const marginPct = grossMarginPct(cost, price);
     const target = p.targetMarginPct == null ? defaultTarget : toNum(p.targetMarginPct);
     const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
-    return { p, available, low, cost, marginPct, target, belowTarget };
+    return { p, available, low, unit, cost, marginPct, target, belowTarget };
   });
 
   return (
@@ -154,7 +156,7 @@ export default async function ProductsPage({
                     </TR>
                   </THead>
                   <TBody>
-                    {rows.map(({ p, available, low, cost, marginPct, target, belowTarget }) => (
+                    {rows.map(({ p, available, low, unit, cost, marginPct, target, belowTarget }) => (
                       <TR key={p.id} className={p.active ? "" : "opacity-50"}>
                         <TD className="font-mono text-sm font-bold">
                           <Link href={`/products/${p.id}`} className="text-primary-ink hover:underline">
@@ -196,9 +198,9 @@ export default async function ProductsPage({
                         </TD>
                         <TD className="text-right">
                           {low ? (
-                            <Badge tone="red">{available} low</Badge>
+                            <Badge tone="red">{formatQuantity(available, unit)} low</Badge>
                           ) : (
-                            <span>{available}{p.quantityReserved > 0 && <span className="ml-1 text-xs text-muted">({p.quantityReserved} reserved)</span>}</span>
+                            <span>{formatQuantity(available, unit)}{toNum(p.quantityReserved) > 0 && <span className="ml-1 text-xs text-muted">({formatQuantity(toNum(p.quantityReserved), unit)} reserved)</span>}</span>
                           )}
                         </TD>
                         <TD className="text-right">
@@ -222,7 +224,7 @@ export default async function ProductsPage({
               </div>
 
               <div className="lg:hidden">
-                {rows.map(({ p, available, low, marginPct, target, belowTarget }) => (
+                {rows.map(({ p, available, low, unit, marginPct, target, belowTarget }) => (
                   <div
                     key={p.id}
                     className={`border-b border-border-subtle p-4 last:border-0 ${p.active ? "" : "opacity-50"}`}
@@ -274,9 +276,9 @@ export default async function ProductsPage({
                         </Link>
                       )}
                       {low ? (
-                        <Badge tone="red">{available} available · low</Badge>
+                        <Badge tone="red">{formatQuantity(available, unit)} available · low</Badge>
                       ) : (
-                        <span className="text-muted">{available} available{p.quantityReserved ? ` · ${p.quantityReserved} reserved` : ""}</span>
+                        <span className="text-muted">{formatQuantity(available, unit)} available{toNum(p.quantityReserved) ? ` · ${formatQuantity(toNum(p.quantityReserved), unit)} reserved` : ""}</span>
                       )}
                       <form action={toggleProductActive.bind(null, p.id, !p.active)} className="ml-auto">
                         <Button variant="ghost" size="sm" type="submit" className="text-muted">

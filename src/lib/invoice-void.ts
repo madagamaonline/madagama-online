@@ -37,7 +37,7 @@ export async function applyInvoiceVoid(
       type: true,
       createdAt: true,
       voidedAt: true,
-      items: { select: { productId: true, qty: true } },
+      items: { select: { productId: true, qty: true, unit: true } },
       _count: { select: { returns: true, serviceJobs: true } },
       creditAgreement: {
         select: { id: true, _count: { select: { payments: true, interestCharges: true } } },
@@ -98,6 +98,7 @@ export async function applyInvoiceVoid(
         productId,
         type: "SALE_VOID",
         qty: item.qty,
+        unit: item.unit,
         balanceAfter: product.quantityInStock,
         reason: input.reason,
         refId: invoice.id,

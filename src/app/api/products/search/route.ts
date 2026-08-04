@@ -40,6 +40,8 @@ export async function GET(req: Request) {
       taxable: true,
       quantityInStock: true,
       quantityReserved: true,
+      trackingType: true,
+      defaultUnit: true,
     },
   });
 
@@ -58,9 +60,11 @@ export async function GET(req: Request) {
       sellingPrice: toNum(p.sellingPrice),
       costPrice: toNum(p.costPrice),
       taxable: p.taxable,
-      stock: p.quantityInStock - p.quantityReserved,
-      physicalStock: p.quantityInStock,
-      reservedStock: p.quantityReserved,
+      stock: toNum(p.quantityInStock) - toNum(p.quantityReserved),
+      physicalStock: toNum(p.quantityInStock),
+      reservedStock: toNum(p.quantityReserved),
+      trackingType: p.trackingType,
+      defaultUnit: p.defaultUnit,
     })),
   });
 }

@@ -11,6 +11,7 @@ import { nextProductCode } from "@/lib/product-code";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { toNum } from "@/lib/utils";
 import { validateQuickProduct } from "@/lib/quick-product";
+import { canonicalUnit, isUnitAllowed, roundQuantity, toCanonicalQuantity } from "@/lib/units";
 
 export type ProductFormState = { error?: string };
 
@@ -20,6 +21,8 @@ export type QuickCreateProductInput = {
   subcategoryId?: string;
   sellingPrice: number;
   taxable: boolean;
+  trackingType?: import("@prisma/client").InventoryTracking;
+  defaultUnit?: import("@prisma/client").UnitOfMeasure;
   modelNumber?: string;
   barcode?: string;
   primarySupplierId?: string;
@@ -28,7 +31,7 @@ export type QuickCreateProductInput = {
 export type QuickCreateProductResult =
   | {
       ok: true;
-      product: { id: string; code: string; name: string; costPrice: number; stock: number };
+      product: { id: string; code: string; name: string; costPrice: number; stock: number; trackingType: import("@prisma/client").InventoryTracking; defaultUnit: import("@prisma/client").UnitOfMeasure };
     }
   | { ok: false; error: string };
 
@@ -47,8 +50,10 @@ const schema = z.object({
   costPrice: z.coerce.number().min(0),
   sellingPrice: z.coerce.number().min(0),
   targetMarginPct: z.coerce.number().min(0).max(99).optional(),
-  quantityInStock: z.coerce.number().int().min(0),
-  reorderLevel: z.coerce.number().int().min(0),
+  trackingType: z.enum(["PIECE", "LENGTH"]),
+  defaultUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]),
+  quantityInStock: z.coerce.number().min(0),
+  reorderLevel: z.coerce.number().min(0),
   barcode: z.string().optional(),
   modelNumber: z.string().optional(),
   serialNumber: z.string().optional(),
@@ -81,6 +86,8 @@ function parse(formData: FormData) {
     sellingPrice: formData.get("sellingPrice") || 0,
     // Empty ⇒ undefined ⇒ stored as null (falls back to the global default).
     targetMarginPct: formData.get("targetMarginPct") || undefined,
+    trackingType: formData.get("trackingType") || "PIECE",
+    defaultUnit: formData.get("defaultUnit") || "EACH",
     quantityInStock: formData.get("quantityInStock") || 0,
     reorderLevel: formData.get("reorderLevel") || 0,
     barcode: formData.get("barcode") || undefined,
@@ -102,6 +109,7 @@ export async function quickCreateProduct(
       return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid product details" };
     }
     const d = parsed.data;
+    if (!isUnitAllowed(d.trackingType, d.defaultUnit)) return { ok: false, error: "Choose a valid default unit." };
     const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
     if ("error" in resolved) return { ok: false, error: resolved.error };
 
@@ -127,6 +135,8 @@ export async function quickCreateProduct(
             subcategoryId: resolved.subcategoryId,
             costPrice: 0,
             sellingPrice: d.sellingPrice,
+            trackingType: d.trackingType,
+            defaultUnit: d.defaultUnit,
             quantityInStock: 0,
             reorderLevel: 0,
             taxable,
@@ -134,7 +144,7 @@ export async function quickCreateProduct(
             modelNumber: d.modelNumber?.trim() || null,
             primarySupplierId: d.primarySupplierId || null,
           },
-          select: { id: true, code: true, name: true, costPrice: true, quantityInStock: true },
+          select: { id: true, code: true, name: true, costPrice: true, quantityInStock: true, trackingType: true, defaultUnit: true },
         });
       },
       { timeout: 15000 },
@@ -148,7 +158,9 @@ export async function quickCreateProduct(
         code: product.code,
         name: product.name,
         costPrice: toNum(product.costPrice),
-        stock: product.quantityInStock,
+        stock: toNum(product.quantityInStock),
+        trackingType: product.trackingType,
+        defaultUnit: product.defaultUnit,
       },
     };
   } catch (error) {
@@ -166,6 +178,10 @@ export async function createProduct(
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
+  if (!isUnitAllowed(d.trackingType, d.defaultUnit)) return { error: "Choose a valid default unit." };
+  if (d.trackingType === "PIECE" && (!Number.isInteger(d.quantityInStock) || !Number.isInteger(d.reorderLevel))) {
+    return { error: "Piece products require whole-number stock quantities." };
+  }
   // When the non-taxable switch is off, every new product is taxable — the
   // checkbox is hidden in the form, so coerce here too as a safety net.
   const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
@@ -187,6 +203,8 @@ export async function createProduct(
           costPrice: d.costPrice,
           sellingPrice: d.sellingPrice,
           targetMarginPct: d.targetMarginPct ?? null,
+          trackingType: d.trackingType,
+          defaultUnit: d.defaultUnit,
           quantityInStock: d.quantityInStock,
           reorderLevel: d.reorderLevel,
           taxable,
@@ -204,6 +222,7 @@ export async function createProduct(
           balanceAfter: d.quantityInStock,
           reason: "Opening stock",
           userId: session?.id ?? null,
+          unit: canonicalUnit(d.trackingType),
         });
       }
     },
@@ -224,6 +243,14 @@ export async function updateProduct(
   const parsed = parse(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const d = parsed.data;
+  if (!isUnitAllowed(d.trackingType, d.defaultUnit)) return { error: "Choose a valid default unit." };
+  if (d.trackingType === "PIECE" && !Number.isInteger(d.reorderLevel)) return { error: "Piece products require a whole-number reorder level." };
+  if (d.trackingType === "PIECE") {
+    const balances = await prisma.product.findUnique({ where: { id }, select: { quantityInStock: true, quantityReserved: true } });
+    if (balances && (!Number.isInteger(toNum(balances.quantityInStock)) || !Number.isInteger(toNum(balances.quantityReserved)))) {
+      return { error: "This product has fractional length stock. Adjust it to whole units before changing it to piece tracking." };
+    }
+  }
   // When the non-taxable switch is off, the checkbox is hidden — keep edits
   // taxable so an existing product can't be flipped to non-taxable.
   const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
@@ -249,6 +276,8 @@ export async function updateProduct(
         costPrice: d.costPrice,
         sellingPrice: d.sellingPrice,
         targetMarginPct: d.targetMarginPct ?? null,
+        trackingType: d.trackingType,
+        defaultUnit: d.defaultUnit,
         // quantityInStock is intentionally not updated here — stock changes only
         // through Purchases (stock-in) and Sales (stock-out).
         reorderLevel: d.reorderLevel,
@@ -298,21 +327,24 @@ export async function adjustStock(
   const denied = await requireSessionState();
   if (denied) return denied;
   const direction = formData.get("direction"); // "in" | "out"
-  const qty = Math.trunc(Number(formData.get("qty")));
+  const enteredQty = Number(formData.get("qty"));
+  const enteredUnit = String(formData.get("unit") || "EACH") as import("@prisma/client").UnitOfMeasure;
   const reason = (formData.get("reason") as string | null)?.trim() || "";
-  if (!Number.isFinite(qty) || qty <= 0) return { error: "Enter a whole quantity greater than 0." };
+  if (!Number.isFinite(enteredQty) || enteredQty <= 0) return { error: "Enter a quantity greater than 0." };
   if (!reason) return { error: "Please give a reason for the adjustment." };
-  const delta = direction === "out" ? -qty : qty;
-
   const session = await getSession();
   try {
     await prisma.$transaction(async (tx) => {
       const p = await tx.product.findUnique({
         where: { id: productId },
-        select: { quantityInStock: true, quantityReserved: true },
+        select: { quantityInStock: true, quantityReserved: true, trackingType: true },
       });
       if (!p) throw new Error("not_found");
-      if (p.quantityInStock + delta < p.quantityReserved) throw new Error("reserved");
+      if (!isUnitAllowed(p.trackingType, enteredUnit)) throw new Error("unit");
+      if (p.trackingType === "PIECE" && !Number.isInteger(enteredQty)) throw new Error("whole");
+      const canonicalQty = roundQuantity(toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType));
+      const delta = direction === "out" ? -canonicalQty : canonicalQty;
+      if (toNum(p.quantityInStock) + delta < toNum(p.quantityReserved)) throw new Error("reserved");
       const updated = await tx.product.update({
         where: { id: productId },
         data: { quantityInStock: { increment: delta } },
@@ -321,14 +353,17 @@ export async function adjustStock(
         productId,
         type: "ADJUSTMENT",
         qty: delta,
-        balanceAfter: updated.quantityInStock,
+        balanceAfter: toNum(updated.quantityInStock),
         reason,
         userId: session?.id ?? null,
+        unit: canonicalUnit(p.trackingType),
       });
     });
   } catch (e) {
     if ((e as Error).message === "reserved") return { error: "That would reduce physical stock below the quantity reserved for layaways." };
     if ((e as Error).message === "not_found") return { error: "Product not found." };
+    if ((e as Error).message === "unit") return { error: "Choose a valid unit for this product." };
+    if ((e as Error).message === "whole") return { error: "Piece products require a whole quantity." };
     console.error("adjustStock failed", e);
     return { error: "Could not adjust stock." };
   }

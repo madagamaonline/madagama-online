@@ -6,10 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, unitsForTracking } from "@/lib/units";
 
 const initial: AdjustStockState = {};
 
-export function StockAdjustForm({ productId }: { productId: string }) {
+export function StockAdjustForm({ productId, trackingType, defaultUnit }: { productId: string; trackingType: InventoryTracking; defaultUnit: UnitOfMeasure }) {
   const [state, action, pending] = useActionState(adjustStock.bind(null, productId), initial);
 
   return (
@@ -20,7 +22,7 @@ export function StockAdjustForm({ productId }: { productId: string }) {
       {state.ok && (
         <div className="rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">Stock adjusted.</div>
       )}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <Label htmlFor="direction">Direction</Label>
           <Select id="direction" name="direction" defaultValue="in">
@@ -30,7 +32,13 @@ export function StockAdjustForm({ productId }: { productId: string }) {
         </div>
         <div>
           <Label htmlFor="qty">Quantity</Label>
-          <Input id="qty" name="qty" type="number" min="1" step="1" required />
+          <Input id="qty" name="qty" type="number" min={trackingType === "PIECE" ? "1" : "0.0001"} step={trackingType === "PIECE" ? "1" : "0.0001"} required />
+        </div>
+        <div>
+          <Label htmlFor="unit">Unit</Label>
+          <Select id="unit" name="unit" defaultValue={defaultUnit}>
+            {unitsForTracking(trackingType).map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+          </Select>
         </div>
       </div>
       <div>

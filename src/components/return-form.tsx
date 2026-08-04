@@ -11,12 +11,15 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatLKR } from "@/lib/utils";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import type { UnitOfMeasure } from "@prisma/client";
+import { formatQuantity } from "@/lib/units";
 
 export type ReturnLine = {
   productId: string;
   code: string;
   name: string;
   sold: number;
+  unit: UnitOfMeasure;
   unitPrice: number;
 };
 
@@ -43,7 +46,7 @@ export function ReturnForm({
   const refund = lines.reduce((s, l) => s + (qtys[l.productId] || 0) * l.unitPrice, 0);
 
   function setQty(productId: string, value: number, max: number) {
-    setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, Math.trunc(value) || 0)) }));
+    setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, value || 0)) }));
   }
 
   function submit() {
@@ -86,13 +89,14 @@ export function ReturnForm({
                     <div className="font-mono text-xs font-semibold text-primary">{l.code}</div>
                     <div className="font-medium">{l.name}</div>
                   </td>
-                  <td className="px-2 text-right">{l.sold}</td>
+                  <td className="px-2 text-right">{formatQuantity(l.sold, l.unit)}</td>
                   <td className="px-2 text-right">{formatLKR(l.unitPrice)}</td>
                   <td className="px-2 text-right">
                     <Input
                       type="number"
                       min="0"
                       max={l.sold}
+                      step={l.unit === "EACH" ? "1" : "0.0001"}
                       value={q || ""}
                       onChange={(e) => setQty(l.productId, Number(e.target.value), l.sold)}
                       className="h-9 w-20 text-right"

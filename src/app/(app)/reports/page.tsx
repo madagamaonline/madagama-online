@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum, round2 } from "@/lib/utils";
+import { canonicalUnit, formatQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -149,7 +150,7 @@ export default async function ReportsPage({
     prisma.employee.findMany({ select: { id: true, name: true } }),
     prisma.product.findMany({
       where: { active: true, ...prodF },
-      select: { id: true, code: true, name: true, quantityInStock: true, costPrice: true, reorderLevel: true },
+      select: { id: true, code: true, name: true, quantityInStock: true, costPrice: true, reorderLevel: true, trackingType: true },
     }),
     prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...purchaseF } }),
     prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...supplierReturnF } }),
@@ -275,10 +276,10 @@ export default async function ReportsPage({
   const netPurchases = round2(purchasesMonth - supplierReturnsMonth);
 
   // Stock valuation (at cost, as of today) + low-stock list.
-  const stockValue = round2(stockProducts.reduce((s, p) => s + p.quantityInStock * toNum(p.costPrice), 0));
+  const stockValue = round2(stockProducts.reduce((s, p) => s + toNum(p.quantityInStock) * toNum(p.costPrice), 0));
   const lowStock = stockProducts
-    .filter((p) => p.reorderLevel > 0 && p.quantityInStock <= p.reorderLevel)
-    .sort((a, b) => a.quantityInStock - b.quantityInStock);
+    .filter((p) => toNum(p.reorderLevel) > 0 && toNum(p.quantityInStock) <= toNum(p.reorderLevel))
+    .sort((a, b) => toNum(a.quantityInStock) - toNum(b.quantityInStock));
 
   const taxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "TAXABLE")?._sum.grandTotal ?? 0);
   const nonTaxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "NON_TAXABLE")?._sum.grandTotal ?? 0);
@@ -316,7 +317,7 @@ export default async function ReportsPage({
   // cost for rows created before cost snapshots existed.
   const cogs = round2(
     monthItems.reduce(
-      (s, it) => s + it.qty * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0),
+      (s, it) => s + toNum(it.qty) * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0),
       0,
     ),
   );
@@ -327,7 +328,7 @@ export default async function ReportsPage({
   // back to current cost for returns created before snapshots existed.
   const refunds = toNum(refundAgg._sum.totalRefund ?? 0);
   const returnedCogs = round2(
-    returnedItems.reduce((s, it) => s + it.qty * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0), 0),
+    returnedItems.reduce((s, it) => s + toNum(it.qty) * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0), 0),
   );
   const expenses = toNum(expenseAgg._sum.amount ?? 0);
   // Payroll at true company cost: gross pay + employer EPF/ETF. Advance
@@ -394,7 +395,7 @@ export default async function ReportsPage({
       const saleRevenue = toNum(invoice.grandTotal);
       const saleCost = round2(
         invoice.items.reduce(
-          (itemSum, item) => itemSum + item.qty * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
+          (itemSum, item) => itemSum + toNum(item.qty) * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
           0,
         ),
       );
@@ -433,7 +434,7 @@ export default async function ReportsPage({
               returnSum +
               customerReturn.items.reduce(
                 (itemSum, item) =>
-                  itemSum + item.qty * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
+                  itemSum + toNum(item.qty) * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0),
                 0,
               ),
             0,
@@ -487,7 +488,7 @@ export default async function ReportsPage({
   for (const it of monthItems) {
     const cur = prodMap.get(it.nameSnapshot) ?? { revenue: 0, qty: 0 };
     cur.revenue += toNum(it.lineTotal);
-    cur.qty += it.qty;
+    cur.qty += toNum(it.qty);
     prodMap.set(it.nameSnapshot, cur);
   }
   const topProducts = Array.from(prodMap.entries())
@@ -734,8 +735,8 @@ export default async function ReportsPage({
                   <TR key={p.id}>
                     <TD className="font-mono text-xs font-semibold">{p.code}</TD>
                     <TD className="font-medium">{p.name}</TD>
-                    <TD className="text-right text-danger font-medium">{p.quantityInStock}</TD>
-                    <TD className="text-right text-muted">{p.reorderLevel}</TD>
+                    <TD className="text-right text-danger font-medium">{formatQuantity(toNum(p.quantityInStock), canonicalUnit(p.trackingType))}</TD>
+                    <TD className="text-right text-muted">{formatQuantity(toNum(p.reorderLevel), canonicalUnit(p.trackingType))}</TD>
                   </TR>
                 ))}
               </TBody>

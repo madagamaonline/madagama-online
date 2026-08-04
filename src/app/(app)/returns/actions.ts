@@ -16,7 +16,7 @@ import { computeOpenAccountState, openAccountInvoiceStatus } from "@/lib/open-ac
 
 const lineSchema = z.object({
   productId: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
+  qty: z.coerce.number().positive(),
   unitPrice: z.coerce.number().min(0),
 });
 
@@ -59,6 +59,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
                 unitPrice: true,
                 unitDiscount: true,
                 costSnapshot: true,
+                unit: true,
               },
             },
             returns: {
@@ -72,10 +73,10 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         const remaining = remainingReturnableByProduct(
           invoice.items.map((item) => ({
             productId: item.productId,
-            qty: item.qty,
+            qty: toNum(item.qty),
             unitPrice: toNum(item.unitPrice) - toNum(item.unitDiscount),
           })),
-          invoice.returns.flatMap((ret) => ret.items),
+          invoice.returns.flatMap((ret) => ret.items.map((item) => ({ ...item, qty: toNum(item.qty) }))),
         );
         const returnLines = d.lines.map((line) => {
           const allowed = remaining.get(line.productId);
@@ -123,7 +124,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           (
             await tx.product.findMany({
               where: { id: { in: returnLines.map((l) => l.productId) } },
-              select: { id: true, costPrice: true },
+              select: { id: true, costPrice: true, trackingType: true },
             })
           ).map((p) => [p.id, toNum(p.costPrice)]),
         );
@@ -139,6 +140,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
               create: returnLines.map((l) => ({
                 productId: l.productId,
                 qty: l.qty,
+                unit: invoice.items.find((item) => item.productId === l.productId)?.unit ?? "EACH",
                 unitPrice: l.unitPrice,
                 lineTotal: round2(l.qty * l.unitPrice),
                 costSnapshot: saleCostByProduct.get(l.productId) ?? productCosts.get(l.productId) ?? null,
@@ -215,7 +217,8 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
             productId: l.productId,
             type: "RETURN",
             qty: l.qty,
-            balanceAfter: updated.quantityInStock,
+            balanceAfter: toNum(updated.quantityInStock),
+            unit: invoice.items.find((item) => item.productId === l.productId)?.unit ?? "EACH",
             refId: created.id,
             userId: session?.id ?? null,
           });

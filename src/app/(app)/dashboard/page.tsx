@@ -30,6 +30,7 @@ import { SalesChart } from "@/components/sales-chart";
 import { formatLKR, formatDate, toNum, dueLabel } from "@/lib/utils";
 import { nonTaxableEnabled, activeInvoiceWhere, productTaxableWhere, purchaseTaxableWhere } from "@/lib/tax-mode";
 import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
+import { canonicalUnit, formatQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +96,7 @@ export default async function DashboardPage() {
     }),
     prisma.product.findMany({
       where: { active: true, reorderLevel: { gt: 0 }, ...prodF },
-      select: { id: true, code: true, name: true, quantityInStock: true, reorderLevel: true },
+      select: { id: true, code: true, name: true, quantityInStock: true, reorderLevel: true, trackingType: true },
     }),
     prisma.invoice.findMany({ where: { createdAt: { gte: start7 }, ...taxF }, select: { grandTotal: true, createdAt: true } }),
     prisma.invoice.groupBy({ by: ["type"], _sum: { grandTotal: true }, where: { createdAt: { gte: startToday }, ...taxF } }),
@@ -174,8 +175,8 @@ export default async function DashboardPage() {
     .slice(0, 6);
 
   const lowStockAll = lowStockProductsRaw
-    .filter((p) => p.quantityInStock <= p.reorderLevel)
-    .sort((a, b) => a.quantityInStock - b.quantityInStock);
+    .filter((p) => toNum(p.quantityInStock) <= toNum(p.reorderLevel))
+    .sort((a, b) => toNum(a.quantityInStock) - toNum(b.quantityInStock));
   const lowStockProducts = lowStockAll.slice(0, 5);
   const lowStockTotal = lowStockAll.length;
 
@@ -209,10 +210,10 @@ export default async function DashboardPage() {
   // Today's gross profit ≈ revenue − cost of goods sold (at current cost),
   // corrected for customer returns: refunds come off revenue and the restocked
   // goods give their cost back.
-  const todayCogs = todayItems.reduce((s, it) => s + it.qty * toNum(it.product?.costPrice), 0);
+  const todayCogs = todayItems.reduce((s, it) => s + toNum(it.qty) * toNum(it.product?.costPrice), 0);
   const todayRefunds = toNum(todayRefundAgg._sum.totalRefund);
   const todayReturnedCogs = todayReturnedItems.reduce(
-    (s, it) => s + it.qty * toNum(it.product?.costPrice),
+    (s, it) => s + toNum(it.qty) * toNum(it.product?.costPrice),
     0,
   );
   const todayProfit = todayVal - todayRefunds - (todayCogs - todayReturnedCogs);
@@ -376,7 +377,7 @@ export default async function DashboardPage() {
                   <Package className="h-4 w-4 shrink-0 text-clay" />
                   <span className="min-w-0">
                     <span className="block truncate text-[13px] font-semibold text-foreground">{p.name}</span>
-                    <span className="block font-mono text-[11px] text-clay-ink">{p.code} · {p.quantityInStock} left</span>
+                    <span className="block font-mono text-[11px] text-clay-ink">{p.code} · {formatQuantity(toNum(p.quantityInStock), canonicalUnit(p.trackingType))} left</span>
                   </span>
                 </span>
                 <ArrowRight className="h-4 w-4 shrink-0 text-clay/60" />
@@ -502,7 +503,7 @@ export default async function DashboardPage() {
                       {i + 1}
                     </span>
                     <span className="truncate">{p.name}</span>
-                    <span className="shrink-0 text-[11px] text-faint">×{p.qty}</span>
+                    <span className="shrink-0 text-[11px] text-faint">×{toNum(p.qty)}</span>
                   </span>
                   <span className="tabular text-[13px] font-bold text-foreground">{k(p.revenue)}</span>
                 </div>

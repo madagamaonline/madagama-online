@@ -44,7 +44,10 @@ export default async function EditQuotationPage({ params }: { params: Promise<{ 
       model: it.model ?? "",
       name: it.name,
       description: it.description ?? "",
-      qty: it.qty,
+      qty: toNum(it.qty),
+      enteredQty: it.enteredQty == null ? toNum(it.qty) : toNum(it.enteredQty),
+      enteredUnit: it.enteredUnit ?? it.unit,
+      trackingType: it.unit === "METER" ? "LENGTH" : "PIECE",
       unitPrice: toNum(it.unitPrice),
     })),
   };

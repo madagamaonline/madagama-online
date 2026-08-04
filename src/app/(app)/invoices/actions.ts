@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { Prisma, type TaxCategory } from "@prisma/client";
+import { Prisma, type TaxCategory, type UnitOfMeasure } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireActionAdmin, requireActionUser } from "@/lib/auth";
 import { canCreatePayLaterSale } from "@/lib/authorization";
@@ -16,10 +16,13 @@ import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
 import { isValidWarrantyMonths } from "@/lib/warranty";
+import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
+  qty: z.coerce.number().positive(),
+  enteredQty: z.coerce.number().positive().optional(),
+  enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
   warrantyMonths: z.number().int().nullable().optional().refine(
@@ -55,6 +58,9 @@ type Computed = {
   code: string;
   name: string;
   qty: number;
+  unit: UnitOfMeasure;
+  enteredQty: number;
+  enteredUnit: UnitOfMeasure;
   unitPrice: number;
   unitDiscount: number;
   warrantyMonths: number | null;
@@ -113,6 +119,7 @@ async function createSale(
       quantityInStock: true,
       quantityReserved: true,
       costPrice: true,
+      trackingType: true,
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -128,9 +135,14 @@ async function createSale(
   for (const line of data.lines) {
     const p = byId.get(line.productId);
     if (!p) return { ok: false, error: "One of the items no longer exists." };
-    const available = p.quantityInStock - p.quantityReserved;
-    if (line.qty > available) {
-      shortages.push(`${p.code} (available ${available}, ${p.quantityReserved} reserved, need ${line.qty})`);
+    const enteredQty = line.enteredQty ?? line.qty;
+    const enteredUnit = line.enteredUnit ?? canonicalUnit(p.trackingType);
+    if (!isUnitAllowed(p.trackingType, enteredUnit)) return { ok: false, error: `Invalid unit for ${p.code}.` };
+    if (p.trackingType === "PIECE" && !Number.isInteger(enteredQty)) return { ok: false, error: `${p.code} must be sold in whole pieces.` };
+    const qty = toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType);
+    const available = toNum(p.quantityInStock) - toNum(p.quantityReserved);
+    if (qty > available) {
+      shortages.push(`${p.code} (available ${available}, ${toNum(p.quantityReserved)} reserved, need ${qty})`);
     }
   }
   if (shortages.length) return { ok: false, error: `Not enough stock: ${shortages.join(", ")}` };
@@ -140,11 +152,17 @@ async function createSale(
   const nonTaxable: Computed[] = [];
   for (const line of data.lines) {
     const p = byId.get(line.productId)!;
+    const enteredQty = line.enteredQty ?? line.qty;
+    const enteredUnit = line.enteredUnit ?? canonicalUnit(p.trackingType);
+    const qty = toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType);
     const entry: Computed = {
       productId: p.id,
       code: p.code,
       name: p.name,
-      qty: line.qty,
+      qty,
+      unit: canonicalUnit(p.trackingType),
+      enteredQty,
+      enteredUnit,
       unitPrice: line.unitPrice,
       unitDiscount: line.unitDiscount,
       warrantyMonths: line.warrantyMonths ?? null,
@@ -211,6 +229,9 @@ async function createSale(
                     nameSnapshot: it.name,
                     codeSnapshot: it.code,
                     qty: it.qty,
+                    unit: it.unit,
+                    enteredQty: it.enteredQty,
+                    enteredUnit: it.enteredUnit,
                     unitPrice: it.unitPrice,
                     unitDiscount: it.unitDiscount,
                     warrantyMonths: it.warrantyMonths,
@@ -243,6 +264,7 @@ async function createSale(
                 balanceAfter,
                 refId: inv.id,
                 userId: session?.id ?? null,
+                unit: it.unit,
               });
             }
             out.push({ id: inv.id, invoiceNumber, taxCategory: g.category, grandTotal: totals.grandTotal });

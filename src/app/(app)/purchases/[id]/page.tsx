@@ -10,6 +10,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { PurchasePayment } from "@/components/purchase-payment";
 import { formatLKR, formatDate, formatDateTime, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { formatEnteredQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -76,8 +77,8 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                   <TR key={it.id}>
                     <TD className="font-mono text-xs">{it.product.code}</TD>
                     <TD>{it.product.name}</TD>
-                    <TD className="text-right">{it.qty}</TD>
-                    <TD className="text-right">{formatLKR(it.costPrice)}</TD>
+                    <TD className="text-right">{it.packageCount && it.packageCount > 1 ? `${it.packageCount} × ` : ""}{formatEnteredQuantity(toNum(it.qty), it.unit, it.enteredQty == null ? null : toNum(it.enteredQty), it.enteredUnit)}</TD>
+                    <TD className="text-right">{formatLKR(it.costPrice)}{it.unit === "METER" ? "/m" : ""}</TD>
                     <TD className="text-right font-medium">{formatLKR(it.lineTotal)}</TD>
                   </TR>
                 ))}

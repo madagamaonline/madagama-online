@@ -22,10 +22,13 @@ import { toNum, formatLKR } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
 import { isValidWarrantyMonths } from "@/lib/warranty";
+import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
+  qty: z.coerce.number().positive(),
+  enteredQty: z.coerce.number().positive().optional(),
+  enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
   warrantyMonths: z.number().int().nullable().optional().refine(
@@ -113,6 +116,7 @@ export async function createCreditSale(
       taxable: true,
       quantityInStock: true,
       costPrice: true,
+      trackingType: true,
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -121,7 +125,12 @@ export async function createCreditSale(
   for (const line of data.lines) {
     const p = byId.get(line.productId);
     if (!p) return { ok: false, error: "One of the items no longer exists." };
-    if (line.qty > p.quantityInStock) shortages.push(`${p.code} (have ${p.quantityInStock})`);
+    const enteredQty = line.enteredQty ?? line.qty;
+    const enteredUnit = line.enteredUnit ?? canonicalUnit(p.trackingType);
+    if (!isUnitAllowed(p.trackingType, enteredUnit)) return { ok: false, error: `Invalid unit for ${p.code}.` };
+    if (p.trackingType === "PIECE" && !Number.isInteger(enteredQty)) return { ok: false, error: `${p.code} must be sold in whole pieces.` };
+    const qty = toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType);
+    if (qty > toNum(p.quantityInStock)) shortages.push(`${p.code} (have ${toNum(p.quantityInStock)})`);
   }
   if (shortages.length) return { ok: false, error: `Not enough stock: ${shortages.join(", ")}` };
 
@@ -143,7 +152,10 @@ export async function createCreditSale(
 
   const computed = data.lines.map((line) => {
     const p = byId.get(line.productId)!;
-    return { line, p, lineTotal: line.qty * (line.unitPrice - line.unitDiscount) };
+    const enteredQty = line.enteredQty ?? line.qty;
+    const enteredUnit = line.enteredUnit ?? canonicalUnit(p.trackingType);
+    const qty = toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType);
+    return { line: { ...line, qty, enteredQty, enteredUnit }, p, unit: canonicalUnit(p.trackingType), lineTotal: qty * (line.unitPrice - line.unitDiscount) };
   });
   const totals = sumLines(
     computed.map((c) => ({
@@ -177,11 +189,14 @@ export async function createCreditSale(
               amountPaid: data.downPayment,
               status: data.downPayment > 0 ? "PARTIAL" : "CREDIT",
               items: {
-                create: computed.map(({ line, p }) => ({
+                create: computed.map(({ line, p, unit }) => ({
                   productId: p.id,
                   nameSnapshot: p.name,
                   codeSnapshot: p.code,
                   qty: line.qty,
+                  unit,
+                  enteredQty: line.enteredQty,
+                  enteredUnit: line.enteredUnit,
                   unitPrice: line.unitPrice,
                   unitDiscount: line.unitDiscount,
                   warrantyMonths: line.warrantyMonths ?? null,
@@ -191,7 +206,7 @@ export async function createCreditSale(
               },
             },
           });
-          for (const { line, p } of [...computed].sort((a, b) => a.line.productId.localeCompare(b.line.productId))) {
+          for (const { line, p, unit } of [...computed].sort((a, b) => a.line.productId.localeCompare(b.line.productId))) {
             const balanceAfter = await decrementStockForSale(tx, {
               productId: line.productId,
               productCode: p.code,
@@ -204,6 +219,7 @@ export async function createCreditSale(
               balanceAfter,
               refId: invoice.id,
               userId: session?.id ?? null,
+              unit,
             });
           }
           const guarantor = data.guarantor

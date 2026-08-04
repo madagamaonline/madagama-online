@@ -9,13 +9,16 @@ import { requireUser } from "@/lib/auth";
 import { sumLines } from "@/lib/totals";
 import { round2 } from "@/lib/utils";
 import { generateQuotationNumber } from "@/lib/quotation-number";
+import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
 
 const lineSchema = z.object({
   productId: z.string().optional().nullable(),
   model: z.string().optional().nullable(),
   name: z.string().trim().min(1, "Each line needs an item name"),
   description: z.string().optional().nullable(),
-  qty: z.coerce.number().int().positive(),
+  qty: z.coerce.number().positive(),
+  enteredQty: z.coerce.number().positive().optional(),
+  enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   unitPrice: z.coerce.number().min(0),
 });
 
@@ -54,18 +57,34 @@ async function persist(input: QuotationInput, id: string | null): Promise<Quotat
   }
   const data = parsed.data;
   const session = await requireUser();
+  const linked = await prisma.product.findMany({ where: { id: { in: data.lines.flatMap((line) => line.productId ? [line.productId] : []) } }, select: { id: true, trackingType: true } });
+  const byId = new Map(linked.map((product) => [product.id, product]));
+  const normalized = [] as Array<(typeof data.lines)[number] & { qty: number; enteredQty: number; enteredUnit: import("@prisma/client").UnitOfMeasure; unit: import("@prisma/client").UnitOfMeasure }>;
+  for (const line of data.lines) {
+    const product = line.productId ? byId.get(line.productId) : null;
+    if (line.productId && !product) return { ok: false, error: "A quoted product no longer exists." };
+    const tracking = product?.trackingType ?? "PIECE";
+    const enteredQty = line.enteredQty ?? line.qty;
+    const enteredUnit = line.enteredUnit ?? canonicalUnit(tracking);
+    if (!isUnitAllowed(tracking, enteredUnit)) return { ok: false, error: `Invalid unit for ${line.name}.` };
+    if (tracking === "PIECE" && !Number.isInteger(enteredQty)) return { ok: false, error: `${line.name} requires a whole quantity.` };
+    normalized.push({ ...line, enteredQty, enteredUnit, unit: canonicalUnit(tracking), qty: toCanonicalQuantity(enteredQty, enteredUnit, tracking) });
+  }
 
   const totals = sumLines(
-    data.lines.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice })),
+    normalized.map((l) => ({ qty: l.qty, unitPrice: l.unitPrice })),
     data.discount || 0,
   );
 
-  const items = data.lines.map((l) => ({
+  const items = normalized.map((l) => ({
     productId: clean(l.productId),
     model: clean(l.model),
     name: l.name.trim(),
     description: clean(l.description),
     qty: l.qty,
+    unit: l.unit,
+    enteredQty: l.enteredQty,
+    enteredUnit: l.enteredUnit,
     unitPrice: round2(l.unitPrice),
     lineTotal: round2(l.qty * l.unitPrice),
   }));

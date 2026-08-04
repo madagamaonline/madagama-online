@@ -16,6 +16,8 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, formatQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
 
 type ProductHit = {
   id: string;
@@ -24,8 +26,10 @@ type ProductHit = {
   modelNumber?: string | null;
   costPrice: number;
   stock: number;
+  trackingType?: InventoryTracking;
+  defaultUnit?: UnitOfMeasure;
 };
-type Line = { product: ProductHit; qty: number; costPrice: number };
+type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit: UnitOfMeasure; packageCount: number; costPrice: number };
 
 export function PurchaseForm({
   suppliers,
@@ -94,10 +98,12 @@ export function PurchaseForm({
       const i = prev.findIndex((l) => l.product.id === p.id);
       if (i >= 0) {
         const c = [...prev];
-        c[i] = { ...c[i], qty: c[i].qty + 1 };
+        const line = c[i];
+        const enteredQty = line.enteredQty + 1;
+        c[i] = { ...line, enteredQty, qty: toCanonicalQuantity(enteredQty * line.packageCount, line.enteredUnit, line.product.trackingType ?? "PIECE") };
         return c;
       }
-      return [...prev, { product: p, qty: 1, costPrice: p.costPrice }];
+      return [...prev, { product: p, qty: 1, enteredQty: 1, enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: p.costPrice }];
     });
     setQuery("");
     setHits([]);
@@ -125,7 +131,7 @@ export function PurchaseForm({
         creditDueDate: type === "CREDIT" ? creditDueDate : null,
         amountPaid: type === "CREDIT" ? amountPaid || 0 : total,
         notes: notes || null,
-        lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, costPrice: l.costPrice })),
+        lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, enteredQty: l.enteredQty, enteredUnit: l.enteredUnit, packageCount: l.packageCount, costPrice: l.costPrice })),
       });
       if (!res.ok) return setError(res.error);
       setSaved(true);
@@ -178,10 +184,10 @@ export function PurchaseForm({
                           </span>
                           <span className="block text-xs text-muted">
                             {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
-                            <span>stock: {h.stock}</span>
+                            <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                           </span>
                         </span>
-                        <span className="shrink-0 text-muted">cost {formatLKR(h.costPrice)}</span>
+                        <span className="shrink-0 text-muted">cost {formatLKR(h.costPrice)}{h.trackingType === "LENGTH" ? "/m" : ""}</span>
                       </button>
                     ))
                   ) : (
@@ -226,8 +232,9 @@ export function PurchaseForm({
                 <thead className="text-left text-muted">
                   <tr className="border-b border-border">
                     <th className="py-2 font-medium">Item</th>
-                    <th className="px-2 font-medium">Qty</th>
-                    <th className="px-2 font-medium">Unit Cost</th>
+                    <th className="px-2 font-medium">Packages</th>
+                    <th className="px-2 font-medium">Qty / package</th>
+                    <th className="px-2 font-medium">Cost / piece or metre</th>
                     <th className="px-2 text-right font-medium">Total</th>
                     <th></th>
                   </tr>
@@ -243,16 +250,26 @@ export function PurchaseForm({
                         <Input
                           type="number"
                           min="1"
-                          value={l.qty}
+                          step="1"
+                          value={l.packageCount}
                           onChange={(e) =>
                             setLines((prev) =>
                               prev.map((x) =>
-                                x.product.id === l.product.id ? { ...x, qty: Math.max(1, Number(e.target.value)) } : x,
+                                x.product.id === l.product.id ? { ...x, packageCount: Math.max(1, Math.trunc(Number(e.target.value))), qty: toCanonicalQuantity(x.enteredQty * Math.max(1, Math.trunc(Number(e.target.value))), x.enteredUnit, x.product.trackingType ?? "PIECE") } : x,
                               ),
                             )
                           }
                           className="h-9 w-16"
                         />
+                      </td>
+                      <td className="px-2">
+                        <div className="flex gap-1">
+                          <Input type="number" min={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} step={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} value={l.enteredQty} onChange={(e) => setLines((prev) => prev.map((x) => x.product.id === l.product.id ? { ...x, enteredQty: Math.max(x.product.trackingType === "LENGTH" ? 0.0001 : 1, Number(e.target.value)), qty: toCanonicalQuantity(Math.max(x.product.trackingType === "LENGTH" ? 0.0001 : 1, Number(e.target.value)) * x.packageCount, x.enteredUnit, x.product.trackingType ?? "PIECE") } : x))} className="h-9 w-20" />
+                          <Select value={l.enteredUnit} onChange={(e) => { const unit = e.target.value as UnitOfMeasure; setLines((prev) => prev.map((x) => x.product.id === l.product.id ? { ...x, enteredUnit: unit, qty: toCanonicalQuantity(x.enteredQty * x.packageCount, unit, x.product.trackingType ?? "PIECE") } : x)); }} className="h-9 w-20 px-2">
+                            {unitsForTracking(l.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+                          </Select>
+                        </div>
+                        {l.product.trackingType === "LENGTH" && <div className="mt-1 text-[10px] text-muted">Total {formatQuantity(l.qty, "METER")}</div>}
                       </td>
                       <td className="px-2">
                         <NumberInput

@@ -14,6 +14,8 @@ import { formatLKR } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import type { QuotationInput, QuotationResult } from "@/app/(app)/quotations/actions";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
 
 type ProductHit = {
   id: string;
@@ -21,6 +23,8 @@ type ProductHit = {
   name: string;
   sellingPrice: number;
   stock: number;
+  trackingType?: InventoryTracking;
+  defaultUnit?: UnitOfMeasure;
 };
 
 export type QuoLine = {
@@ -30,6 +34,9 @@ export type QuoLine = {
   name: string;
   description: string;
   qty: number;
+  enteredQty: number;
+  enteredUnit: UnitOfMeasure;
+  trackingType: InventoryTracking;
   unitPrice: number;
 };
 
@@ -50,7 +57,7 @@ function newKey() {
 }
 
 function blankLine(): QuoLine {
-  return { key: newKey(), productId: null, model: "", name: "", description: "", qty: 1, unitPrice: 0 };
+  return { key: newKey(), productId: null, model: "", name: "", description: "", qty: 1, enteredQty: 1, enteredUnit: "EACH", trackingType: "PIECE", unitPrice: 0 };
 }
 
 const emptyInitial: QuotationInitial = {
@@ -130,6 +137,9 @@ export function QuotationForm({
         name: p.name,
         description: "",
         qty: 1,
+        enteredQty: 1,
+        enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"),
+        trackingType: p.trackingType ?? "PIECE",
         unitPrice: p.sellingPrice,
       },
     ]);
@@ -207,6 +217,8 @@ export function QuotationForm({
           name: l.name,
           description: l.description || null,
           qty: l.qty,
+          enteredQty: l.enteredQty,
+          enteredUnit: l.enteredUnit,
           unitPrice: l.unitPrice,
         })),
       });
@@ -283,14 +295,18 @@ export function QuotationForm({
                   </div>
                   <div className="grid grid-cols-2 gap-3 sm:grid-cols-12">
                     <div className="col-span-1 sm:col-span-2">
-                      <Label>Qty</Label>
+                      <Label>Quantity</Label>
                       <Input
                         type="number"
-                        min="1"
-                        value={l.qty}
-                        onChange={(e) => updateLine(l.key, { qty: Math.max(1, Number(e.target.value)) })}
+                        min={l.trackingType === "LENGTH" ? "0.0001" : "1"}
+                        step={l.trackingType === "LENGTH" ? "0.0001" : "1"}
+                        value={l.enteredQty}
+                        onChange={(e) => { const enteredQty = Math.max(l.trackingType === "LENGTH" ? 0.0001 : 1, Number(e.target.value)); updateLine(l.key, { enteredQty, qty: toCanonicalQuantity(enteredQty, l.enteredUnit, l.trackingType) }); }}
                         className="h-9"
                       />
+                      <Select value={l.enteredUnit} onChange={(e) => { const enteredUnit = e.target.value as UnitOfMeasure; updateLine(l.key, { enteredUnit, enteredQty: fromCanonicalQuantity(l.qty, enteredUnit, l.trackingType) }); }} className="mt-1 h-9">
+                        {unitsForTracking(l.trackingType).map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+                      </Select>
                     </div>
                     <div className="col-span-1 sm:col-span-4">
                       <Label>Model</Label>

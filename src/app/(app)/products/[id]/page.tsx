@@ -12,6 +12,7 @@ import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
+import { canonicalUnit, formatQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -70,7 +71,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       : toNum(product.targetMarginPct);
   const usingDefaultTarget = product.targetMarginPct == null;
   const belowTarget = cost > 0 && price > 0 && marginPct < target - 0.05;
-  const low = product.reorderLevel > 0 && product.quantityInStock <= product.reorderLevel;
+  const stock = toNum(product.quantityInStock);
+  const reserved = toNum(product.quantityReserved);
+  const reorder = toNum(product.reorderLevel);
+  const unit = canonicalUnit(product.trackingType);
+  const low = reorder > 0 && stock - reserved <= reorder;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -112,10 +117,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 </Link>
               </div>
             )}
-            <Row label="Physical stock">{product.quantityInStock}</Row>
-            <Row label="Reserved"><Badge tone={product.quantityReserved ? "blue" : "gray"}>{product.quantityReserved}</Badge></Row>
-            <Row label="Available to sell">{low ? <Badge tone="red">{product.quantityInStock - product.quantityReserved} low</Badge> : product.quantityInStock - product.quantityReserved}</Row>
-            <Row label="Reorder level">{product.reorderLevel}</Row>
+            <Row label="Measured by">{product.trackingType === "LENGTH" ? "Length" : "Pieces"}</Row>
+            <Row label="Physical stock">{formatQuantity(stock, unit)}</Row>
+            <Row label="Reserved"><Badge tone={reserved ? "blue" : "gray"}>{formatQuantity(reserved, unit)}</Badge></Row>
+            <Row label="Available to sell">{low ? <Badge tone="red">{formatQuantity(stock - reserved, unit)} low</Badge> : formatQuantity(stock - reserved, unit)}</Row>
+            <Row label="Reorder level">{formatQuantity(reorder, unit)}</Row>
             <Row label="Model no.">{product.modelNumber ?? "—"}</Row>
             <Row label="Serial no.">{product.serialNumber ?? "—"}</Row>
             <Row label="Supplier">{product.primarySupplier?.name ?? "—"}</Row>
@@ -128,7 +134,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <CardTitle>Adjust stock</CardTitle>
           </CardHeader>
           <CardContent>
-            <StockAdjustForm productId={product.id} />
+            <StockAdjustForm productId={product.id} trackingType={product.trackingType} defaultUnit={product.defaultUnit} />
           </CardContent>
         </Card>
 
@@ -137,7 +143,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <CardTitle>Quick stats</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
-            <Row label="Stock value (cost)">{formatLKR(cost * product.quantityInStock)}</Row>
+            <Row label="Stock value (cost)">{formatLKR(cost * stock)}</Row>
             <Row label="Movements logged">{movements.length}</Row>
           </CardContent>
         </Card>
@@ -169,10 +175,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                     <TD>
                       <Badge tone={typeTone[m.type]}>{m.type}</Badge>
                     </TD>
-                    <TD className={`text-right font-medium ${m.qty < 0 ? "text-danger" : "text-green-700"}`}>
-                      {m.qty > 0 ? `+${m.qty}` : m.qty}
+                    <TD className={`text-right font-medium ${toNum(m.qty) < 0 ? "text-danger" : "text-green-700"}`}>
+                      {toNum(m.qty) > 0 ? "+" : ""}{formatQuantity(toNum(m.qty), m.unit)}
                     </TD>
-                    <TD className="text-right">{m.balanceAfter}</TD>
+                    <TD className="text-right">{formatQuantity(toNum(m.balanceAfter), m.unit)}</TD>
                     <TD className="text-muted">{m.reason ?? "—"}</TD>
                     <TD className="text-muted">{m.createdBy?.name ?? "—"}</TD>
                   </TR>

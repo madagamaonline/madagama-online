@@ -42,7 +42,7 @@ export default async function NewSupplierReturnPage({
       supplier: { select: { name: true } },
       items: {
         include: {
-          product: { select: { id: true, code: true, name: true, quantityInStock: true } },
+          product: { select: { id: true, code: true, name: true, quantityInStock: true, trackingType: true } },
         },
       },
     },
@@ -55,8 +55,9 @@ export default async function NewSupplierReturnPage({
     productId: it.product.id,
     code: it.product.code,
     name: it.product.name,
-    purchased: it.qty,
-    inStock: it.product.quantityInStock,
+    purchased: toNum(it.qty),
+    inStock: toNum(it.product.quantityInStock),
+    unit: it.product.trackingType === "LENGTH" ? "METER" : "EACH",
     unitCost: toNum(it.costPrice),
   }));
 

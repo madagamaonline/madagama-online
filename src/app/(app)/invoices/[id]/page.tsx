@@ -13,6 +13,7 @@ import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
 import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
 import { formatWarrantyMonths } from "@/lib/warranty";
+import { formatEnteredQuantity, formatQuantity } from "@/lib/units";
 
 const CATEGORY_LABEL = { TAXABLE: "TAXABLE", NON_TAXABLE: "NON-TAXABLE" } as const;
 
@@ -74,8 +75,8 @@ export default async function InvoiceViewPage({
   // When non-taxable is off, a non-taxable invoice has no traces — even by URL.
   if (!invoice || (!ntEnabled && invoice.taxCategory === "NON_TAXABLE")) notFound();
 
-  const soldQty = invoice.items.reduce((s, it) => s + it.qty, 0);
-  const returnedQty = invoice.returns.reduce((s, r) => s + r.items.reduce((a, it) => a + it.qty, 0), 0);
+  const soldQty = invoice.items.reduce((s, it) => s + toNum(it.qty), 0);
+  const returnedQty = invoice.returns.reduce((s, r) => s + r.items.reduce((a, it) => a + toNum(it.qty), 0), 0);
   const totalRefunded = invoice.returns.reduce((s, r) => s + toNum(r.totalRefund), 0);
   const statementAsOf = new Date();
   const creditAgreement = invoice.type === "CREDIT" ? invoice.creditAgreement : null;
@@ -123,7 +124,7 @@ export default async function InvoiceViewPage({
   }) ?? [];
   const isAccountStatement = Boolean(creditAgreement || openAccount);
   const productDiscount = invoice.items.reduce(
-    (sum, item) => sum + item.qty * toNum(item.unitDiscount),
+    (sum, item) => sum + toNum(item.qty) * toNum(item.unitDiscount),
     0,
   );
   const billDiscount = Math.max(0, toNum(invoice.discount) - productDiscount);
@@ -268,8 +269,8 @@ export default async function InvoiceViewPage({
                       </div>
                     )}
                   </td>
-                  <td className="px-2 text-right">{it.qty}</td>
-                  <td className="px-2 text-right">{formatLKR(it.unitPrice)}</td>
+                  <td className="px-2 text-right">{formatEnteredQuantity(toNum(it.qty), it.unit, it.enteredQty == null ? null : toNum(it.enteredQty), it.enteredUnit)}</td>
+                  <td className="px-2 text-right">{formatLKR(it.unitPrice)}{it.unit === "METER" ? "/m" : ""}</td>
                   {hasProductDiscount && (
                     <td className="px-2 text-right">
                       {toNum(it.unitDiscount) > 0 ? (
@@ -446,7 +447,7 @@ export default async function InvoiceViewPage({
               )}
               <div className="flex justify-between gap-2">
                 <span className="min-w-0">
-                  {it.qty} × {formatLKR(it.unitPrice)}
+                  {formatEnteredQuantity(toNum(it.qty), it.unit, it.enteredQty == null ? null : toNum(it.enteredQty), it.enteredUnit)} × {formatLKR(it.unitPrice)}{it.unit === "METER" ? "/m" : ""}
                 </span>
                 <span className="shrink-0 tabular">{formatLKR(it.lineTotal)}</span>
               </div>
@@ -555,7 +556,7 @@ export default async function InvoiceViewPage({
                 <ul className="mt-1 space-y-0.5">
                   {r.items.map((it) => (
                     <li key={it.id} className="text-muted">
-                      {it.qty} × {it.product.name}{" "}
+                      {formatQuantity(toNum(it.qty), it.unit)} × {it.product.name}{" "}
                       <span className="font-mono text-xs">({it.product.code})</span> @ {formatLKR(it.unitPrice)}
                     </li>
                   ))}

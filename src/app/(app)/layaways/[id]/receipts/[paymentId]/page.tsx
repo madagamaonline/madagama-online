@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PrintButton } from "@/components/print-button";
 import { formatDate, formatLKR, toNum } from "@/lib/utils";
 import { layawayBalance } from "@/lib/layaway";
+import { formatEnteredQuantity } from "@/lib/units";
 export const dynamic = "force-dynamic";
 export default async function LayawayReceiptPage({ params }: { params: Promise<{ id: string; paymentId: string }> }) {
   const { id, paymentId } = await params;
@@ -22,7 +23,7 @@ export default async function LayawayReceiptPage({ params }: { params: Promise<{
       <div className="grid grid-cols-2 gap-5 py-5 text-sm"><div><p className="text-xs uppercase text-muted">Received from</p><p className="font-bold">{payment.order.customer.name}</p><p className="text-muted">{payment.order.customer.phone}</p></div><div className="text-right"><p className="text-xs uppercase text-muted">Payment date</p><p className="font-bold">{formatDate(payment.paidDate)}</p><p className="text-muted">{payment.method}{payment.reference?` · ${payment.reference}`:""}</p></div></div>
       <div className="border-y border-border py-6 text-center"><p className="text-sm text-muted">Installment received</p><p className="mt-2 text-3xl font-black tabular-nums">{formatLKR(payment.amount)}</p></div>
       <div className="grid grid-cols-2 gap-3 border-b border-border py-4 text-center sm:grid-cols-3"><div className="col-span-2 border-b border-border-subtle pb-3 sm:col-span-1 sm:border-0 sm:pb-0"><p className="text-[10px] uppercase text-muted">Order total</p><p className="font-mono font-bold">{formatLKR(payment.order.total)}</p></div><div><p className="text-[10px] uppercase text-muted">Collected</p><p className="font-mono font-bold">{formatLKR(collectedAtReceipt)}</p></div><div><p className="text-[10px] uppercase text-muted">Balance</p><p className="font-mono font-bold">{formatLKR(balance)}</p></div></div>
-      <div className="py-4"><p className="mb-2 text-xs font-bold uppercase text-muted">Reserved item summary</p>{payment.order.items.map((item)=><div key={item.id} className="flex justify-between gap-3 py-1 text-sm"><span>{item.qty} × {item.nameSnapshot}</span><span className="font-mono">{formatLKR(item.lineTotal)}</span></div>)}<p className="receipt-note mt-3 rounded-lg bg-input p-2 text-xs text-muted">Goods remain the property of the shop and stay in-store until full payment and explicit handover.</p></div>
+      <div className="py-4"><p className="mb-2 text-xs font-bold uppercase text-muted">Reserved item summary</p>{payment.order.items.map((item)=><div key={item.id} className="flex justify-between gap-3 py-1 text-sm"><span>{formatEnteredQuantity(toNum(item.qty), item.unit, item.enteredQty == null ? null : toNum(item.enteredQty), item.enteredUnit)} × {item.nameSnapshot}</span><span className="font-mono">{formatLKR(item.lineTotal)}</span></div>)}<p className="receipt-note mt-3 rounded-lg bg-input p-2 text-xs text-muted">Goods remain the property of the shop and stay in-store until full payment and explicit handover.</p></div>
       <footer className="mt-14 grid grid-cols-2 gap-12 text-center text-xs"><div className="border-t border-border pt-2">Customer signature</div><div className="border-t border-border pt-2">Received by {payment.recordedBy?.name??"Madagama"}</div></footer>
     </article>
   </div>;

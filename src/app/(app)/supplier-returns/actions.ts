@@ -10,7 +10,7 @@ import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
-  qty: z.coerce.number().int().positive(),
+  qty: z.coerce.number().positive(),
   unitCost: z.coerce.number().min(0),
 });
 
@@ -49,16 +49,19 @@ export async function createSupplierReturn(
     const ret = await prisma.$transaction(
       async (tx) => {
         // Take goods out of stock, refusing to drive any product negative.
+        const unitByProduct = new Map<string, "EACH" | "METER">();
         for (const l of d.lines) {
           const product = await tx.product.findUnique({
             where: { id: l.productId },
-            select: { quantityInStock: true, quantityReserved: true, name: true },
+            select: { quantityInStock: true, quantityReserved: true, name: true, trackingType: true },
           });
           if (!product) throw new Error("Product not found");
-          const available = product.quantityInStock - product.quantityReserved;
+          unitByProduct.set(l.productId, product.trackingType === "LENGTH" ? "METER" : "EACH");
+          if (product.trackingType === "PIECE" && !Number.isInteger(l.qty)) throw new Error(`${product.name} requires a whole quantity.`);
+          const available = toNum(product.quantityInStock) - toNum(product.quantityReserved);
           if (available < l.qty) {
             throw new Error(
-              `Not enough available stock of ${product.name} to return (${product.quantityReserved} reserved, ${available} available).`,
+              `Not enough available stock of ${product.name} to return (${toNum(product.quantityReserved)} reserved, ${available} available).`,
             );
           }
         }
@@ -91,6 +94,7 @@ export async function createSupplierReturn(
               create: d.lines.map((l) => ({
                 productId: l.productId,
                 qty: l.qty,
+                unit: unitByProduct.get(l.productId) ?? "EACH",
                 unitCost: l.unitCost,
                 lineTotal: round2(l.qty * l.unitCost),
               })),
@@ -107,7 +111,8 @@ export async function createSupplierReturn(
             productId: l.productId,
             type: "SUPPLIER_RETURN",
             qty: -l.qty, // signed: stock out
-            balanceAfter: updated.quantityInStock,
+            balanceAfter: toNum(updated.quantityInStock),
+            unit: unitByProduct.get(l.productId) ?? "EACH",
             refId: created.id,
             userId: session.id,
           });

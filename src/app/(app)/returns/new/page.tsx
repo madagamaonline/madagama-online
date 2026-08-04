@@ -77,18 +77,19 @@ export default async function NewReturnPage({
   const returnedByProduct = new Map<string, number>();
   for (const ret of invoice.returns) {
     for (const item of ret.items) {
-      returnedByProduct.set(item.productId, (returnedByProduct.get(item.productId) ?? 0) + item.qty);
+      returnedByProduct.set(item.productId, (returnedByProduct.get(item.productId) ?? 0) + toNum(item.qty));
     }
   }
 
   // Only items still linked to a product and not already fully returned can be restocked.
   const lines: ReturnLine[] = invoice.items
-    .filter((it) => it.productId && it.qty > (returnedByProduct.get(it.productId) ?? 0))
+    .filter((it) => it.productId && toNum(it.qty) > (returnedByProduct.get(it.productId) ?? 0))
     .map((it) => ({
       productId: it.productId as string,
       code: it.codeSnapshot ?? "",
       name: it.nameSnapshot,
-      sold: it.qty - (returnedByProduct.get(it.productId as string) ?? 0),
+      sold: toNum(it.qty) - (returnedByProduct.get(it.productId as string) ?? 0),
+      unit: it.unit,
       unitPrice: toNum(it.unitPrice) - toNum(it.unitDiscount),
     }));
 

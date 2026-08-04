@@ -11,6 +11,7 @@ import { QuotationStatusControl } from "@/components/quotation-status-control";
 import { quotationStatusLabel, quotationStatusTone } from "@/components/quotation-status-badge";
 import { deleteQuotation } from "@/app/(app)/quotations/actions";
 import { formatLKR, formatDate, toNum } from "@/lib/utils";
+import { formatEnteredQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
 
@@ -144,16 +145,16 @@ export default async function QuotationViewPage({ params }: { params: Promise<{ 
               const unit = toNum(it.unitPrice);
               return (
                 <tr key={it.id} className="border-b border-border align-top">
-                  <td className="py-2.5 pr-2">{it.qty}</td>
+                  <td className="py-2.5 pr-2">{formatEnteredQuantity(toNum(it.qty), it.unit, it.enteredQty == null ? null : toNum(it.enteredQty), it.enteredUnit)}</td>
                   <td className="py-2.5 pr-2 font-medium">{it.model ?? ""}</td>
                   <td className="py-2.5 pr-2">
                     <div className="font-semibold">{it.name}</div>
                     {it.description && (
                       <div className="whitespace-pre-line text-[13px] text-muted">{it.description}</div>
                     )}
-                    {it.qty > 1 && (
+                    {toNum(it.qty) > 1 && (
                       <div className="text-xs text-faint">
-                        {it.qty} × {formatLKR(unit)} each
+                        {formatEnteredQuantity(toNum(it.qty), it.unit, it.enteredQty == null ? null : toNum(it.enteredQty), it.enteredUnit)} × {formatLKR(unit)} per {it.unit === "METER" ? "metre" : "piece"}
                       </div>
                     )}
                   </td>

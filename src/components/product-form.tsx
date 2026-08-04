@@ -9,8 +9,11 @@ import { Input } from "@/components/ui/input";
 import { NumberInput } from "@/components/ui/number-input";
 import { Label } from "@/components/ui/label";
 import { SearchSelect } from "@/components/ui/search-select";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PricingHelper } from "@/components/pricing-helper";
+import { UNIT_LABELS, unitsForTracking } from "@/lib/units";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
 
 type Sub = { id: string; name: string; code: string; categoryId: string };
 type Category = { id: string; name: string; code: string; subcategories: Sub[] };
@@ -24,6 +27,8 @@ export type ProductInitial = {
   costPrice: number;
   sellingPrice: number;
   targetMarginPct: number | null;
+  trackingType: InventoryTracking;
+  defaultUnit: UnitOfMeasure;
   quantityInStock: number;
   reorderLevel: number;
   taxable: boolean;
@@ -41,6 +46,8 @@ const empty: ProductInitial = {
   costPrice: 0,
   sellingPrice: 0,
   targetMarginPct: null,
+  trackingType: "PIECE",
+  defaultUnit: "EACH",
   quantityInStock: 0,
   reorderLevel: 0,
   taxable: true,
@@ -78,6 +85,8 @@ export function ProductForm({
   // button, not a native form field).
   const [subcategoryId, setSubcategoryId] = useState(initial.subcategoryId);
   const [supplierId, setSupplierId] = useState(initial.primarySupplierId);
+  const [trackingType, setTrackingType] = useState<InventoryTracking>(initial.trackingType);
+  const [defaultUnit, setDefaultUnit] = useState<UnitOfMeasure>(initial.defaultUnit);
 
   // Controlled so the live pricing helper can react to edits and write back the
   // suggested selling price. Kept as strings to allow an empty target margin.
@@ -160,9 +169,31 @@ export function ProductForm({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="trackingType">How stock is measured</Label>
+              <Select id="trackingType" name="trackingType" value={trackingType} onChange={(e) => {
+                const next = e.target.value as InventoryTracking;
+                setTrackingType(next);
+                setDefaultUnit(next === "LENGTH" ? "METER" : "EACH");
+              }}>
+                <option value="PIECE">Pieces / units</option>
+                <option value="LENGTH">Length</option>
+              </Select>
+              <p className="mt-1 text-xs text-muted">Length stock is stored and costed in metres.</p>
+            </div>
+            <div>
+              <Label htmlFor="defaultUnit">Default entry unit</Label>
+              <Select id="defaultUnit" name="defaultUnit" value={defaultUnit} onChange={(e) => setDefaultUnit(e.target.value as UnitOfMeasure)}>
+                {unitsForTracking(trackingType).map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+              </Select>
+              <p className="mt-1 text-xs text-muted">Cashiers can change this on each transaction.</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div>
-              <Label htmlFor="costPrice">Cost price (LKR)</Label>
+              <Label htmlFor="costPrice">Cost price (LKR per {trackingType === "LENGTH" ? "metre" : "piece"})</Label>
               <NumberInput
                 id="costPrice"
                 name="costPrice"
@@ -171,7 +202,7 @@ export function ProductForm({
               />
             </div>
             <div>
-              <Label htmlFor="sellingPrice">Selling price (LKR)</Label>
+              <Label htmlFor="sellingPrice">Selling price (LKR per {trackingType === "LENGTH" ? "metre" : "piece"})</Label>
               <NumberInput
                 id="sellingPrice"
                 name="sellingPrice"
@@ -210,7 +241,7 @@ export function ProductForm({
                 <>
                   <Label>Current stock</Label>
                   <div className="flex h-11 items-center rounded-xl border border-input-border bg-input px-4 text-sm">
-                    {initial.quantityInStock}
+                    {initial.quantityInStock} {trackingType === "LENGTH" ? "m" : "pieces"}
                   </div>
                   <p className="mt-1 text-xs text-muted">
                     Stock changes through Purchases and Sales — not here.
@@ -218,17 +249,17 @@ export function ProductForm({
                 </>
               ) : (
                 <>
-                  <Label htmlFor="quantityInStock">Opening stock (one-time)</Label>
-                  <Input id="quantityInStock" name="quantityInStock" type="number" min="0" defaultValue={initial.quantityInStock} />
+                  <Label htmlFor="quantityInStock">Opening stock ({trackingType === "LENGTH" ? "metres" : "pieces"})</Label>
+                  <Input id="quantityInStock" name="quantityInStock" type="number" min="0" step={trackingType === "LENGTH" ? "0.0001" : "1"} defaultValue={initial.quantityInStock} />
                   <p className="mt-1 text-xs text-muted">
-                    Starting count. After this, add stock through Purchases.
+                    Starting balance. After this, add stock through Purchases.
                   </p>
                 </>
               )}
             </div>
             <div>
-              <Label htmlFor="reorderLevel">Low-stock alert level</Label>
-              <Input id="reorderLevel" name="reorderLevel" type="number" min="0" defaultValue={initial.reorderLevel} />
+              <Label htmlFor="reorderLevel">Low-stock alert ({trackingType === "LENGTH" ? "metres" : "pieces"})</Label>
+              <Input id="reorderLevel" name="reorderLevel" type="number" min="0" step={trackingType === "LENGTH" ? "0.0001" : "1"} defaultValue={initial.reorderLevel} />
             </div>
           </div>
 

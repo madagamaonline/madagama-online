@@ -15,9 +15,11 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { LayawayJourney } from "@/components/layaway-journey";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, formatQuantity, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
 
-type ProductHit = { id: string; code: string; name: string; sellingPrice: number; costPrice: number; stock: number; reservedStock?: number; physicalStock?: number };
-type Line = { product: ProductHit; qty: number; unitPrice: number };
+type ProductHit = { id: string; code: string; name: string; sellingPrice: number; costPrice: number; stock: number; reservedStock?: number; physicalStock?: number; trackingType?: InventoryTracking; defaultUnit?: UnitOfMeasure };
+type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit: UnitOfMeasure; unitPrice: number };
 
 export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   const router = useRouter();
@@ -58,14 +60,14 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   const total = Math.max(0, round2(subtotal - discount));
 
   function add(product: ProductHit) {
-    setLines((current) => current.some((line) => line.product.id === product.id) ? current : [...current, { product, qty: 1, unitPrice: product.sellingPrice }]);
+    setLines((current) => current.some((line) => line.product.id === product.id) ? current : [...current, { product, qty: 1, enteredQty: 1, enteredUnit: product.defaultUnit ?? (product.trackingType === "LENGTH" ? "METER" : "EACH"), unitPrice: product.sellingPrice }]);
     setQuery(""); setHits([]);
   }
   function submit() {
     setError("");
     setSaved(false);
     startTransition(async () => {
-      const result = await createLayaway({ customerId, lines: lines.map((line) => ({ productId: line.product.id, qty: line.qty, unitPrice: line.unitPrice })), discount, initialPayment, paymentMethod: method, paymentReference: reference, promisedPickupDate: pickup, notes });
+      const result = await createLayaway({ customerId, lines: lines.map((line) => ({ productId: line.product.id, qty: line.qty, enteredQty: line.enteredQty, enteredUnit: line.enteredUnit, unitPrice: line.unitPrice })), discount, initialPayment, paymentMethod: method, paymentReference: reference, promisedPickupDate: pickup, notes });
       if (!result.ok || !result.id) return setError(result.error ?? "Could not create layaway.");
       setSaved(true);
       await waitForSuccessFrame();
@@ -96,10 +98,10 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Reserved products</CardTitle></CardHeader><CardContent>
         <div className="relative"><Search className="absolute left-3 top-3.5 h-4 w-4 text-faint"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, sticker number, model or name…" className="pl-9"/></div>
-        {hits.length > 0 && <div className="mt-1 overflow-hidden rounded-xl border border-border">{hits.map((product) => <button type="button" key={product.id} disabled={product.stock < 1} onClick={() => add(product)} className="flex w-full items-center justify-between border-b border-border-subtle px-3 py-3 text-left last:border-0 hover:bg-input disabled:opacity-45"><span><span className="block text-sm font-bold">{product.name}</span><span className="font-mono text-xs text-muted">{product.code}</span></span><span className="text-right"><span className="block font-mono text-sm font-bold">{formatLKR(product.sellingPrice)}</span><span className="text-xs text-muted">{product.stock} available{product.reservedStock ? ` · ${product.reservedStock} reserved` : ""}</span></span></button>)}</div>}
+        {hits.length > 0 && <div className="mt-1 overflow-hidden rounded-xl border border-border">{hits.map((product) => <button type="button" key={product.id} disabled={product.stock <= 0} onClick={() => add(product)} className="flex w-full items-center justify-between border-b border-border-subtle px-3 py-3 text-left last:border-0 hover:bg-input disabled:opacity-45"><span><span className="block text-sm font-bold">{product.name}</span><span className="font-mono text-xs text-muted">{product.code}</span></span><span className="text-right"><span className="block font-mono text-sm font-bold">{formatLKR(product.sellingPrice)}</span><span className="text-xs text-muted">{formatQuantity(product.stock, product.trackingType === "LENGTH" ? "METER" : "EACH")} available</span></span></button>)}</div>}
         {lines.length === 0 ? <div className="py-10 text-center text-sm text-muted"><PackageCheck className="mx-auto mb-2 h-7 w-7 text-faint"/>Search and add products to reserve.</div> : <div className="mt-4 space-y-2">{lines.map((line) => <div key={line.product.id} className="rounded-xl border border-border p-3">
           <div className="flex items-start justify-between gap-3"><div><p className="font-bold">{line.product.name}</p><p className="font-mono text-xs text-muted">{line.product.code} · {line.product.stock} available</p></div><Button size="icon" variant="ghost" onClick={() => setLines((current) => current.filter((item) => item.product.id !== line.product.id))} aria-label={`Remove ${line.product.name}`}><Trash2 className="h-4 w-4"/></Button></div>
-          <div className="mt-3 grid grid-cols-2 gap-3"><div><Label>Quantity</Label><Input type="number" min={1} max={line.product.stock} value={line.qty} onChange={(event) => setLines((current) => current.map((item) => item.product.id === line.product.id ? { ...item, qty: Math.max(1, Number(event.target.value)) } : item))}/></div><div><Label>Agreed unit price</Label><Input type="number" min={0} step=".01" value={line.unitPrice} onChange={(event) => setLines((current) => current.map((item) => item.product.id === line.product.id ? { ...item, unitPrice: Number(event.target.value) } : item))}/></div></div>
+          <div className="mt-3 grid grid-cols-2 gap-3"><div><Label>Quantity</Label><div className="flex gap-1"><Input type="number" min={line.product.trackingType === "LENGTH" ? 0.0001 : 1} step={line.product.trackingType === "LENGTH" ? 0.0001 : 1} value={line.enteredQty} onChange={(event) => { const enteredQty = Math.max(line.product.trackingType === "LENGTH" ? 0.0001 : 1, Number(event.target.value)); setLines((current) => current.map((item) => item.product.id === line.product.id ? { ...item, enteredQty, qty: toCanonicalQuantity(enteredQty, item.enteredUnit, item.product.trackingType ?? "PIECE") } : item)); }}/><Select value={line.enteredUnit} onChange={(event) => { const enteredUnit = event.target.value as UnitOfMeasure; setLines((current) => current.map((item) => item.product.id === line.product.id ? { ...item, enteredUnit, enteredQty: fromCanonicalQuantity(item.qty, enteredUnit, item.product.trackingType ?? "PIECE") } : item)); }}>{unitsForTracking(line.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}</Select></div></div><div><Label>Agreed price / {line.product.trackingType === "LENGTH" ? "metre" : "piece"}</Label><Input type="number" min={0} step=".01" value={line.unitPrice} onChange={(event) => setLines((current) => current.map((item) => item.product.id === line.product.id ? { ...item, unitPrice: Number(event.target.value) } : item))}/></div></div>
         </div>)}</div>}
       </CardContent></Card>
     </div>

@@ -6,6 +6,8 @@ export const quickProductSchema = z.object({
   subcategoryId: z.string().optional(),
   sellingPrice: z.coerce.number().finite().min(0, "Selling price cannot be negative"),
   taxable: z.boolean(),
+  trackingType: z.enum(["PIECE", "LENGTH"]).default("PIECE"),
+  defaultUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).default("EACH"),
   modelNumber: z.string().optional(),
   barcode: z.string().optional(),
   primarySupplierId: z.string().optional(),

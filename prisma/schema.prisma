@@ -60,10 +60,10 @@ model User {
   vehicleDocumentEvents       VehicleDocumentEvent[]
   vehicleDocumentItemsUpdated VehicleDocumentItem[]            @relation("VehicleDocumentItemUpdatedBy")
   vehicleAcknowledgements     VehicleDocumentAcknowledgement[]
-  layawaysCreated             LayawayOrder[]                    @relation("LayawayCreatedBy")
-  layawaysReleased            LayawayOrder[]                    @relation("LayawayReleasedBy")
-  layawaysCancelled           LayawayOrder[]                    @relation("LayawayCancelledBy")
-  layawayPaymentsRecorded     LayawayPayment[]                  @relation("LayawayPaymentRecordedBy")
+  layawaysCreated             LayawayOrder[]                   @relation("LayawayCreatedBy")
+  layawaysReleased            LayawayOrder[]                   @relation("LayawayReleasedBy")
+  layawaysCancelled           LayawayOrder[]                   @relation("LayawayCancelledBy")
+  layawayPaymentsRecorded     LayawayPayment[]                 @relation("LayawayPaymentRecordedBy")
 }
 
 // Single-row global configuration (id = 1).
@@ -127,36 +127,54 @@ model Subcategory {
   @@unique([categoryId, code])
 }
 
+enum InventoryTracking {
+  PIECE
+  LENGTH
+}
+
+enum UnitOfMeasure {
+  EACH
+  METER
+  CENTIMETER
+  MILLIMETER
+  FOOT
+  INCH
+}
+
 model Product {
-  id                String       @id @default(cuid())
-  code              String       @unique // e.g. AGR-TOOL-0001
+  id                String            @id @default(cuid())
+  code              String            @unique // e.g. AGR-TOOL-0001
   // Short sticker code (#1, #2, …) — global sequence, printed on the physical
   // item so the cashier can type just the number at the till.
-  shortCode         Int          @unique @default(autoincrement())
+  shortCode         Int               @unique @default(autoincrement())
   name              String
   description       String?
-  category          Category     @relation(fields: [categoryId], references: [id])
+  category          Category          @relation(fields: [categoryId], references: [id])
   categoryId        String
-  subcategory       Subcategory? @relation(fields: [subcategoryId], references: [id])
+  subcategory       Subcategory?      @relation(fields: [subcategoryId], references: [id])
   subcategoryId     String?
-  costPrice         Decimal      @default("0") @db.Decimal(12, 2)
-  sellingPrice      Decimal      @default("0") @db.Decimal(12, 2)
+  costPrice         Decimal           @default("0") @db.Decimal(12, 2)
+  sellingPrice      Decimal           @default("0") @db.Decimal(12, 2)
   // Target gross margin (on selling price) for this product. Null = fall back
   // to Setting.defaultTargetMarginPct. Drives the pricing helper + bulk re-pricer.
-  targetMarginPct   Decimal?     @db.Decimal(5, 2)
-  quantityInStock   Int          @default(0)
-  quantityReserved  Int          @default(0)
-  reorderLevel      Int          @default(0)
-  taxable           Boolean      @default(true)
+  targetMarginPct   Decimal?          @db.Decimal(5, 2)
+  // Piece products use EACH. Length products are always stocked and costed in
+  // metres; defaultUnit only controls the unit initially shown at data entry.
+  trackingType      InventoryTracking @default(PIECE)
+  defaultUnit       UnitOfMeasure     @default(EACH)
+  quantityInStock   Decimal           @default("0") @db.Decimal(16, 4)
+  quantityReserved  Decimal           @default("0") @db.Decimal(16, 4)
+  reorderLevel      Decimal           @default("0") @db.Decimal(16, 4)
+  taxable           Boolean           @default(true)
   barcode           String?
   // Manufacturer identifiers, mainly for electronics (searchable at the POS).
   modelNumber       String?
   serialNumber      String?
-  primarySupplier   Supplier?    @relation(fields: [primarySupplierId], references: [id])
+  primarySupplier   Supplier?         @relation(fields: [primarySupplierId], references: [id])
   primarySupplierId String?
-  active            Boolean      @default(true)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  active            Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   invoiceItems        InvoiceItem[]
   purchaseItems       PurchaseItem[]
@@ -870,49 +888,52 @@ enum LayawayPaymentMethod {
 }
 
 model LayawayOrder {
-  id                   String        @id @default(cuid())
-  orderNumber          Int           @unique @default(autoincrement())
-  status               LayawayStatus @default(ACTIVE)
-  customer             Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
-  customerId           String
-  subtotal             Decimal       @db.Decimal(12, 2)
-  discount             Decimal       @default("0") @db.Decimal(12, 2)
-  total                Decimal       @db.Decimal(12, 2)
-  collectedAmount      Decimal       @default("0") @db.Decimal(12, 2)
-  promisedPickupDate   DateTime?
-  notes                String?
-  createdBy            User?         @relation("LayawayCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
-  createdByUserId      String?
-  createdAt            DateTime      @default(now())
-  updatedAt            DateTime      @updatedAt
-  releasedAt           DateTime?
-  releasedBy           User?         @relation("LayawayReleasedBy", fields: [releasedByUserId], references: [id], onDelete: SetNull)
-  releasedByUserId     String?
-  cancelledAt          DateTime?
-  cancelledBy          User?         @relation("LayawayCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
-  cancelledByUserId    String?
-  cancelReason         String?
-  invoice              Invoice?      @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  invoiceId            String?       @unique
-  items                LayawayItem[]
-  payments             LayawayPayment[]
+  id                 String           @id @default(cuid())
+  orderNumber        Int              @unique @default(autoincrement())
+  status             LayawayStatus    @default(ACTIVE)
+  customer           Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  customerId         String
+  subtotal           Decimal          @db.Decimal(12, 2)
+  discount           Decimal          @default("0") @db.Decimal(12, 2)
+  total              Decimal          @db.Decimal(12, 2)
+  collectedAmount    Decimal          @default("0") @db.Decimal(12, 2)
+  promisedPickupDate DateTime?
+  notes              String?
+  createdBy          User?            @relation("LayawayCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUserId    String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  releasedAt         DateTime?
+  releasedBy         User?            @relation("LayawayReleasedBy", fields: [releasedByUserId], references: [id], onDelete: SetNull)
+  releasedByUserId   String?
+  cancelledAt        DateTime?
+  cancelledBy        User?            @relation("LayawayCancelledBy", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  cancelledByUserId  String?
+  cancelReason       String?
+  invoice            Invoice?         @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  invoiceId          String?          @unique
+  items              LayawayItem[]
+  payments           LayawayPayment[]
 
   @@index([customerId, status])
   @@index([status, createdAt])
 }
 
 model LayawayItem {
-  id            String       @id @default(cuid())
-  order         LayawayOrder @relation(fields: [orderId], references: [id], onDelete: Restrict)
-  orderId       String
-  product       Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
-  productId     String
-  nameSnapshot  String
-  codeSnapshot  String
-  unitPrice     Decimal      @db.Decimal(12, 2)
-  costSnapshot  Decimal      @db.Decimal(12, 2)
-  qty           Int
-  lineTotal     Decimal      @db.Decimal(12, 2)
+  id           String         @id @default(cuid())
+  order        LayawayOrder   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderId      String
+  product      Product        @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productId    String
+  nameSnapshot String
+  codeSnapshot String
+  unitPrice    Decimal        @db.Decimal(12, 2)
+  costSnapshot Decimal        @db.Decimal(12, 2)
+  qty          Decimal        @db.Decimal(16, 4)
+  unit         UnitOfMeasure  @default(EACH)
+  enteredQty   Decimal?       @db.Decimal(16, 4)
+  enteredUnit  UnitOfMeasure?
+  lineTotal    Decimal        @db.Decimal(12, 2)
 
   @@index([orderId])
   @@index([productId])
@@ -937,22 +958,25 @@ model LayawayPayment {
 }
 
 model InvoiceItem {
-  id           String   @id @default(cuid())
-  invoice      Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId    String
-  product      Product? @relation(fields: [productId], references: [id])
-  productId    String?
-  nameSnapshot String
-  codeSnapshot String?
-  qty          Int
-  unitPrice    Decimal  @db.Decimal(12, 2)
-  unitDiscount Decimal  @default("0") @db.Decimal(12, 2)
+  id             String         @id @default(cuid())
+  invoice        Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId      String
+  product        Product?       @relation(fields: [productId], references: [id])
+  productId      String?
+  nameSnapshot   String
+  codeSnapshot   String?
+  qty            Decimal        @db.Decimal(16, 4)
+  unit           UnitOfMeasure  @default(EACH)
+  enteredQty     Decimal?       @db.Decimal(16, 4)
+  enteredUnit    UnitOfMeasure?
+  unitPrice      Decimal        @db.Decimal(12, 2)
+  unitDiscount   Decimal        @default("0") @db.Decimal(12, 2)
   warrantyMonths Int?
-  lineTotal    Decimal  @db.Decimal(12, 2)
+  lineTotal      Decimal        @db.Decimal(12, 2)
   // Product cost at the moment of sale, captured so profit reports stay correct
   // even after the product's cost later changes (WAC / bulk re-pricing). Null on
   // rows created before this field existed — reports fall back to current cost.
-  costSnapshot Decimal? @db.Decimal(12, 2)
+  costSnapshot   Decimal?       @db.Decimal(12, 2)
 
   @@index([invoiceId])
   @@index([productId])
@@ -1012,14 +1036,17 @@ model QuotationItem {
   quotationId String
 
   // Optional link to a catalog product (a line can also be fully free-text).
-  product     Product? @relation(fields: [productId], references: [id])
+  product     Product?       @relation(fields: [productId], references: [id])
   productId   String?
   model       String? // free text, e.g. "2x2-2HP" (or the product code)
   name        String // item name / heading
   description String? // multi-line "Product Details"
-  qty         Int      @default(1)
-  unitPrice   Decimal  @db.Decimal(12, 2)
-  lineTotal   Decimal  @db.Decimal(12, 2)
+  qty         Decimal        @default("1") @db.Decimal(16, 4)
+  unit        UnitOfMeasure  @default(EACH)
+  enteredQty  Decimal?       @db.Decimal(16, 4)
+  enteredUnit UnitOfMeasure?
+  unitPrice   Decimal        @db.Decimal(12, 2)
+  lineTotal   Decimal        @db.Decimal(12, 2)
 
   @@index([quotationId])
   @@index([productId])
@@ -1127,14 +1154,18 @@ model Purchase {
 }
 
 model PurchaseItem {
-  id         String   @id @default(cuid())
-  purchase   Purchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
-  purchaseId String
-  product    Product  @relation(fields: [productId], references: [id])
-  productId  String
-  qty        Int
-  costPrice  Decimal  @db.Decimal(12, 2)
-  lineTotal  Decimal  @db.Decimal(12, 2)
+  id           String         @id @default(cuid())
+  purchase     Purchase       @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  purchaseId   String
+  product      Product        @relation(fields: [productId], references: [id])
+  productId    String
+  qty          Decimal        @db.Decimal(16, 4)
+  unit         UnitOfMeasure  @default(EACH)
+  enteredQty   Decimal?       @db.Decimal(16, 4)
+  enteredUnit  UnitOfMeasure?
+  packageCount Int?
+  costPrice    Decimal        @db.Decimal(12, 2)
+  lineTotal    Decimal        @db.Decimal(12, 2)
 
   @@index([purchaseId])
   @@index([productId])
@@ -1379,8 +1410,9 @@ model StockMovement {
   product         Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   productId       String
   type            StockMovementType
-  qty             Int // signed: positive = stock in, negative = stock out
-  balanceAfter    Int // stock level immediately after this movement
+  qty             Decimal           @db.Decimal(16, 4) // signed: positive = stock in, negative = stock out
+  balanceAfter    Decimal           @db.Decimal(16, 4) // stock level immediately after this movement
+  unit            UnitOfMeasure     @default(EACH)
   reason          String?
   refId           String? // invoice / purchase / return id
   createdBy       User?             @relation(fields: [createdByUserId], references: [id])
@@ -1435,19 +1467,20 @@ model SalesReturn {
 }
 
 model SalesReturnItem {
-  id           String      @id @default(cuid())
-  return       SalesReturn @relation(fields: [returnId], references: [id], onDelete: Cascade)
+  id           String        @id @default(cuid())
+  return       SalesReturn   @relation(fields: [returnId], references: [id], onDelete: Cascade)
   returnId     String
-  product      Product     @relation(fields: [productId], references: [id])
+  product      Product       @relation(fields: [productId], references: [id])
   productId    String
-  qty          Int
-  unitPrice    Decimal     @db.Decimal(12, 2)
-  lineTotal    Decimal     @db.Decimal(12, 2)
+  qty          Decimal       @db.Decimal(16, 4)
+  unit         UnitOfMeasure @default(EACH)
+  unitPrice    Decimal       @db.Decimal(12, 2)
+  lineTotal    Decimal       @db.Decimal(12, 2)
   // Product cost captured from the original sale (the invoice item's costSnapshot)
   // so the returned goods are credited back to COGS at the same cost they were
   // charged out at. Null on rows created before this field existed — reports fall
   // back to the product's current cost, matching InvoiceItem.costSnapshot.
-  costSnapshot Decimal?    @db.Decimal(12, 2)
+  costSnapshot Decimal?      @db.Decimal(12, 2)
 
   @@index([returnId])
 }
@@ -1487,7 +1520,8 @@ model SupplierReturnItem {
   returnId  String
   product   Product        @relation(fields: [productId], references: [id])
   productId String
-  qty       Int
+  qty       Decimal        @db.Decimal(16, 4)
+  unit      UnitOfMeasure  @default(EACH)
   unitCost  Decimal        @db.Decimal(12, 2)
   lineTotal Decimal        @db.Decimal(12, 2)
 

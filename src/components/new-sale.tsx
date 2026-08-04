@@ -37,6 +37,8 @@ import {
   WARRANTY_OPTIONS,
   type WarrantyMonths,
 } from "@/lib/warranty";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking, formatQuantity } from "@/lib/units";
 import {
   AnimatedMoney,
   DrawnSuccessIcon,
@@ -53,10 +55,14 @@ type ProductHit = {
   costPrice: number; // weighted-average cost — shown so the cashier can judge discounts
   taxable: boolean;
   stock: number;
+  trackingType?: InventoryTracking;
+  defaultUnit?: UnitOfMeasure;
 };
 type CartLine = {
   product: ProductHit;
   qty: number;
+  enteredQty: number;
+  enteredUnit: UnitOfMeasure;
   unitPrice: number;
   unitDiscount?: number;
   warrantyMonths?: WarrantyMonths | null;
@@ -94,6 +100,8 @@ function normalizeCartWarranties(
   const legacyWarranty = normalizeWarrantyMonths(legacyWarrantyMonths);
   return cart.map((line) => ({
     ...line,
+    enteredQty: line.enteredQty ?? line.qty,
+    enteredUnit: line.enteredUnit ?? line.product.defaultUnit ?? (line.product.trackingType === "LENGTH" ? "METER" : "EACH"),
     warrantyMonths: normalizeWarrantyMonths(
       line.warrantyMonths === undefined ? legacyWarranty : line.warrantyMonths,
     ),
@@ -263,7 +271,9 @@ export function NewSale({
       const idx = prev.findIndex((l) => l.product.id === p.id);
       if (idx >= 0) {
         const copy = [...prev];
-        copy[idx] = { ...copy[idx], qty: copy[idx].qty + 1 };
+        const line = copy[idx];
+        const enteredQty = line.enteredQty + 1;
+        copy[idx] = { ...line, enteredQty, qty: toCanonicalQuantity(enteredQty, line.enteredUnit, line.product.trackingType ?? "PIECE") };
         return copy;
       }
       return [
@@ -271,6 +281,8 @@ export function NewSale({
         {
           product: p,
           qty: 1,
+          enteredQty: 1,
+          enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"),
           unitPrice: p.sellingPrice,
           unitDiscount: 0,
           warrantyMonths: null,
@@ -313,7 +325,7 @@ export function NewSale({
 
   function updateLine(
     id: string,
-    patch: Partial<Pick<CartLine, "qty" | "unitPrice" | "unitDiscount" | "warrantyMonths">>,
+    patch: Partial<Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths">>,
   ) {
     setCart((prev) =>
       prev.map((line) => {
@@ -323,6 +335,16 @@ export function NewSale({
         return next;
       }),
     );
+  }
+  function updateEnteredQuantity(line: CartLine, enteredQty: number) {
+    const tracking = line.product.trackingType ?? "PIECE";
+    const safe = Math.max(tracking === "PIECE" ? 1 : 0.0001, enteredQty || 0);
+    updateLine(line.product.id, { enteredQty: safe, qty: toCanonicalQuantity(safe, line.enteredUnit, tracking) });
+  }
+  function updateEnteredUnit(line: CartLine, enteredUnit: UnitOfMeasure) {
+    const tracking = line.product.trackingType ?? "PIECE";
+    const enteredQty = fromCanonicalQuantity(line.qty, enteredUnit, tracking);
+    updateLine(line.product.id, { enteredUnit, enteredQty });
   }
   function removeLine(id: string) {
     // Play the slide-out, then drop the line once the animation finishes.
@@ -359,7 +381,7 @@ export function NewSale({
   function parkSale() {
     if (cart.length === 0) return;
     const cust = localCustomers.find((c) => c.id === customerId);
-    const items = cart.reduce((s, l) => s + l.qty, 0);
+    const items = cart.length;
     const entry: ParkedSale = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       label: cust ? cust.name : `${items} item${items === 1 ? "" : "s"}`,
@@ -400,6 +422,8 @@ export function NewSale({
           cart.map((l) => ({
             product: l.product,
             qty: l.qty,
+            enteredQty: l.enteredQty,
+            enteredUnit: l.enteredUnit,
             unitPrice: l.unitPrice,
             unitDiscount: l.unitDiscount ?? 0,
             warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
@@ -467,6 +491,8 @@ export function NewSale({
         lines: cart.map((l) => ({
           productId: l.product.id,
           qty: l.qty,
+          enteredQty: l.enteredQty,
+          enteredUnit: l.enteredUnit,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
           warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
@@ -513,6 +539,8 @@ export function NewSale({
         lines: cart.map((l) => ({
           productId: l.product.id,
           qty: l.qty,
+          enteredQty: l.enteredQty,
+          enteredUnit: l.enteredUnit,
           unitPrice: l.unitPrice,
           unitDiscount: l.unitDiscount ?? 0,
           warrantyMonths: normalizeWarrantyMonths(l.warrantyMonths),
@@ -651,11 +679,11 @@ export function NewSale({
                         </span>
                         <span className="block text-xs text-muted">
                           {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
-                          <span>stock: {h.stock}</span>
+                          <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                           {h.costPrice > 0 && <span className="ml-2">WAC: {formatLKR(h.costPrice)}</span>}
                         </span>
                       </span>
-                      <span className="font-medium">{formatLKR(h.sellingPrice)}</span>
+                      <span className="font-medium">{formatLKR(h.sellingPrice)}{h.trackingType === "LENGTH" ? "/m" : ""}</span>
                     </button>
                   ))}
                 </div>
@@ -718,9 +746,9 @@ export function NewSale({
                     <thead className="text-left text-muted">
                       <tr className="border-b border-border">
                         <th className="py-2 pr-2 font-medium">Product</th>
-                        <th className="px-2 font-medium">Qty</th>
-                        <th className="px-2 font-medium">Unit price</th>
-                        <th className="px-2 font-medium">Agreed unit price</th>
+                        <th className="px-2 font-medium">Quantity</th>
+                        <th className="px-2 font-medium">Price / piece or metre</th>
+                        <th className="px-2 font-medium">Agreed / piece or metre</th>
                         <th className="px-2 text-right font-medium">Net</th>
                         <th></th>
                       </tr>
@@ -793,14 +821,13 @@ export function NewSale({
                             )}
                           </td>
                           <td className="px-2">
-                            <Input
-                              type="number"
-                              min="1"
-                              value={l.qty}
-                              onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Number(e.target.value)) })}
-                              className="h-9 w-20"
-                              aria-label={`Quantity for ${l.product.name}`}
-                            />
+                            <div className="flex gap-1">
+                              <Input type="number" min={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} step={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} value={l.enteredQty} onChange={(e) => updateEnteredQuantity(l, Number(e.target.value))} className="h-9 w-20" aria-label={`Quantity for ${l.product.name}`} />
+                              <Select value={l.enteredUnit} onChange={(e) => updateEnteredUnit(l, e.target.value as UnitOfMeasure)} className="h-9 w-20 px-2">
+                                {unitsForTracking(l.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+                              </Select>
+                            </div>
+                            {l.product.trackingType === "LENGTH" && l.enteredUnit !== "METER" && <div className="mt-1 text-[10px] text-muted">{formatQuantity(l.qty, "METER")}</div>}
                           </td>
                           <td className="px-2">
                             <NumberInput
@@ -889,15 +916,19 @@ export function NewSale({
                           </div>
                           <div className="mt-2 grid grid-cols-3 gap-2">
                             <label className="text-[11px] text-muted">
-                              Qty
+                              Quantity
                               <Input
                                 type="number"
-                                min="1"
-                                value={l.qty}
-                                onChange={(e) => updateLine(l.product.id, { qty: Math.max(1, Number(e.target.value)) })}
+                                min={l.product.trackingType === "LENGTH" ? "0.0001" : "1"}
+                                step={l.product.trackingType === "LENGTH" ? "0.0001" : "1"}
+                                value={l.enteredQty}
+                                onChange={(e) => updateEnteredQuantity(l, Number(e.target.value))}
                                 className="mt-1 h-10 w-full"
                                 aria-label={`Quantity for ${l.product.name}`}
                               />
+                              <Select value={l.enteredUnit} onChange={(e) => updateEnteredUnit(l, e.target.value as UnitOfMeasure)} className="mt-1 h-10 w-full">
+                                {unitsForTracking(l.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+                              </Select>
                             </label>
                             <label className="text-[11px] text-muted">
                               Unit price

@@ -7,6 +7,7 @@ import { computeOpenAccountState } from "@/lib/open-account";
 import { orderSaleGroupInvoices, summarizeSaleGroup } from "@/lib/sale-group";
 import { formatDateTime, formatLKR, round2, toNum } from "@/lib/utils";
 import { formatWarrantyMonths } from "@/lib/warranty";
+import { formatEnteredQuantity } from "@/lib/units";
 import { InvoicePrintControls } from "@/components/invoice-print-controls";
 import { Button } from "@/components/ui/button";
 
@@ -176,8 +177,8 @@ export default async function SaleGroupReceiptPage({
                     {warrantyMonths !== null && <div className="text-[13px] font-medium">Warranty: {formatWarrantyMonths(warrantyMonths)}</div>}
                     {toNum(item.unitDiscount) > 0 && <div className="text-[13px] text-success">Less {formatLKR(item.unitDiscount)} per unit</div>}
                   </td>
-                  <td className="px-2 text-right">{item.qty}</td>
-                  <td className="px-2 text-right">{formatLKR(item.unitPrice)}</td>
+                  <td className="px-2 text-right">{formatEnteredQuantity(toNum(item.qty), item.unit, item.enteredQty == null ? null : toNum(item.enteredQty), item.enteredUnit)}</td>
+                  <td className="px-2 text-right">{formatLKR(item.unitPrice)}{item.unit === "METER" ? "/m" : ""}</td>
                   <td className="py-2 pl-2 text-right font-semibold">{formatLKR(item.lineTotal)}</td>
                 </tr>
               );
@@ -251,7 +252,7 @@ export default async function SaleGroupReceiptPage({
                 <p className="break-words">{item.nameSnapshot}{invoice.voidedAt ? " — VOIDED" : ""}</p>
                 {item.product?.modelNumber && <p className="text-[12px]">Model: {item.product.modelNumber}</p>}
                 {warrantyMonths !== null && <p className="text-[12px] font-semibold">Warranty: {formatWarrantyMonths(warrantyMonths)}</p>}
-                <div className="flex justify-between gap-2"><span>{item.qty} × {formatLKR(item.unitPrice)}</span><span>{formatLKR(item.lineTotal)}</span></div>
+                <div className="flex justify-between gap-2"><span>{formatEnteredQuantity(toNum(item.qty), item.unit, item.enteredQty == null ? null : toNum(item.enteredQty), item.enteredUnit)} × {formatLKR(item.unitPrice)}{item.unit === "METER" ? "/m" : ""}</span><span>{formatLKR(item.lineTotal)}</span></div>
                 {toNum(item.unitDiscount) > 0 && <p className="text-[12px]">Less {formatLKR(item.unitDiscount)} / unit</p>}
               </div>
             );

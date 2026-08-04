@@ -12,6 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatLKR } from "@/lib/utils";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import type { UnitOfMeasure } from "@prisma/client";
+import { formatQuantity } from "@/lib/units";
 
 export type SupplierReturnLine = {
   productId: string;
@@ -19,6 +21,7 @@ export type SupplierReturnLine = {
   name: string;
   purchased: number;
   inStock: number;
+  unit: UnitOfMeasure;
   unitCost: number;
 };
 
@@ -48,7 +51,7 @@ export function SupplierReturnForm({
   // Cap the return qty at whatever is currently in stock — you can't send back
   // more than you're holding — and never above what was originally purchased.
   function setQty(productId: string, val: number, max: number) {
-    setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, Math.trunc(val) || 0)) }));
+    setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, val || 0)) }));
   }
 
   function submit() {
@@ -93,13 +96,14 @@ export function SupplierReturnForm({
                     <div className="font-mono text-xs font-semibold text-primary">{l.code}</div>
                     <div className="font-medium">{l.name}</div>
                   </td>
-                  <td className="px-2 text-right">{l.purchased}</td>
-                  <td className="px-2 text-right">{l.inStock}</td>
+                  <td className="px-2 text-right">{formatQuantity(l.purchased, l.unit)}</td>
+                  <td className="px-2 text-right">{formatQuantity(l.inStock, l.unit)}</td>
                   <td className="px-2 text-right">
                     <Input
                       type="number"
                       min="0"
                       max={max}
+                      step={l.unit === "EACH" ? "1" : "0.0001"}
                       value={q || ""}
                       onChange={(e) => setQty(l.productId, Number(e.target.value), max)}
                       className="h-9 w-20 text-right"

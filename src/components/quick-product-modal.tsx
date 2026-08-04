@@ -8,7 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumberInput } from "@/components/ui/number-input";
 import { SearchSelect } from "@/components/ui/search-select";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
+import { UNIT_LABELS, unitsForTracking } from "@/lib/units";
 
 type Subcategory = { id: string; name: string; code: string; categoryId: string };
 export type QuickProductCategory = {
@@ -18,7 +21,7 @@ export type QuickProductCategory = {
   subcategories: Subcategory[];
 };
 
-type CreatedProduct = { id: string; code: string; name: string; costPrice: number; stock: number };
+type CreatedProduct = { id: string; code: string; name: string; costPrice: number; stock: number; trackingType: InventoryTracking; defaultUnit: UnitOfMeasure };
 
 export function QuickProductModal({
   initialName,
@@ -42,6 +45,8 @@ export function QuickProductModal({
   const [subcategoryId, setSubcategoryId] = useState("");
   const [sellingPrice, setSellingPrice] = useState("");
   const [taxable, setTaxable] = useState(true);
+  const [trackingType, setTrackingType] = useState<InventoryTracking>("PIECE");
+  const [defaultUnit, setDefaultUnit] = useState<UnitOfMeasure>("EACH");
   const [modelNumber, setModelNumber] = useState("");
   const [barcode, setBarcode] = useState("");
   const [error, setError] = useState("");
@@ -71,6 +76,8 @@ export function QuickProductModal({
         subcategoryId: subcategoryId || undefined,
         sellingPrice: Number(sellingPrice),
         taxable,
+        trackingType,
+        defaultUnit,
         modelNumber,
         barcode,
         primarySupplierId: supplierId || undefined,
@@ -170,8 +177,24 @@ export function QuickProductModal({
             </div>
           </div>
 
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="quick-product-tracking">Measured by</Label>
+              <Select id="quick-product-tracking" value={trackingType} onChange={(event) => { const next = event.target.value as InventoryTracking; setTrackingType(next); setDefaultUnit(next === "LENGTH" ? "METER" : "EACH"); }}>
+                <option value="PIECE">Pieces / units</option>
+                <option value="LENGTH">Length</option>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="quick-product-unit">Default entry unit</Label>
+              <Select id="quick-product-unit" value={defaultUnit} onChange={(event) => setDefaultUnit(event.target.value as UnitOfMeasure)}>
+                {unitsForTracking(trackingType).map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}
+              </Select>
+            </div>
+          </div>
+
           <div>
-            <Label htmlFor="quick-product-price">Selling price (LKR)</Label>
+            <Label htmlFor="quick-product-price">Selling price (LKR per {trackingType === "LENGTH" ? "metre" : "piece"})</Label>
             <NumberInput
               id="quick-product-price"
               value={sellingPrice}

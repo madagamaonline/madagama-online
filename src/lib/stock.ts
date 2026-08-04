@@ -1,5 +1,5 @@
 import "server-only";
-import type { Prisma, StockMovementType } from "@prisma/client";
+import type { Prisma, StockMovementType, UnitOfMeasure } from "@prisma/client";
 
 /**
  * Append a row to the stock audit trail. `qty` is signed (positive = stock in,
@@ -13,6 +13,7 @@ export async function logStockMovement(
     type: StockMovementType;
     qty: number;
     balanceAfter: number;
+    unit?: UnitOfMeasure;
     reason?: string | null;
     refId?: string | null;
     userId?: string | null;
@@ -24,6 +25,7 @@ export async function logStockMovement(
       type: m.type,
       qty: m.qty,
       balanceAfter: m.balanceAfter,
+      unit: m.unit ?? "EACH",
       reason: m.reason ?? null,
       refId: m.refId ?? null,
       createdByUserId: m.userId ?? null,

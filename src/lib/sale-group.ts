@@ -8,7 +8,7 @@ export type SaleGroupInvoiceLike = {
   grandTotal: number | { toString(): string };
   amountPaid: number | { toString(): string };
   voidedAt: Date | null;
-  items: { qty: number; unitDiscount: number | { toString(): string } }[];
+  items: { qty: number | { toString(): string }; unitDiscount: number | { toString(): string } }[];
 };
 
 export type SaleGroupVoidStatus = "ACTIVE" | "PARTIALLY_VOIDED" | "VOIDED";
@@ -28,7 +28,7 @@ export function summarizeSaleGroup(invoices: SaleGroupInvoiceLike[]) {
   const productDiscount = round2(
     invoices.reduce(
       (sum, invoice) =>
-        sum + invoice.items.reduce((itemSum, item) => itemSum + item.qty * toNum(item.unitDiscount), 0),
+        sum + invoice.items.reduce((itemSum, item) => itemSum + toNum(item.qty) * toNum(item.unitDiscount), 0),
       0,
     ),
   );

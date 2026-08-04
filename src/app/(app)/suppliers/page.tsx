@@ -1,18 +1,39 @@
 import Link from "next/link";
 import { Plus, Pencil } from "lucide-react";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { ListSearch } from "@/components/list-search";
+import { Highlight } from "@/components/highlight";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
-export default async function SuppliersPage() {
+export default async function SuppliersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
+  const where: Prisma.SupplierWhereInput = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: "insensitive" } },
+          { contactPerson: { contains: query, mode: "insensitive" } },
+          { phone: { contains: query, mode: "insensitive" } },
+          { email: { contains: query, mode: "insensitive" } },
+        ],
+      }
+    : {};
+
   const suppliers = await prisma.supplier.findMany({
+    where,
     orderBy: { name: "asc" },
     include: {
       purchases: {
@@ -45,8 +66,17 @@ export default async function SuppliersPage() {
       />
       <Card>
         <CardContent className="p-0">
+          <div className="border-b border-border p-4">
+            <ListSearch
+              placeholder="Search name, contact, phone or email…"
+              className="relative max-w-md"
+            />
+          </div>
+
           {rows.length === 0 ? (
-            <div className="px-5 py-12 text-center text-sm text-muted">No suppliers yet.</div>
+            <div className="px-5 py-12 text-center text-sm text-muted">
+              {query ? "No suppliers match." : "No suppliers yet."}
+            </div>
           ) : (
             <>
               <div className="md:hidden">
@@ -55,11 +85,15 @@ export default async function SuppliersPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <Link href={`/suppliers/${s.id}`} className="font-medium text-primary hover:underline">
-                          {s.name}
+                          <Highlight text={s.name} query={query} />
                         </Link>
                         <div className="mt-0.5 text-xs text-muted">
-                          {s.contactPerson ? `${s.contactPerson} · ` : ""}
-                          {s.phone ?? "No phone"}
+                          {s.contactPerson && (
+                            <>
+                              <Highlight text={s.contactPerson} query={query} /> ·{" "}
+                            </>
+                          )}
+                          {s.phone ? <Highlight text={s.phone} query={query} /> : "No phone"}
                         </div>
                       </div>
                       <Link
@@ -97,11 +131,13 @@ export default async function SuppliersPage() {
                       <TR key={s.id}>
                         <TD className="font-medium">
                           <Link href={`/suppliers/${s.id}`} className="text-primary hover:underline">
-                            {s.name}
+                            <Highlight text={s.name} query={query} />
                           </Link>
                         </TD>
-                        <TD className="text-muted">{s.contactPerson ?? "—"}</TD>
-                        <TD>{s.phone ?? "—"}</TD>
+                        <TD className="text-muted">
+                          {s.contactPerson ? <Highlight text={s.contactPerson} query={query} /> : "—"}
+                        </TD>
+                        <TD>{s.phone ? <Highlight text={s.phone} query={query} /> : "—"}</TD>
                         <TD className="text-right">{count}</TD>
                         <TD className="text-right font-medium">{formatLKR(payable)}</TD>
                         <TD className="text-right">

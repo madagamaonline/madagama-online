@@ -4,7 +4,8 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma, type TaxCategory } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireActionAdmin, requireActionStaffFinanceAccess, requireActionUser } from "@/lib/auth";
+import { requireActionAdmin, requireActionUser } from "@/lib/auth";
+import { canCreatePayLaterSale } from "@/lib/authorization";
 import { assertUniqueProductLines } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
@@ -90,9 +91,12 @@ async function createSale(
   }
   let session;
   try {
-    session = type === "OPEN_ACCOUNT" ? await requireActionStaffFinanceAccess() : await requireActionUser();
+    session = await requireActionUser();
   } catch {
-    return { ok: false, error: type === "OPEN_ACCOUNT" ? "You don't have permission to create Pay Later sales." : "Please sign in." };
+    return { ok: false, error: "Please sign in." };
+  }
+  if (type === "OPEN_ACCOUNT" && !canCreatePayLaterSale(session.role)) {
+    return { ok: false, error: "You don't have permission to create Pay Later sales." };
   }
   if (type === "OPEN_ACCOUNT") {
     const customer = await prisma.customer.findUnique({ where: { id: data.customerId! }, select: { id: true } });

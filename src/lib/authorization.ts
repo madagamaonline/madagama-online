@@ -11,6 +11,11 @@ export function canAccessStaffFinance(role: Role): boolean {
   return role !== "SALESPERSON";
 }
 
+/** Every signed-in role that can create a sale may also offer Pay Later. */
+export function canCreatePayLaterSale(role: Role): boolean {
+  return roleCanAccess(role, "SIGNED_IN");
+}
+
 export function defaultLandingPath(role: Role): "/dashboard" | "/invoices/new" {
   return role === "SALESPERSON" ? "/invoices/new" : "/dashboard";
 }

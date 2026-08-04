@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { canAccessStaffFinance, defaultLandingPath, roleCanAccess } from "./authorization";
+import {
+  canAccessStaffFinance,
+  canCreatePayLaterSale,
+  defaultLandingPath,
+  roleCanAccess,
+} from "./authorization";
 
 describe("server action role matrix", () => {
   it("allows staff to perform signed-in operational work", () => {
@@ -19,5 +24,11 @@ describe("server action role matrix", () => {
     expect(canAccessStaffFinance("ADMIN")).toBe(true);
     expect(defaultLandingPath("SALESPERSON")).toBe("/invoices/new");
     expect(defaultLandingPath("STAFF")).toBe("/dashboard");
+  });
+
+  it("allows every sales role to create Pay Later sales", () => {
+    expect(canCreatePayLaterSale("SALESPERSON")).toBe(true);
+    expect(canCreatePayLaterSale("STAFF")).toBe(true);
+    expect(canCreatePayLaterSale("ADMIN")).toBe(true);
   });
 });

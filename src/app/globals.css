@@ -138,6 +138,30 @@ input[type="number"] {
     border: none !important;
     box-shadow: none !important;
   }
+  /* Sticker sheets are taller than one A4 page. Keep their complete ancestor
+     chain in normal print flow so Chromium can fragment the grid across every
+     required sheet instead of clipping an absolutely positioned print area. */
+  body:has(.label-print-sheet) *:has(.label-print-sheet) {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    animation: none !important;
+    transform: none !important;
+  }
+  body:has(.label-print-sheet) aside,
+  body:has(.label-print-sheet) header,
+  body:has(.label-print-sheet) nav {
+    display: none !important;
+  }
+  body:has(.label-print-sheet) main {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .print-area.label-print-sheet {
+    position: static;
+    width: 180mm;
+  }
   /* A4 invoices are paper documents, independent of the application's active
      light/dark theme and the printer's background-graphics preference. */
   .print-a4 {

@@ -45,7 +45,7 @@ export function ProductLabel({
 export function LabelSheet({ items, showPrices }: { items: LabelItem[]; showPrices: boolean }) {
   return (
     <div
-      className="print-area grid bg-surface"
+      className="print-area label-print-sheet grid bg-surface"
       style={{ gridTemplateColumns: `repeat(${LABEL_COLS}, 45mm)` }}
     >
       {items.map((p) => (

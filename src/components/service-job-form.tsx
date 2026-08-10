@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ServiceJobFormState } from "@/app/(app)/services/actions";
@@ -14,6 +14,7 @@ import {
   type SaleCustomer,
 } from "@/components/customer-search-picker";
 import { ServicePhotos } from "@/components/service-photos";
+import { QuickCustomerModal } from "@/components/quick-customer-modal";
 
 export type ServiceJobInitial = {
   itemName: string;
@@ -57,6 +58,17 @@ export function ServiceJobForm({
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
   const [customerId, setCustomerId] = useState(initial.customerId);
+  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
+  const localCustomers = useMemo(
+    () => [...addedCustomers, ...customers],
+    [addedCustomers, customers],
+  );
+
+  function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
+    setAddedCustomers((prev) => [{ ...newCust, nic: null }, ...prev]);
+    setCustomerId(newCust.id);
+  }
 
   return (
     <form action={formAction}>
@@ -114,14 +126,18 @@ export function ServiceJobForm({
             <Label htmlFor="service-job-customer">Customer</Label>
             <input type="hidden" name="customerId" value={customerId} />
             <CustomerSearchPicker
-              customers={customers}
+              customers={localCustomers}
               value={customerId}
               onChange={setCustomerId}
               inputId="service-job-customer"
             />
-            <Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
-              + Add a customer record
-            </Link>
+            <button
+              type="button"
+              onClick={() => setShowQuickCustomer(true)}
+              className="mt-1 inline-block text-xs text-primary hover:underline"
+            >
+              + Quick add customer
+            </button>
           </div>
 
           {!customerId && (
@@ -174,6 +190,13 @@ export function ServiceJobForm({
           </div>
         </CardContent>
       </Card>
+
+      {showQuickCustomer && (
+        <QuickCustomerModal
+          onClose={() => setShowQuickCustomer(false)}
+          onSuccess={handleQuickCustomerSuccess}
+        />
+      )}
     </form>
   );
 }

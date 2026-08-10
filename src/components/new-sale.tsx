@@ -783,9 +783,10 @@ export function NewSale({
                             {l.product.modelNumber && (
                               <div className="text-xs text-muted">Model: {l.product.modelNumber}</div>
                             )}
-                            <label className="mt-1.5 flex max-w-52 items-center gap-2 text-[11px] text-muted">
-                              <span className="shrink-0">Warranty</span>
+                            <div className="mt-1.5 flex items-center gap-2 text-[11px] text-muted">
+                              <label htmlFor={`warranty-${l.product.id}`} className="shrink-0">Warranty</label>
                               <Select
+                                id={`warranty-${l.product.id}`}
                                 value={l.warrantyMonths ?? ""}
                                 onChange={(e) =>
                                   updateLine(l.product.id, {
@@ -803,7 +804,7 @@ export function NewSale({
                                   </option>
                                 ))}
                               </Select>
-                            </label>
+                            </div>
                             {hasCost && (
                               <div className="text-xs text-muted">
                                 WAC {formatLKR(l.product.costPrice)} · margin{" "}
@@ -821,7 +822,7 @@ export function NewSale({
                             )}
                           </td>
                           <td className="px-2">
-                            <div className="flex gap-1">
+                            <div className="flex items-start gap-1">
                               <Input type="number" min={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} step={l.product.trackingType === "LENGTH" ? "0.0001" : "1"} value={l.enteredQty} onChange={(e) => updateEnteredQuantity(l, Number(e.target.value))} className="h-9 w-20" aria-label={`Quantity for ${l.product.name}`} />
                               <Select value={l.enteredUnit} onChange={(e) => updateEnteredUnit(l, e.target.value as UnitOfMeasure)} className="h-9 w-20 px-2">
                                 {unitsForTracking(l.product.trackingType ?? "PIECE").map((unit) => <option key={unit} value={unit}>{UNIT_LABELS[unit]}</option>)}

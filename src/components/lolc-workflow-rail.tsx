@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 const nextActions: Record<LolcReceiptStatus, string> = {
   COLLECTED: "Send through mCash",
-  MCASH_SENT: "Verify with LOLC",
+  MCASH_SENT: "Confirm payment",
   NEEDS_ATTENTION: "Resolve and confirm",
   LOLC_CONFIRMED: "Journey complete",
   VOIDED: "No further action",
@@ -33,7 +33,7 @@ export function LolcWorkflowRail({
   const age = ageInDays(collectedAt);
   const steps = [
     { label: "Collected", done: true },
-    { label: attention ? "Attention required" : "LOLC confirmed", done: lolcConfirmed },
+    { label: attention ? "Attention required" : "Confirmed", done: lolcConfirmed },
   ];
 
   return <div className={cn("min-w-0", className)}>

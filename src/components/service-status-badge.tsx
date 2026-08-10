@@ -1,10 +1,10 @@
 import type { ServiceJobStatus } from "@prisma/client";
 import { Badge } from "@/components/ui/badge";
 
-const tone: Record<ServiceJobStatus, "amber" | "blue" | "green" | "gray"> = {
+const tone: Record<ServiceJobStatus, "amber" | "blue" | "success" | "gray"> = {
   PENDING: "amber",
   IN_PROGRESS: "blue",
-  COMPLETED: "green",
+  COMPLETED: "success",
   CANCELLED: "gray",
 };
 

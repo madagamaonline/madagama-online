@@ -45,7 +45,7 @@ export function PricingHelper({
 
   return (
     <div className="rounded-xl border border-border bg-input/60 p-4">
-      <div className="grid grid-cols-3 gap-3 text-center">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-3 sm:text-center">
         <Stat label="Gross margin" value={`${margin.toFixed(1)}%`} tone={margin < 0 ? "bad" : "ok"} />
         <Stat label="Markup" value={`${markup.toFixed(1)}%`} />
         <Stat
@@ -101,8 +101,10 @@ function Stat({
 }) {
   const color = tone === "bad" ? "text-danger" : tone === "ok" ? "text-primary" : "text-foreground";
   return (
-    <div>
-      <div className={`tabular text-lg font-semibold ${color}`}>{value}</div>
+    // Mobile: label on the left, value on the right so long amounts (e.g.
+    // "-LKR 8,000.00") stay on one line. sm+: value stacked over the label.
+    <div className="flex flex-row-reverse items-baseline justify-between gap-3 sm:block">
+      <div className={`tabular whitespace-nowrap text-lg font-semibold ${color}`}>{value}</div>
       <div className="text-xs text-muted">{label}</div>
     </div>
   );

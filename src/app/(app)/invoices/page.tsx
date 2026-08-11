@@ -8,6 +8,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { InvoiceCashierFilter } from "@/components/invoice-cashier-filter";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
@@ -41,14 +42,10 @@ export default async function InvoicesPage({
     ...(cashierId ? { createdByUserId: cashierId } : {}),
     // When non-taxable is off this overrides any category filter to taxable-only.
     ...invoiceTaxableWhere(ntEnabled),
-    ...(query
-      ? {
-          OR: [
-            { invoiceNumber: { contains: query, mode: "insensitive" } },
-            { customer: { name: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
+    ...(tokenMatchWhere<Prisma.InvoiceWhereInput>(parseSearchQuery(query).tokens, (token) => [
+      { invoiceNumber: contains(token) },
+      { customer: { name: contains(token) } },
+    ]) ?? {}),
   };
 
   const [invoices, cashiers] = await Promise.all([

@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,16 +57,16 @@ export default async function CreditInvoicesPage({
     type: "CREDIT",
     ...(cat ? { taxCategory: cat } : {}),
     ...invoiceTaxableWhere(ntEnabled),
-    ...(query
-      ? {
-          OR: [
-            { invoiceNumber: { contains: query, mode: "insensitive" } },
-            { customer: { name: { contains: query, mode: "insensitive" } } },
-            { customer: { phone: { contains: query, mode: "insensitive" } } },
-            { customer: { nic: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
+    ...(tokenMatchWhere<Prisma.InvoiceWhereInput>(parseSearchQuery(query).tokens, (token) => {
+      const digits = token.replace(/\D/g, "");
+      const fields: Prisma.InvoiceWhereInput[] = [
+        { invoiceNumber: contains(token) },
+        { customer: { name: contains(token) } },
+        { customer: { nic: contains(token) } },
+      ];
+      if (digits) fields.push({ customer: { phone: contains(digits) } });
+      return fields;
+    }) ?? {}),
   };
 
   const invoices = await prisma.invoice.findMany({

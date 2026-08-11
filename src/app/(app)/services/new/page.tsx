@@ -6,10 +6,11 @@ import { createServiceJob } from "../actions";
 export const dynamic = "force-dynamic";
 
 export default async function NewServiceJobPage() {
+  // Recent-customer seed only; the picker searches the server as you type.
   const customers = await prisma.customer.findMany({
-    orderBy: { name: "asc" },
+    orderBy: { createdAt: "desc" },
     select: { id: true, name: true, phone: true, nic: true },
-    take: 1000,
+    take: 8,
   });
 
   return (

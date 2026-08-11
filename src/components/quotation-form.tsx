@@ -14,6 +14,7 @@ import { formatLKR } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import type { QuotationInput, QuotationResult } from "@/app/(app)/quotations/actions";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
 import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
 import { UNIT_LABELS, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
 
@@ -100,30 +101,19 @@ export function QuotationForm({
   const [saved, setSaved] = useState(false);
 
   // Catalog search for adding lines.
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
+  const productSearch = useRemoteSearch<ProductHit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: ProductHit[] }).results ?? [],
+  });
+  const { query, setQuery, results: hits, error: searchError, reset: resetSearch } = productSearch;
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const q = query.trim();
-    const t = setTimeout(async () => {
-      if (!q) {
-        setHits([]);
-        setOpen(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setHits(data.results ?? []);
-        setActiveIdx(0);
-        setOpen(true);
-      } catch {
-        setHits([]);
-      }
-    }, q ? 200 : 0);
+    const t = setTimeout(() => {
+      if (!query.trim()) setOpen(false);
+    }, 0);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -143,8 +133,7 @@ export function QuotationForm({
         unitPrice: p.sellingPrice,
       },
     ]);
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setOpen(false);
     setActiveIdx(0);
     searchRef.current?.focus();
@@ -164,8 +153,7 @@ export function QuotationForm({
       if (pick) addFromProduct(pick);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setQuery("");
-      setHits([]);
+      resetSearch();
       setOpen(false);
     }
   }
@@ -245,7 +233,11 @@ export function QuotationForm({
               <Input
                 ref={searchRef}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActiveIdx(0);
+                  setOpen(true);
+                }}
                 onFocus={() => hits.length && setOpen(true)}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Search catalog to add a line (code or name)…"
@@ -274,6 +266,11 @@ export function QuotationForm({
                 </div>
               )}
             </div>
+            {searchError && (
+              <p className="mt-1.5 text-xs font-semibold text-danger">
+                Catalog search is unavailable — check the connection.
+              </p>
+            )}
             <p className="mt-1.5 text-xs text-muted">
               Or add a free-text line for custom / spec&rsquo;d items (e.g. solar pumps).
             </p>

@@ -14,10 +14,12 @@ export default async function EditServiceJobPage({
   const { id } = await params;
   const [job, customers] = await Promise.all([
     prisma.serviceJob.findUnique({ where: { id } }),
+    // Recent-customer seed only; the picker searches the server as you type and
+    // resolves the job's existing customer by id.
     prisma.customer.findMany({
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "desc" },
       select: { id: true, name: true, phone: true, nic: true },
-      take: 1000,
+      take: 8,
     }),
   ]);
   if (!job) notFound();

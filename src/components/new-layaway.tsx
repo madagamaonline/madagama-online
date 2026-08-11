@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Clock3, PackageCheck, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { CustomerSearchPicker, type SaleCustomer } from "@/components/customer-search-picker";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,8 +26,12 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [customerId, setCustomerId] = useState("");
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
+  const productSearch = useRemoteSearch<ProductHit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: ProductHit[] }).results ?? [],
+    delay: 180,
+  });
+  const { query, setQuery, results: hits, error: searchError, reset: resetSearch } = productSearch;
   const [lines, setLines] = useState<Line[]>([]);
   const [discount, setDiscount] = useState(0);
   const [initialPayment, setInitialPayment] = useState(0);
@@ -48,20 +53,12 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
     setCustomerId(customer.id);
   }
 
-  useEffect(() => {
-    const q = query.trim();
-    const timer = setTimeout(async () => {
-      if (!q) return setHits([]);
-      try { const response = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`); setHits((await response.json()).results ?? []); } catch { setHits([]); }
-    }, 180);
-    return () => clearTimeout(timer);
-  }, [query]);
   const subtotal = round2(lines.reduce((sum, line) => sum + line.qty * line.unitPrice, 0));
   const total = Math.max(0, round2(subtotal - discount));
 
   function add(product: ProductHit) {
     setLines((current) => current.some((line) => line.product.id === product.id) ? current : [...current, { product, qty: 1, enteredQty: 1, enteredUnit: product.defaultUnit ?? (product.trackingType === "LENGTH" ? "METER" : "EACH"), unitPrice: product.sellingPrice }]);
-    setQuery(""); setHits([]);
+    resetSearch();
   }
   function submit() {
     setError("");
@@ -94,10 +91,11 @@ export function NewLayaway({ customers }: { customers: SaleCustomer[] }) {
             + Quick Add
           </button>
         </div>
-        <CustomerSearchPicker customers={localCustomers} value={customerId} onChange={setCustomerId} inputId="layaway-customer"/>
+        <CustomerSearchPicker recentCustomers={localCustomers} value={customerId} onChange={(id) => setCustomerId(id)} inputId="layaway-customer"/>
       </CardContent></Card>
       <Card><CardHeader><CardTitle>Reserved products</CardTitle></CardHeader><CardContent>
         <div className="relative"><Search className="absolute left-3 top-3.5 h-4 w-4 text-faint"/><Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search code, sticker number, model or name…" className="pl-9"/></div>
+        {searchError && <p className="mt-1 text-xs font-semibold text-danger">Product search is unavailable — check the connection.</p>}
         {hits.length > 0 && <div className="mt-1 overflow-hidden rounded-xl border border-border">{hits.map((product) => <button type="button" key={product.id} disabled={product.stock <= 0} onClick={() => add(product)} className="flex w-full items-center justify-between border-b border-border-subtle px-3 py-3 text-left last:border-0 hover:bg-input disabled:opacity-45"><span><span className="block text-sm font-bold">{product.name}</span><span className="font-mono text-xs text-muted">{product.code}</span></span><span className="text-right"><span className="block font-mono text-sm font-bold">{formatLKR(product.sellingPrice)}</span><span className="text-xs text-muted">{formatQuantity(product.stock, product.trackingType === "LENGTH" ? "METER" : "EACH")} available</span></span></button>)}</div>}
         {lines.length === 0 ? <div className="py-10 text-center text-sm text-muted"><PackageCheck className="mx-auto mb-2 h-7 w-7 text-faint"/>Search and add products to reserve.</div> : <div className="mt-4 space-y-2">{lines.map((line) => <div key={line.product.id} className="rounded-xl border border-border p-3">
           <div className="flex items-start justify-between gap-3"><div><p className="font-bold">{line.product.name}</p><p className="font-mono text-xs text-muted">{line.product.code} · {line.product.stock} available</p></div><Button size="icon" variant="ghost" onClick={() => setLines((current) => current.filter((item) => item.product.id !== line.product.id))} aria-label={`Remove ${line.product.name}`}><Trash2 className="h-4 w-4"/></Button></div>

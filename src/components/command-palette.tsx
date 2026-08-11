@@ -35,6 +35,7 @@ import {
   PackageCheck,
 } from "lucide-react";
 import { formatLKR } from "@/lib/utils";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { canAccessStaffFinance } from "@/lib/authorization";
 import type { Role } from "@/lib/session";
 
@@ -87,6 +88,16 @@ const PAGES: Cmd[] = [
 ];
 
 type ProductHit = { id: string; code: string; shortCode?: number; name: string; sellingPrice: number; stock: number };
+type CustomerHit = { id: string; name: string; phone: string; nic: string | null };
+type InvoiceHit = { id: string; invoiceNumber: string; grandTotal: number; customerName: string | null };
+type ServiceJobHit = { id: string; jobNumber: string; itemName: string; status: string; customerName: string | null };
+type GlobalHits = {
+  products: ProductHit[];
+  customers: CustomerHit[];
+  invoices: InvoiceHit[];
+  serviceJobs: ServiceJobHit[];
+};
+const NO_HITS: GlobalHits = { products: [], customers: [], invoices: [], serviceJobs: [] };
 
 const SALESPERSON_RESTRICTED_PREFIXES = [
   "/dashboard",
@@ -110,26 +121,38 @@ export function CommandPalette({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
-  const [searching, setSearching] = useState(false);
+  // One round trip covers products, customers, invoices and service jobs. The
+  // hook returns an array, so the single response is wrapped in one element.
+  const globalSearch = useRemoteSearch<GlobalHits>({
+    url: (q) => `/api/search?q=${encodeURIComponent(q)}`,
+    select: (data) => [data as GlobalHits],
+    minLength: 2,
+    delay: 180,
+  });
+  const {
+    query,
+    setQuery,
+    results: hitGroups,
+    isLoading: searching,
+    error: searchError,
+    reset: resetSearch,
+  } = globalSearch;
+  const hits = hitGroups[0] ?? NO_HITS;
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const close = useCallback(() => {
     setOpen(false);
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setActive(0);
-  }, []);
+  }, [resetSearch]);
 
   const openPalette = useCallback(() => {
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setActive(0);
     setOpen(true);
-  }, []);
+  }, [resetSearch]);
 
   // Global ⌘K / Ctrl+K toggle, plus a custom event the header button fires.
   useEffect(() => {
@@ -162,30 +185,6 @@ export function CommandPalette({
     };
   }, [open]);
 
-  // Debounced product lookup. All state changes live inside the timeout
-  // callback so nothing is set synchronously in the effect body.
-  useEffect(() => {
-    const q = query.trim();
-    const t = setTimeout(async () => {
-      if (q.length < 2) {
-        setHits([]);
-        setSearching(false);
-        return;
-      }
-      setSearching(true);
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setHits((data.results ?? []).slice(0, 6));
-      } catch {
-        setHits([]);
-      } finally {
-        setSearching(false);
-      }
-    }, 180);
-    return () => clearTimeout(t);
-  }, [query]);
-
   const staticMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     const all = [...ACTIONS, ...PAGES].filter((command) => {
@@ -207,13 +206,37 @@ export function CommandPalette({
   const items: Cmd[] = useMemo(
     () => [
       ...staticMatches,
-      ...hits.map<Cmd>((h) => ({
+      ...hits.products.map<Cmd>((h) => ({
         id: `prod-${h.id}`,
         group: "Products",
         label: h.name,
         sub: `${h.shortCode != null ? `#${h.shortCode} · ` : ""}${h.code} · ${formatLKR(h.sellingPrice)} · stock ${h.stock}`,
         icon: Package,
         href: `/products/${h.id}`,
+      })),
+      ...hits.customers.map<Cmd>((h) => ({
+        id: `cust-${h.id}`,
+        group: "Customers",
+        label: h.name,
+        sub: [h.phone, h.nic].filter(Boolean).join(" · "),
+        icon: Users,
+        href: `/customers/${h.id}`,
+      })),
+      ...hits.invoices.map<Cmd>((h) => ({
+        id: `inv-${h.id}`,
+        group: "Invoices",
+        label: h.invoiceNumber,
+        sub: `${h.customerName ?? "Walk-in"} · ${formatLKR(h.grandTotal)}`,
+        icon: ReceiptText,
+        href: `/invoices/${h.id}`,
+      })),
+      ...hits.serviceJobs.map<Cmd>((h) => ({
+        id: `svc-${h.id}`,
+        group: "Service jobs",
+        label: `${h.jobNumber} · ${h.itemName}`,
+        sub: `${h.customerName ?? "No customer"} · ${h.status.replaceAll("_", " ")}`,
+        icon: Wrench,
+        href: `/services/${h.id}`,
       })),
     ],
     [staticMatches, hits],
@@ -288,7 +311,11 @@ export function CommandPalette({
 
         <div ref={listRef} className="max-h-[52vh] overflow-y-auto p-2 scrollbar-thin">
           {items.length === 0 ? (
-            <div className="px-3 py-10 text-center text-sm text-muted">No matches for “{query}”.</div>
+            <div className="px-3 py-10 text-center text-sm text-muted">
+              {searchError
+                ? "Product search is unavailable — check the connection."
+                : `No matches for “${query}”.`}
+            </div>
           ) : (
             items.map((cmd, i) => {
               const Icon = cmd.icon;

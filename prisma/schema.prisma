@@ -188,6 +188,16 @@ model Product {
 
   @@index([categoryId])
   @@index([subcategoryId])
+  // Trigram indexes for the POS type-ahead. Every product search is a
+  // case-insensitive `contains`, which is `ILIKE '%q%'` — a plain B-tree cannot
+  // serve that, so without these each keystroke sequentially scans the table.
+  // Queries shorter than 3 characters still fall back to a scan; that is fine,
+  // sticker codes are matched by their own unique index.
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "Product_name_trgm_idx", type: Gin)
+  @@index([code(ops: raw("gin_trgm_ops"))], map: "Product_code_trgm_idx", type: Gin)
+  @@index([barcode(ops: raw("gin_trgm_ops"))], map: "Product_barcode_trgm_idx", type: Gin)
+  @@index([modelNumber(ops: raw("gin_trgm_ops"))], map: "Product_modelNumber_trgm_idx", type: Gin)
+  @@index([serialNumber(ops: raw("gin_trgm_ops"))], map: "Product_serialNumber_trgm_idx", type: Gin)
 }
 
 // ----------------------------------------------------------------------------
@@ -216,6 +226,11 @@ model Customer {
   layaways         LayawayOrder[]
 
   @@index([phone])
+  // Same reasoning as Product: the customer pickers and the customers list all
+  // search these three fields with a case-insensitive `contains`.
+  @@index([name(ops: raw("gin_trgm_ops"))], map: "Customer_name_trgm_idx", type: Gin)
+  @@index([nic(ops: raw("gin_trgm_ops"))], map: "Customer_nic_trgm_idx", type: Gin)
+  @@index([phone(ops: raw("gin_trgm_ops"))], map: "Customer_phone_trgm_idx", type: Gin)
 }
 
 model Guarantor {

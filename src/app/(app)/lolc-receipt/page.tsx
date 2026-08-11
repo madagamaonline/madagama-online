@@ -1,15 +1,15 @@
 import Link from "next/link";
 import type { LolcReceiptStatus, Prisma } from "@prisma/client";
-import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Plus, Search, Send } from "lucide-react";
+import { AlertTriangle, ArrowRight, CheckCircle2, Clock3, Plus, Send } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { PageHeader } from "@/components/page-header";
 import { LolcWorkflowRail } from "@/components/lolc-workflow-rail";
 import { LOLC_OPEN_STATUSES, LOLC_STATUSES, lolcReceiptNumber, lolcStatusLabel, lolcStatusTone } from "@/lib/lolc-receipts";
 import { prisma } from "@/lib/prisma";
+import { ListSearch } from "@/components/list-search";
 import { formatDate, formatLKR } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ export default async function LolcReceiptPage({ searchParams }: { searchParams: 
     <Card>
       <CardContent className="space-y-4">
         <form className="grid gap-3 sm:grid-cols-[1fr_210px_auto]">
-          <div className="relative"><Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-faint" /><Input name="q" defaultValue={query} className="pl-9" placeholder="Receipt, customer, phone, LOLC code, or mCash reference" /></div>
+          <><input type="hidden" name="q" value={query} /><ListSearch placeholder="Receipt, customer, phone, LOLC code, or mCash reference" className="relative" /></>
           <Select name="status" defaultValue={selectedStatus}><option value="OPEN">Open queues</option>{LOLC_STATUSES.map((status) => <option key={status} value={status}>{lolcStatusLabel(status)}</option>)}</Select>
           <Button type="submit" variant="outline">Filter</Button>
         </form>

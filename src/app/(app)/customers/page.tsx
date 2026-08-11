@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Download } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ListSearch } from "@/components/list-search";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatDate } from "@/lib/utils";
 
@@ -18,15 +19,21 @@ export default async function CustomersPage({
 }) {
   const { q } = await searchParams;
   const query = (q ?? "").trim();
-  const where: Prisma.CustomerWhereInput = query
-    ? {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { phone: { contains: query, mode: "insensitive" } },
-          { nic: { contains: query, mode: "insensitive" } },
-        ],
-      }
-    : {};
+  // Shared with /api/customers/search, so the list and the POS picker agree on
+  // what a query means — notably phone numbers typed with spaces or dashes.
+  const parsed = parseSearchQuery(query);
+  const intent: Prisma.CustomerWhereInput[] = [];
+  if (parsed.phone) intent.push({ phone: parsed.phone });
+  if (parsed.nic) intent.push({ nic: contains(parsed.nic) });
+  const tokens = tokenMatchWhere<Prisma.CustomerWhereInput>(parsed.tokens, (token) => {
+    const digits = token.replace(/\D/g, "");
+    const fields: Prisma.CustomerWhereInput[] = [{ name: contains(token) }, { nic: contains(token) }];
+    if (digits) fields.push({ phone: contains(digits) });
+    return fields;
+  });
+  const where: Prisma.CustomerWhereInput = parsed.isEmpty
+    ? {}
+    : { OR: [...intent, ...(tokens ? [tokens] : [])] };
 
   const customers = await prisma.customer.findMany({
     where,
@@ -56,10 +63,7 @@ export default async function CustomersPage({
       <Card>
         <CardContent className="p-0">
           <div className="border-b border-border p-4">
-            <form className="relative max-w-md">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <Input name="q" defaultValue={query} placeholder="Search name, phone or NIC…" className="pl-9" />
-            </form>
+            <ListSearch placeholder="Search name, phone or NIC…" />
           </div>
           {customers.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">

@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { Plus, Search, Download, Wrench } from "lucide-react";
+import { Plus, Download, Wrench } from "lucide-react";
 import { Prisma, type ServiceJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ListSearch } from "@/components/list-search";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { ServiceStatusBadge, serviceStatusLabel } from "@/components/service-status-badge";
@@ -95,15 +95,11 @@ export default async function ServicesPage({
         <CardContent className="p-0">
           <div className="border-b border-border p-4">
             <form className="flex flex-wrap items-center gap-2">
-              <div className="relative max-w-md flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-                <Input
-                  name="q"
-                  defaultValue={query}
-                  placeholder="Search job #, item, customer or phone…"
-                  className="pl-9"
-                />
-              </div>
+              <input type="hidden" name="q" value={query} />
+              <ListSearch
+                placeholder="Search job #, item, customer or phone…"
+                className="relative max-w-md flex-1"
+              />
               <Select name="status" defaultValue={status ?? ""} className="w-44">
                 <option value="">All statuses</option>
                 {STATUSES.map((s) => (

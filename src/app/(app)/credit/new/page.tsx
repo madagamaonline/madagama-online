@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function NewCreditSalePage() {
   const [customers, employees, setting, ntEnabled] = await Promise.all([
-    prisma.customer.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true, phone: true, nic: true }, take: 500 }),
+    // Recent-customer seed only; the picker searches the server as you type.
+    prisma.customer.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, phone: true, nic: true }, take: 8 }),
     prisma.employee.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.setting.findUnique({ where: { id: 1 } }),
     nonTaxableEnabled(),

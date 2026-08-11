@@ -15,10 +15,12 @@ export default async function NewSalePage() {
       orderBy: { name: "asc" },
       select: { id: true, name: true },
     }),
+    // Only a small "recent" seed for the picker's empty state — it searches the
+    // server from the first keystroke, so the full list is never shipped.
     prisma.customer.findMany({
-      orderBy: { name: "asc" },
+      orderBy: { createdAt: "desc" },
       select: { id: true, name: true, phone: true, nic: true },
-      take: 500,
+      take: 8,
     }),
     nonTaxableEnabled(),
   ]);

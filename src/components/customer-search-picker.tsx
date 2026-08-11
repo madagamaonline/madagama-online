@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Loader2, Search, TriangleAlert, X } from "lucide-react";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
+import { Highlight } from "@/components/highlight";
 import { cn } from "@/lib/utils";
 
 export type SaleCustomer = {
@@ -11,97 +13,106 @@ export type SaleCustomer = {
   nic: string | null;
 };
 
-type SearchMode = "name" | "nic";
-
-function normalizedNic(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
+/**
+ * Customer picker for the POS, credit, layaway and service-job forms.
+ *
+ * Searches the server rather than filtering a preloaded array: the forms used
+ * to ship the whole customer table (capped at 500-1000 rows) to the browser,
+ * so anyone past the cap simply could not be found. One box now matches name,
+ * phone and NIC together — the old Name/NIC toggle is gone because the server
+ * searches all three at once.
+ *
+ * `recentCustomers` is a small seed (latest records, plus anything just created
+ * through Quick Add) shown before the cashier types, and used to resolve the
+ * selected customer without a round trip.
+ */
 export function CustomerSearchPicker({
-  customers,
+  recentCustomers = [],
   value,
   onChange,
   inputId = "sale-customer",
   emptyText = "Walk-in customer",
 }: {
-  customers: SaleCustomer[];
+  recentCustomers?: SaleCustomer[];
   value: string;
-  onChange: (customerId: string) => void;
+  /** The full record comes along so callers don't have to look the id back up. */
+  onChange: (customerId: string, customer: SaleCustomer | null) => void;
   inputId?: string;
   emptyText?: string;
 }) {
-  const [mode, setMode] = useState<SearchMode>("name");
-  const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
+  const [resolved, setResolved] = useState<SaleCustomer | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listboxId = useId();
 
-  const selected = useMemo(
-    () => customers.find((customer) => customer.id === value),
-    [customers, value],
-  );
+  const search = useRemoteSearch<SaleCustomer>({
+    url: (q) => `/api/customers/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: SaleCustomer[] }).results ?? [],
+    minLength: 2,
+    enabled: open,
+  });
+  const { query, setQuery, results, isLoading, isEmpty, error, reset } = search;
 
-  const filtered = useMemo(() => {
-    const trimmed = query.trim();
-    if (!trimmed) return customers;
+  // Derived, not stored, so clearing `value` can never leave a stale name on
+  // screen. The picked/fetched record only fills the gap when the seed misses.
+  const selected = value
+    ? recentCustomers.find((customer) => customer.id === value) ??
+      (resolved?.id === value ? resolved : null)
+    : null;
 
-    if (mode === "name") {
-      const needle = trimmed.toLocaleLowerCase();
-      return customers.filter((customer) =>
-        customer.name.toLocaleLowerCase().includes(needle),
-      );
-    }
+  // Edit forms arrive with a customer that isn't in the seed — fetch just that
+  // one so the box shows a name instead of an empty field.
+  useEffect(() => {
+    if (!value || selected) return;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch(`/api/customers/search?id=${encodeURIComponent(value)}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) return;
+        const data = (await res.json()) as { results?: SaleCustomer[] };
+        const hit = data.results?.[0];
+        if (hit) setResolved(hit);
+      } catch {
+        /* the field just stays blank; the id is still submitted */
+      }
+    })();
+    return () => controller.abort();
+  }, [value, selected]);
 
-    const needle = normalizedNic(trimmed);
-    if (!needle) return [];
-    return customers.filter(
-      (customer) =>
-        customer.nic != null && normalizedNic(customer.nic).includes(needle),
-    );
-  }, [customers, mode, query]);
-
-  // Keep an opened empty search useful without rendering hundreds of rows.
-  const visibleCustomers = filtered.slice(0, 50);
-  const activeCustomer = visibleCustomers[activeIdx];
-  const selectedPrimary = selected
-    ? mode === "name"
-      ? selected.name
-      : selected.nic ?? "NIC not recorded"
-    : "";
+  // Before the cashier types, offer the recent customers rather than nothing.
+  const options = query.trim().length >= 2 ? results : recentCustomers.slice(0, 8);
+  const activeCustomer = options[activeIdx];
+  const showRecent = query.trim().length < 2;
 
   useEffect(() => {
     if (!open) return;
     function handleOutsideClick(event: MouseEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
         setOpen(false);
-        setQuery("");
+        reset();
       }
     }
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [open]);
-
-  function selectMode(nextMode: SearchMode) {
-    setMode(nextMode);
-    setQuery("");
-    setActiveIdx(0);
-    setOpen(true);
-    inputRef.current?.focus();
-  }
+  }, [open, reset]);
 
   function pick(customer: SaleCustomer) {
-    onChange(customer.id);
-    setQuery("");
+    setResolved(customer);
+    onChange(customer.id, customer);
     setOpen(false);
+    reset();
   }
 
   function clearCustomer() {
-    onChange("");
-    setQuery("");
+    setResolved(null);
+    onChange("", null);
     setActiveIdx(0);
     setOpen(false);
+    reset();
     inputRef.current?.focus();
   }
 
@@ -109,9 +120,7 @@ export function CustomerSearchPicker({
     if (event.key === "ArrowDown") {
       event.preventDefault();
       setOpen(true);
-      setActiveIdx((index) =>
-        visibleCustomers.length ? Math.min(index + 1, visibleCustomers.length - 1) : 0,
-      );
+      setActiveIdx((index) => (options.length ? Math.min(index + 1, options.length - 1) : 0));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setOpen(true);
@@ -122,42 +131,19 @@ export function CustomerSearchPicker({
     } else if (event.key === "Escape") {
       event.preventDefault();
       setOpen(false);
-      setQuery("");
+      reset();
     }
   }
 
   return (
     <div ref={rootRef} className="relative mt-1.5">
-      <div
-        className="mb-1.5 inline-flex rounded-lg border border-input-border bg-input p-0.5"
-        role="group"
-        aria-label="Customer search mode"
-      >
-        {(["name", "nic"] as const).map((option) => (
-          <button
-            key={option}
-            type="button"
-            aria-pressed={mode === option}
-            onClick={() => selectMode(option)}
-            className={cn(
-              "rounded-md px-3 py-1 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-              mode === option
-                ? "bg-surface text-primary-ink shadow-sm"
-                : "text-muted hover:text-foreground",
-            )}
-          >
-            {option === "name" ? "Name" : "NIC"}
-          </button>
-        ))}
-      </div>
-
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
         <input
           ref={inputRef}
           id={inputId}
           role="combobox"
-          aria-label={mode === "name" ? "Search customer by name" : "Search customer by NIC"}
+          aria-label="Search customer by name, phone or NIC"
           aria-autocomplete="list"
           aria-haspopup="listbox"
           aria-expanded={open}
@@ -165,9 +151,8 @@ export function CustomerSearchPicker({
           aria-activedescendant={
             open && activeCustomer ? `${listboxId}-${activeCustomer.id}` : undefined
           }
-          value={open ? query : selectedPrimary}
+          value={open ? query : selected?.name ?? ""}
           onFocus={() => {
-            setQuery("");
             setActiveIdx(0);
             setOpen(true);
           }}
@@ -177,30 +162,45 @@ export function CustomerSearchPicker({
             setOpen(true);
           }}
           onKeyDown={handleKeyDown}
-          placeholder={
-            mode === "name" ? "Search by customer name…" : "Search by NIC…"
-          }
+          placeholder="Search name, phone or NIC…"
           autoComplete="off"
-          className="h-11 w-full rounded-xl border border-input-border bg-input pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-primary focus:ring-2 focus:ring-primary/20"
+          className="h-11 w-full rounded-xl border border-input-border bg-input pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-faint focus:border-primary focus:ring-2 focus:ring-primary/20"
         />
+        {isLoading && (
+          <Loader2 className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-faint" />
+        )}
       </div>
 
       {open && (
         <div className="absolute z-40 mt-1 w-full overflow-hidden rounded-xl border border-border bg-surface shadow-lg">
+          {showRecent && recentCustomers.length > 0 && (
+            <p className="border-b border-border-subtle px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-wide text-muted">
+              Recent customers
+            </p>
+          )}
           <div
             id={listboxId}
             role="listbox"
-            aria-label={mode === "name" ? "Customers by name" : "Customers by NIC"}
+            aria-label="Customers"
             className="max-h-64 overflow-y-auto py-1"
           >
-            {visibleCustomers.length === 0 ? (
-              <div className="px-3.5 py-3 text-sm text-muted">
-                {query.trim()
-                  ? `No customers found by ${mode === "name" ? "name" : "NIC"}.`
-                  : "No customers available."}
+            {options.length === 0 ? (
+              <div className="px-3.5 py-3 text-sm">
+                {error ? (
+                  <span className="flex items-center gap-2 text-danger">
+                    <TriangleAlert className="h-4 w-4 shrink-0" />
+                    Could not reach the server. Check the connection and try again.
+                  </span>
+                ) : isLoading ? (
+                  <span className="text-muted">Searching…</span>
+                ) : isEmpty ? (
+                  <span className="text-muted">No customer matches “{query.trim()}”.</span>
+                ) : (
+                  <span className="text-muted">Type a name, phone number or NIC to search.</span>
+                )}
               </div>
             ) : (
-              visibleCustomers.map((customer, index) => (
+              options.map((customer, index) => (
                 <button
                   id={`${listboxId}-${customer.id}`}
                   key={customer.id}
@@ -216,27 +216,16 @@ export function CustomerSearchPicker({
                   )}
                 >
                   <span className="min-w-0">
-                    <span
-                      className={cn(
-                        "block truncate font-semibold text-foreground",
-                        mode === "nic" && "font-mono text-primary-ink",
-                      )}
-                    >
-                      {mode === "name" ? customer.name : customer.nic ?? "NIC not recorded"}
+                    <span className="block truncate font-semibold text-foreground">
+                      <Highlight text={customer.name} query={query} />
                     </span>
                     <span className="block truncate text-xs text-muted">
-                      {mode === "name" ? (
-                        <>
-                          {customer.nic && (
-                            <span className="font-mono">NIC {customer.nic} · </span>
-                          )}
-                          {customer.phone}
-                        </>
-                      ) : (
-                        <>
-                          {customer.name} · {customer.phone}
-                        </>
+                      {customer.nic && (
+                        <span className="font-mono">
+                          NIC <Highlight text={customer.nic} query={query} /> ·{" "}
+                        </span>
                       )}
+                      <Highlight text={customer.phone} query={query} />
                     </span>
                   </span>
                   {customer.id === value && (
@@ -248,6 +237,11 @@ export function CustomerSearchPicker({
               ))
             )}
           </div>
+          <p className="sr-only" role="status" aria-live="polite">
+            {isLoading
+              ? "Searching customers."
+              : `${options.length} customer${options.length === 1 ? "" : "s"} available.`}
+          </p>
         </div>
       )}
 

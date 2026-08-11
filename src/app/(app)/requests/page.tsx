@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { Plus, Search } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { CustomerRequestStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { ListSearch } from "@/components/list-search";
 import { ACTIVE_REQUEST_STATUSES, REQUEST_STATUS_OPTIONS, requestNumber, requestStatusLabel, requestStatusTone, requestTypeLabel } from "@/lib/customer-requests";
 import { businessStartOfDay } from "@/lib/dates";
 import { formatDate, formatLKR } from "@/lib/utils";
@@ -9,7 +10,6 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 
@@ -58,10 +58,8 @@ export default async function CustomerRequestsPage({
       <Card>
         <CardContent className="p-0">
           <form className="grid grid-cols-1 gap-3 border-b border-border p-4 sm:grid-cols-[1fr_220px_auto]">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-3.5 h-4 w-4 text-muted" />
-              <Input name="q" defaultValue={query} placeholder="Search product, customer, phone, or notes…" className="pl-9" />
-            </div>
+            <input type="hidden" name="q" value={query} />
+            <ListSearch placeholder="Search product, customer, phone, or notes…" className="relative" />
             <Select name="status" defaultValue={requestedStatus ?? "ACTIVE"}>
               <option value="ACTIVE">All active requests</option>
               {REQUEST_STATUS_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}

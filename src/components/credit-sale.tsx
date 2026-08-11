@@ -16,6 +16,8 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { sumLines } from "@/lib/totals";
 import { createCreditSale } from "@/app/(app)/credit/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
+import { Highlight } from "@/components/highlight";
 import {
   CustomerSearchPicker,
   type SaleCustomer,
@@ -66,8 +68,12 @@ export function CreditSale({
   nonTaxableEnabled?: boolean;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
+  // Debounce, abort-on-keystroke and error handling live in the hook.
+  const productSearch = useRemoteSearch<ProductHit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: ProductHit[] }).results ?? [],
+  });
+  const { query, setQuery, results: hits, error: searchError, reset: resetSearch } = productSearch;
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -151,23 +157,9 @@ export function CreditSale({
   }, []);
 
   useEffect(() => {
-    const q = query.trim();
-    const t = setTimeout(async () => {
-      if (!q) {
-        setHits([]);
-        setOpen(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setHits(data.results ?? []);
-        setActiveIdx(0);
-        setOpen(true);
-      } catch {
-        setHits([]);
-      }
-    }, q ? 200 : 0);
+    const t = setTimeout(() => {
+      if (!query.trim()) setOpen(false);
+    }, 0);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -194,8 +186,7 @@ export function CreditSale({
         },
       ];
     });
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setOpen(false);
     setActiveIdx(0);
     searchRef.current?.focus();
@@ -221,8 +212,7 @@ export function CreditSale({
       if (pick) addProduct(pick);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setQuery("");
-      setHits([]);
+      resetSearch();
       setOpen(false);
     }
   }
@@ -305,7 +295,11 @@ export function CreditSale({
               <Input
                 ref={searchRef}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActiveIdx(0);
+                  setOpen(true);
+                }}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Type product code or name…"
                 className="h-12 pl-10 text-base"
@@ -328,16 +322,22 @@ export function CreditSale({
                               #{h.shortCode}
                             </span>
                           )}
-                          <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
+                          <span className="font-mono text-xs font-semibold text-primary">
+                            <Highlight text={h.code} query={query} />
+                          </span>{" "}
                           <span
                             className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
                             title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
                           >
-                            {h.name}
+                            <Highlight text={h.name} query={query} />
                           </span>
                         </span>
                         <span className="block text-xs text-muted">
-                          {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
+                          {h.modelNumber && (
+                            <span className="mr-2">
+                              Model: <Highlight text={h.modelNumber} query={query} />
+                            </span>
+                          )}
                           <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                         </span>
                       </span>
@@ -347,6 +347,12 @@ export function CreditSale({
                 </div>
               )}
             </div>
+
+            {searchError && (
+              <p className="mt-2 text-xs font-semibold text-danger">
+                Product search is unavailable — check the connection.
+              </p>
+            )}
 
             {cart.length > 0 && (
               <div className="mt-4">
@@ -568,9 +574,9 @@ export function CreditSale({
                 </button>
               </div>
               <CustomerSearchPicker
-                customers={localCustomers}
+                recentCustomers={localCustomers}
                 value={customerId}
-                onChange={setCustomerId}
+                onChange={(id) => setCustomerId(id)}
                 inputId="credit-sale-customer"
                 emptyText="Select a customer to continue"
               />

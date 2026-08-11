@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
 import { UNIT_LABELS, formatQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
@@ -43,10 +44,20 @@ export function PurchaseForm({
   defaultSupplierId?: string;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
+  const productSearch = useRemoteSearch<ProductHit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: ProductHit[] }).results ?? [],
+  });
+  const {
+    query,
+    setQuery,
+    results: hits,
+    isLoading: searching,
+    isEmpty: noMatches,
+    error: searchError,
+    reset: resetSearch,
+  } = productSearch;
   const [open, setOpen] = useState(false);
-  const [searching, setSearching] = useState(false);
   const [quickProductOpen, setQuickProductOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [supplierId, setSupplierId] = useState(defaultSupplierId);
@@ -63,34 +74,10 @@ export function PurchaseForm({
   const costRefs = useRef(new Map<string, HTMLInputElement>());
 
   useEffect(() => {
-    const q = query.trim();
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      if (!q) {
-        setHits([]);
-        setOpen(false);
-        setSearching(false);
-        return;
-      }
-      setSearching(true);
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        if (cancelled) return;
-        setHits(data.results ?? []);
-        setOpen(true);
-      } catch {
-        if (cancelled) return;
-        setHits([]);
-        setOpen(true);
-      } finally {
-        if (!cancelled) setSearching(false);
-      }
-    }, q ? 200 : 0);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
+    const t = setTimeout(() => {
+      if (!query.trim()) setOpen(false);
+    }, 0);
+    return () => clearTimeout(t);
   }, [query]);
 
   function addProduct(p: ProductHit, focusCost = false) {
@@ -105,8 +92,7 @@ export function PurchaseForm({
       }
       return [...prev, { product: p, qty: 1, enteredQty: 1, enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: p.costPrice }];
     });
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setOpen(false);
     setTimeout(() => {
       if (focusCost) costRefs.current.get(p.id)?.focus();
@@ -154,7 +140,10 @@ export function PurchaseForm({
                 <Input
                   ref={searchRef}
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setOpen(true);
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && hits[0]) {
                       e.preventDefault();
@@ -190,7 +179,15 @@ export function PurchaseForm({
                         <span className="shrink-0 text-muted">cost {formatLKR(h.costPrice)}{h.trackingType === "LENGTH" ? "/m" : ""}</span>
                       </button>
                     ))
-                  ) : (
+                  ) : searchError ? (
+                    <div className="p-3">
+                      <p className="text-sm font-semibold text-danger">Search is unavailable</p>
+                      <p className="mt-0.5 text-xs text-muted">
+                        Could not reach the server, so this is not a “no such product” result.
+                        Check the connection and search again.
+                      </p>
+                    </div>
+                  ) : noMatches ? (
                     <div className="p-3">
                       <p className="text-sm font-medium text-foreground">No products found</p>
                       <p className="mt-0.5 text-xs text-muted">Create “{query.trim()}” without leaving this purchase.</p>
@@ -208,7 +205,7 @@ export function PurchaseForm({
                         Create “{query.trim()}”
                       </Button>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
               </div>

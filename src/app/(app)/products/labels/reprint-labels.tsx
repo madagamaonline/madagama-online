@@ -5,6 +5,7 @@ import { Search, X, Plus, Minus } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LabelSheet, LABEL_COLS, type LabelItem } from "./label-sheet";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
 
 type Hit = {
   id: string;
@@ -34,8 +35,11 @@ const MAX_QTY = 200;
  * the page in this mode, so window.print() picks up exactly these labels.
  */
 export function ReprintLabels() {
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<Hit[]>([]);
+  const productSearch = useRemoteSearch<Hit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: Hit[] }).results ?? [],
+  });
+  const { query, setQuery, results: hits, error: searchError, reset: resetSearch } = productSearch;
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [rows, setRows] = useState<Row[]>([]);
@@ -43,23 +47,9 @@ export function ReprintLabels() {
   const searchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    const q = query.trim();
-    const t = setTimeout(async () => {
-      if (!q) {
-        setHits([]);
-        setOpen(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setHits(data.results ?? []);
-        setActiveIdx(0);
-        setOpen(true);
-      } catch {
-        setHits([]);
-      }
-    }, q ? 200 : 0);
+    const t = setTimeout(() => {
+      if (!query.trim()) setOpen(false);
+    }, 0);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -74,8 +64,7 @@ export function ReprintLabels() {
         { id: h.id, code: h.code, shortCode: h.shortCode, name: h.name, sellingPrice: h.sellingPrice, qty: 1 },
       ];
     });
-    setQuery("");
-    setHits([]);
+    resetSearch();
     setOpen(false);
     setActiveIdx(0);
     searchRef.current?.focus();
@@ -95,8 +84,7 @@ export function ReprintLabels() {
       if (pick) addProduct(pick);
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setQuery("");
-      setHits([]);
+      resetSearch();
       setOpen(false);
     }
   }
@@ -128,7 +116,11 @@ export function ReprintLabels() {
           <Input
             ref={searchRef}
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIdx(0);
+              setOpen(true);
+            }}
             onFocus={() => hits.length && setOpen(true)}
             onKeyDown={onSearchKeyDown}
             placeholder="Search by sticker #, code or name to add…"
@@ -156,6 +148,12 @@ export function ReprintLabels() {
             </div>
           )}
         </div>
+
+        {searchError && (
+          <p className="text-xs font-semibold text-danger">
+            Product search is unavailable — check the connection.
+          </p>
+        )}
 
         {rows.length === 0 ? (
           <div className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted">

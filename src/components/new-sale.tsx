@@ -28,6 +28,8 @@ import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
 import { createCashInvoice, createOpenAccountSale, type CreatedInvoice } from "@/app/(app)/invoices/actions";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
+import { useRemoteSearch } from "@/hooks/use-remote-search";
+import { Highlight } from "@/components/highlight";
 import {
   CustomerSearchPicker,
   type SaleCustomer,
@@ -72,6 +74,9 @@ const DRAFT_KEY = "madagama:sale-draft";
 const RECENT_KEY = "madagama:recent-invoices";
 const CREDIT_CART_KEY = "madagama:credit-cart";
 const PARKED_KEY = "madagama:parked-sales";
+const RECENT_PRODUCTS_KEY = "madagama:recent-products";
+/** How many quick-add chips to keep. Enough for a shift's fast movers. */
+const RECENT_PRODUCTS_MAX = 8;
 
 type RecentInvoice = {
   id: string;
@@ -120,8 +125,13 @@ export function NewSale({
   canPayLater?: boolean;
 }) {
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const [hits, setHits] = useState<ProductHit[]>([]);
+  // Debounce, abort-on-keystroke and error handling all live in the hook, so
+  // this component only deals with what to show.
+  const productSearch = useRemoteSearch<ProductHit>({
+    url: (q) => `/api/products/search?q=${encodeURIComponent(q)}`,
+    select: (data) => (data as { results?: ProductHit[] }).results ?? [],
+  });
+  const { query, setQuery, results: hits, error: searchError, reset: resetSearch } = productSearch;
   const [open, setOpen] = useState(false);
   const [activeIdx, setActiveIdx] = useState(0);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -130,12 +140,18 @@ export function NewSale({
   const totalEditing = useRef(false);
   const [tendered, setTendered] = useState(0);
   const [customerId, setCustomerId] = useState("");
+  // Kept alongside the id purely so a parked sale can be labelled with the
+  // customer's name — the picker no longer holds the whole customer list.
+  const [selectedCustomer, setSelectedCustomer] = useState<SaleCustomer | null>(null);
   const [soldBy, setSoldBy] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [result, setResult] = useState<CompletedSale | null>(null);
   const [resultMode, setResultMode] = useState<"cash" | "pay-later">("cash");
   const [recent, setRecent] = useState<RecentInvoice[]>([]);
+  // Products added recently on this till, offered as one-tap chips before the
+  // cashier types anything.
+  const [recentProducts, setRecentProducts] = useState<ProductHit[]>([]);
   const [parked, setParked] = useState<ParkedSale[]>([]);
   const [resumed, setResumed] = useState(false);
   const [removing, setRemoving] = useState<Set<string>>(() => new Set());
@@ -160,8 +176,10 @@ export function NewSale({
   );
 
   function handleQuickCustomerSuccess(newCust: { id: string; name: string; phone: string }) {
-    setAddedCustomers((prev) => [{ ...newCust, nic: null }, ...prev]);
-    setCustomerId(newCust.id);
+    const created: SaleCustomer = { ...newCust, nic: null };
+    setAddedCustomers((prev) => [created, ...prev]);
+    setCustomerId(created.id);
+    setSelectedCustomer(created);
   }
 
   const completeSaleRef = useRef(completeSale);
@@ -204,6 +222,7 @@ export function NewSale({
     let draft: { cart: CartLine[]; discount: number; customerId: string; soldBy: string; notes?: string; warrantyMonths?: number | null } | null = null;
     let recentList: RecentInvoice[] | null = null;
     let parkedList: ParkedSale[] | null = null;
+    let recentProductList: ProductHit[] | null = null;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) draft = JSON.parse(raw);
@@ -211,6 +230,8 @@ export function NewSale({
       if (r) recentList = JSON.parse(r) as RecentInvoice[];
       const p = localStorage.getItem(PARKED_KEY);
       if (p) parkedList = JSON.parse(p) as ParkedSale[];
+      const rp = localStorage.getItem(RECENT_PRODUCTS_KEY);
+      if (rp) recentProductList = JSON.parse(rp) as ProductHit[];
     } catch {
       /* ignore corrupt storage */
     }
@@ -225,6 +246,7 @@ export function NewSale({
       }
       if (recentList) setRecent(recentList);
       if (parkedList) setParked(parkedList);
+      if (recentProductList) setRecentProducts(recentProductList);
       hydrated.current = true;
     }, 0);
     return () => clearTimeout(t);
@@ -245,23 +267,9 @@ export function NewSale({
   }, [cart, discount, customerId, soldBy, notes]);
 
   useEffect(() => {
-    const q = query.trim();
-    const t = setTimeout(async () => {
-      if (!q) {
-        setHits([]);
-        setOpen(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/products/search?q=${encodeURIComponent(q)}`);
-        const data = await res.json();
-        setHits(data.results ?? []);
-        setActiveIdx(0);
-        setOpen(true);
-      } catch {
-        setHits([]);
-      }
-    }, q ? 200 : 0);
+    const t = setTimeout(() => {
+      if (!query.trim()) setOpen(false);
+    }, 0);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -289,13 +297,21 @@ export function NewSale({
         },
       ];
     });
-    setQuery("");
-    setHits([]);
+    setRecentProducts((prev) => {
+      const next = [p, ...prev.filter((item) => item.id !== p.id)].slice(0, RECENT_PRODUCTS_MAX);
+      try {
+        localStorage.setItem(RECENT_PRODUCTS_KEY, JSON.stringify(next));
+      } catch {
+        /* storage full or unavailable — the chips are a convenience only */
+      }
+      return next;
+    });
+    resetSearch();
     setOpen(false);
     setActiveIdx(0);
     flyProductToCart(p, source ?? null, cartDestinationRef.current);
     searchRef.current?.focus();
-  }, []);
+  }, [resetSearch]);
 
   function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
     if (!open || hits.length === 0) {
@@ -317,8 +333,7 @@ export function NewSale({
       if (pick) addProduct(pick, searchResultRefs.current.get(pick.id));
     } else if (e.key === "Escape") {
       e.preventDefault();
-      setQuery("");
-      setHits([]);
+      resetSearch();
       setOpen(false);
     }
   }
@@ -363,6 +378,7 @@ export function NewSale({
     setDiscount(0);
     setTendered(0);
     setCustomerId("");
+    setSelectedCustomer(null);
     setSoldBy("");
     setNotes("");
     setError("");
@@ -380,7 +396,10 @@ export function NewSale({
 
   function parkSale() {
     if (cart.length === 0) return;
-    const cust = localCustomers.find((c) => c.id === customerId);
+    const cust =
+      selectedCustomer?.id === customerId
+        ? selectedCustomer
+        : localCustomers.find((c) => c.id === customerId);
     const items = cart.length;
     const entry: ParkedSale = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -520,6 +539,7 @@ export function NewSale({
       setDiscount(0);
       setTendered(0);
       setCustomerId("");
+      setSelectedCustomer(null);
       setSoldBy("");
       setNotes("");
       setResumed(false);
@@ -563,7 +583,7 @@ export function NewSale({
       setShowPayLater(false);
       setPromisedDate("");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
-      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSoldBy(""); setNotes(""); setResumed(false);
+      setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSelectedCustomer(null); setSoldBy(""); setNotes(""); setResumed(false);
       setCompletionState("idle");
       submissionLock.current = false;
     });
@@ -640,7 +660,11 @@ export function NewSale({
               <Input
                 ref={searchRef}
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setActiveIdx(0);
+                  setOpen(true);
+                }}
                 onFocus={() => hits.length && setOpen(true)}
                 onKeyDown={onSearchKeyDown}
                 placeholder="Type product code or name (e.g. AGR-TOOL-0001)…"
@@ -669,16 +693,22 @@ export function NewSale({
                               #{h.shortCode}
                             </span>
                           )}
-                          <span className="font-mono text-xs font-semibold text-primary">{h.code}</span>{" "}
+                          <span className="font-mono text-xs font-semibold text-primary">
+                            <Highlight text={h.code} query={query} />
+                          </span>{" "}
                           <span
                             className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
                             title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
                           >
-                            {h.name}
+                            <Highlight text={h.name} query={query} />
                           </span>
                         </span>
                         <span className="block text-xs text-muted">
-                          {h.modelNumber && <span className="mr-2">Model: {h.modelNumber}</span>}
+                          {h.modelNumber && (
+                            <span className="mr-2">
+                              Model: <Highlight text={h.modelNumber} query={query} />
+                            </span>
+                          )}
                           <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                           {h.costPrice > 0 && <span className="ml-2">WAC: {formatLKR(h.costPrice)}</span>}
                         </span>
@@ -689,6 +719,33 @@ export function NewSale({
                 </div>
               )}
             </div>
+
+            {!query.trim() && recentProducts.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold text-muted">Quick add:</span>
+                {recentProducts.map((p) => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={(event) => addProduct(p, event.currentTarget)}
+                    title={`${p.code} · ${formatLKR(p.sellingPrice)}`}
+                    className="max-w-[14rem] truncate rounded-lg bg-input px-2.5 py-1 text-xs font-medium text-foreground hover:bg-primary-soft hover:text-primary-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+                  >
+                    {p.shortCode != null && (
+                      <span className="mr-1 font-mono font-bold text-primary">#{p.shortCode}</span>
+                    )}
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {searchError && (
+              <p className="mt-2 text-xs font-semibold text-danger">
+                Product search is unavailable — check the connection. (No results is not the
+                same as no match.)
+              </p>
+            )}
 
             {recent.length > 0 && (
               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
@@ -1029,9 +1086,12 @@ export function NewSale({
                 </button>
               </div>
               <CustomerSearchPicker
-                customers={localCustomers}
+                recentCustomers={localCustomers}
                 value={customerId}
-                onChange={setCustomerId}
+                onChange={(id, customer) => {
+                  setCustomerId(id);
+                  setSelectedCustomer(customer);
+                }}
               />
             </div>
             <div>

@@ -126,9 +126,9 @@ export function ServiceJobForm({
             <Label htmlFor="service-job-customer">Customer</Label>
             <input type="hidden" name="customerId" value={customerId} />
             <CustomerSearchPicker
-              customers={localCustomers}
+              recentCustomers={localCustomers}
               value={customerId}
-              onChange={setCustomerId}
+              onChange={(id) => setCustomerId(id)}
               inputId="service-job-customer"
             />
             <button

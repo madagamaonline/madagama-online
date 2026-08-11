@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { quotationStatusLabel, quotationStatusTone } from "@/components/quotation-status-badge";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
@@ -34,15 +35,11 @@ export default async function QuotationsPage({
 
   const where: Prisma.QuotationWhereInput = {
     ...(stat ? { status: stat } : {}),
-    ...(query
-      ? {
-          OR: [
-            { quotationNumber: { contains: query, mode: "insensitive" } },
-            { customerName: { contains: query, mode: "insensitive" } },
-            { customer: { name: { contains: query, mode: "insensitive" } } },
-          ],
-        }
-      : {}),
+    ...(tokenMatchWhere<Prisma.QuotationWhereInput>(parseSearchQuery(query).tokens, (token) => [
+      { quotationNumber: contains(token) },
+      { customerName: contains(token) },
+      { customer: { name: contains(token) } },
+    ]) ?? {}),
   };
 
   const monthStart = businessStartOfMonth(new Date());

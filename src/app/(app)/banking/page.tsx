@@ -1,13 +1,13 @@
 import Link from "next/link";
-import { AlertTriangle, BanknoteArrowDown, CalendarDays, Landmark, Plus, Search, WalletCards } from "lucide-react";
+import { AlertTriangle, BanknoteArrowDown, CalendarDays, Landmark, Plus, WalletCards } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { ListSearch } from "@/components/list-search";
 import { chequeBalance, chequeStatus, type ChequeStatus } from "@/lib/cheques";
 import { formatDate, formatLKR, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
 export const dynamic = "force-dynamic";
@@ -80,7 +80,7 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
       <section className="mt-5">
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-lg font-bold">Issued cheques</h2><p className="text-sm text-muted">{visible.length} of {cheques.length} cheques</p></div>
           <form className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 sm:w-auto">
-            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-faint" /><Input name="q" defaultValue={filters.q} placeholder="Cheque or supplier…" className="pl-9" /></div>
+            <><input type="hidden" name="q" value={filters.q} /><ListSearch placeholder="Cheque or supplier…" className="relative" /></>
             <Select name="bank" defaultValue={filters.bank || ""} aria-label="Filter bank"><option value="">All banks</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.bankName} · {account.accountName}</option>)}</Select>
             <Select name="status" defaultValue={filters.status || ""} aria-label="Filter status"><option value="">All statuses</option><option value="UPCOMING">Upcoming</option><option value="DUE">Due today</option><option value="OVERDUE">Overdue</option><option value="SETTLED">Settled</option></Select>
             <Button type="submit" size="sm" className="col-span-3 sm:col-span-1">Filter</Button>

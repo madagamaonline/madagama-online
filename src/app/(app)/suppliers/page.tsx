@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
@@ -21,16 +22,13 @@ export default async function SuppliersPage({
   const { q } = await searchParams;
   const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
-  const where: Prisma.SupplierWhereInput = query
-    ? {
-        OR: [
-          { name: { contains: query, mode: "insensitive" } },
-          { contactPerson: { contains: query, mode: "insensitive" } },
-          { phone: { contains: query, mode: "insensitive" } },
-          { email: { contains: query, mode: "insensitive" } },
-        ],
-      }
-    : {};
+  const where: Prisma.SupplierWhereInput =
+    tokenMatchWhere<Prisma.SupplierWhereInput>(parseSearchQuery(query).tokens, (token) => [
+      { name: contains(token) },
+      { contactPerson: contains(token) },
+      { phone: contains(token) },
+      { email: contains(token) },
+    ]) ?? {};
 
   const suppliers = await prisma.supplier.findMany({
     where,

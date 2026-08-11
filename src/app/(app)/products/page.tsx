@@ -9,12 +9,12 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ListSearch } from "@/components/list-search";
 import { Highlight } from "@/components/highlight";
+import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
-import { parseShortCode } from "@/lib/product-code";
 import { toggleProductActive } from "./actions";
 import { canonicalUnit, formatQuantity } from "@/lib/units";
 
@@ -31,21 +31,26 @@ export default async function ProductsPage({
   const query = (q ?? "").trim();
   const ntEnabled = await nonTaxableEnabled();
 
-  const shortCode = parseShortCode(query);
+  // Same parser the POS type-ahead uses, so a query typed here and at the till
+  // is interpreted identically (multi-word terms, sticker codes).
+  const parsed = parseSearchQuery(query);
+  const tokens = tokenMatchWhere<Prisma.ProductWhereInput>(parsed.tokens, (token) => [
+    { code: contains(token) },
+    { name: contains(token) },
+    { barcode: contains(token) },
+    { modelNumber: contains(token) },
+    { serialNumber: contains(token) },
+  ]);
   const where: Prisma.ProductWhereInput = {
     ...productTaxableWhere(ntEnabled),
-    ...(query
-      ? {
+    ...(parsed.isEmpty
+      ? {}
+      : {
           OR: [
-            ...(shortCode !== null ? [{ shortCode }] : []),
-            { code: { contains: query, mode: "insensitive" } },
-            { name: { contains: query, mode: "insensitive" } },
-            { barcode: { contains: query, mode: "insensitive" } },
-            { modelNumber: { contains: query, mode: "insensitive" } },
-            { serialNumber: { contains: query, mode: "insensitive" } },
+            ...(parsed.shortCode !== null ? [{ shortCode: parsed.shortCode }] : []),
+            ...(tokens ? [tokens] : []),
           ],
-        }
-      : {}),
+        }),
   };
 
   const total = await prisma.product.count({ where });

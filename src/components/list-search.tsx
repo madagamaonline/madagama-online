@@ -55,6 +55,12 @@ export function ListSearch({
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          // Live search has nothing to submit, and when this sits inside a
+          // filter form Enter would post the previous `q` before the debounce
+          // has written the current one.
+          if (e.key === "Enter") e.preventDefault();
+        }}
         placeholder={placeholder}
         className="pl-9 pr-9"
       />

@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { AlertTriangle, BanknoteArrowDown, CalendarDays, Landmark, Plus, WalletCards } from "lucide-react";
+import { AlertTriangle, BanknoteArrowDown, CalendarDays, Landmark, OctagonX, Plus, WalletCards } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { ListSearch } from "@/components/list-search";
-import { chequeBalance, chequeStatus, type ChequeStatus } from "@/lib/cheques";
+import { chequeBalance, chequeState, chequeStateLabel, chequeStateTone, isLiveCheque } from "@/lib/cheques";
 import { formatDate, formatLKR, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +11,6 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 
 export const dynamic = "force-dynamic";
-
-const statusTone: Record<ChequeStatus, "amber" | "red" | "green"> = { UPCOMING: "amber", DUE: "amber", OVERDUE: "red", SETTLED: "green" };
 
 export default async function BankingPage({ searchParams }: { searchParams: Promise<{ q?: string; bank?: string; status?: string }> }) {
   const filters = await searchParams;
@@ -35,7 +33,9 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
   const cheques = chequeRows.map((cheque) => {
     const paid = cheque.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0);
     const remaining = chequeBalance(toNum(cheque.amount), cheque.payments.map((payment) => toNum(payment.amount)));
-    return { ...cheque, paid, remaining, derivedStatus: chequeStatus(cheque.dueDate, remaining) };
+    // A voided cheque is not exposure — its money went back to the supplier payable.
+    const live = isLiveCheque(cheque, remaining);
+    return { ...cheque, paid, remaining, live, derivedStatus: chequeState(cheque, remaining) };
   });
   const query = filters.q?.trim().toLowerCase() || "";
   const visible = cheques.filter((cheque) =>
@@ -43,10 +43,12 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
     (!filters.bank || cheque.bankAccountId === filters.bank) &&
     (!filters.status || cheque.derivedStatus === filters.status),
   );
-  const totalOutstanding = cheques.reduce((sum, cheque) => sum + cheque.remaining, 0);
-  const riskExposure = cheques.filter((cheque) => cheque.derivedStatus === "DUE" || cheque.derivedStatus === "OVERDUE").reduce((sum, cheque) => sum + cheque.remaining, 0);
+  const live = cheques.filter((cheque) => cheque.live);
+  const totalOutstanding = live.reduce((sum, cheque) => sum + cheque.remaining, 0);
+  const riskExposure = live.filter((cheque) => cheque.derivedStatus === "DUE" || cheque.derivedStatus === "OVERDUE").reduce((sum, cheque) => sum + cheque.remaining, 0);
   const totalRepaid = cheques.reduce((sum, cheque) => sum + cheque.paid, 0);
-  const activeCheques = cheques.filter((cheque) => cheque.remaining > 0).length;
+  const activeCheques = live.length;
+  const voidedValue = cheques.filter((cheque) => cheque.voidedAt).reduce((sum, cheque) => sum + toNum(cheque.reversedAmount ?? 0), 0);
 
   return (
     <div>
@@ -58,16 +60,19 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Cheque summary">
         {[
-          { label: "Total outstanding", value: formatLKR(totalOutstanding), icon: WalletCards, tone: "text-primary" },
+          { label: `Live liability · ${activeCheques} cheque${activeCheques === 1 ? "" : "s"}`, value: formatLKR(totalOutstanding), icon: WalletCards, tone: "text-primary" },
           { label: "Due / overdue", value: formatLKR(riskExposure), icon: AlertTriangle, tone: riskExposure > 0 ? "text-danger" : "text-muted" },
-          { label: "Total repaid", value: formatLKR(totalRepaid), icon: BanknoteArrowDown, tone: "text-primary" },
-          { label: "Active cheques", value: String(activeCheques), icon: Landmark, tone: "text-clay" },
+          { label: "Cleared by bank", value: formatLKR(totalRepaid), icon: BanknoteArrowDown, tone: "text-primary" },
+          { label: "Stopped / bounced", value: formatLKR(voidedValue), icon: OctagonX, tone: voidedValue > 0 ? "text-danger" : "text-muted" },
         ].map((item) => <Card key={item.label}><CardContent className="flex items-start justify-between gap-3"><div><p className="text-xs font-medium text-muted">{item.label}</p><p className="mt-2 text-xl font-extrabold tabular-nums tracking-tight sm:text-2xl">{item.value}</p></div><item.icon className={`h-5 w-5 ${item.tone}`} /></CardContent></Card>)}
       </section>
 
       <section className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {accounts.map((account) => {
-          const liability = account.issuedCheques.reduce((sum, cheque) => sum + chequeBalance(toNum(cheque.amount), cheque.payments.map((payment) => toNum(payment.amount))), 0);
+          const liability = account.issuedCheques.reduce((sum, cheque) => {
+            const balance = chequeBalance(toNum(cheque.amount), cheque.payments.map((payment) => toNum(payment.amount)));
+            return sum + (isLiveCheque(cheque, balance) ? balance : 0);
+          }, 0);
           const limit = account.overdraftLimit == null ? null : toNum(account.overdraftLimit);
           return <Card key={account.id} className="overflow-hidden"><CardContent>
             <div className="flex items-start justify-between gap-3"><div><p className="font-bold">{account.bankName}</p><p className="text-sm text-muted">{account.accountName}{account.branch ? ` · ${account.branch}` : ""}</p><p className="mt-1 font-mono text-xs text-faint">{account.accountNumber}</p></div><Landmark className="h-5 w-5 text-primary" /></div>
@@ -82,7 +87,7 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
           <form className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-2 sm:w-auto">
             <><input type="hidden" name="q" value={filters.q} /><ListSearch placeholder="Cheque or supplier…" className="relative" /></>
             <Select name="bank" defaultValue={filters.bank || ""} aria-label="Filter bank"><option value="">All banks</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.bankName} · {account.accountName}</option>)}</Select>
-            <Select name="status" defaultValue={filters.status || ""} aria-label="Filter status"><option value="">All statuses</option><option value="UPCOMING">Upcoming</option><option value="DUE">Due today</option><option value="OVERDUE">Overdue</option><option value="SETTLED">Settled</option></Select>
+            <Select name="status" defaultValue={filters.status || ""} aria-label="Filter status"><option value="">All statuses</option><option value="UPCOMING">Upcoming</option><option value="DUE">Due today</option><option value="OVERDUE">Overdue</option><option value="SETTLED">Cleared</option><option value="STOPPED">Stopped</option><option value="BOUNCED">Bounced</option><option value="CANCELLED">Cancelled</option></Select>
             <Button type="submit" size="sm" className="col-span-3 sm:col-span-1">Filter</Button>
           </form>
         </div>
@@ -91,10 +96,10 @@ export default async function BankingPage({ searchParams }: { searchParams: Prom
           {visible.length === 0 ? <div className="px-5 py-12 text-center"><WalletCards className="mx-auto h-8 w-8 text-faint" /><p className="mt-3 font-semibold">No cheques match these filters</p><p className="mt-1 text-sm text-muted">Issue a cheque or adjust the filters.</p></div> : visible.map((cheque) => {
             const pct = toNum(cheque.amount) > 0 ? Math.min(100, (cheque.paid / toNum(cheque.amount)) * 100) : 0;
             return <Link key={cheque.id} href={`/banking/cheques/${cheque.id}`} className="grid gap-3 border-b border-border-subtle px-4 py-4 transition-colors last:border-0 hover:bg-border-subtle/50 sm:grid-cols-[1.15fr_1.1fr_.9fr_.85fr] sm:items-center">
-              <div><div className="flex items-center gap-2"><span className="font-mono text-sm font-bold text-primary">#{cheque.chequeNumber}</span><Badge tone={statusTone[cheque.derivedStatus]}>{cheque.derivedStatus}</Badge></div><p className="mt-1 text-sm font-semibold">{cheque.supplier.name}</p></div>
+              <div><div className="flex items-center gap-2"><span className={`font-mono text-sm font-bold ${cheque.live ? "text-primary" : "text-muted"}`}>#{cheque.chequeNumber}</span><Badge tone={chequeStateTone[cheque.derivedStatus]}>{chequeStateLabel[cheque.derivedStatus]}</Badge></div><p className="mt-1 text-sm font-semibold">{cheque.supplier.name}</p></div>
               <div><p className="text-sm font-medium">{cheque.bankAccount.bankName}</p><p className="text-xs text-muted">{cheque.bankAccount.accountName} · {cheque.bankAccount.accountNumber}</p></div>
-              <div><p className="text-xs text-muted">Due {formatDate(cheque.dueDate)}</p><p className="mt-1 text-xs tabular-nums">{formatLKR(cheque.paid)} of {formatLKR(cheque.amount)} paid</p><div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border-subtle"><div className="h-full bg-primary" style={{ width: `${pct}%` }} /></div></div>
-              <div className="sm:text-right"><p className="text-xs text-muted">Remaining</p><p className={`text-base font-extrabold tabular-nums ${cheque.derivedStatus === "OVERDUE" ? "text-danger" : ""}`}>{formatLKR(cheque.remaining)}</p></div>
+              <div><p className="text-xs text-muted">Due {formatDate(cheque.dueDate)}</p><p className="mt-1 text-xs tabular-nums">{cheque.voidedAt ? `Voided ${formatDate(cheque.voidedAt)}` : `${formatLKR(cheque.paid)} of ${formatLKR(cheque.amount)} cleared`}</p>{!cheque.voidedAt && <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-border-subtle"><div className="h-full bg-primary" style={{ width: `${pct}%` }} /></div>}</div>
+              <div className="sm:text-right"><p className="text-xs text-muted">{cheque.voidedAt ? "Back on supplier" : "Remaining"}</p><p className={`text-base font-extrabold tabular-nums ${cheque.derivedStatus === "OVERDUE" ? "text-danger" : cheque.voidedAt ? "text-muted" : ""}`}>{formatLKR(cheque.voidedAt ? toNum(cheque.reversedAmount ?? 0) : cheque.remaining)}</p></div>
             </Link>;
           })}
         </div>

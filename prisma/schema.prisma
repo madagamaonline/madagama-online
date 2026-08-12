@@ -64,6 +64,7 @@ model User {
   layawaysReleased            LayawayOrder[]                   @relation("LayawayReleasedBy")
   layawaysCancelled           LayawayOrder[]                   @relation("LayawayCancelledBy")
   layawayPaymentsRecorded     LayawayPayment[]                 @relation("LayawayPaymentRecordedBy")
+  chequesVoided               IssuedCheque[]                   @relation("ChequeVoidedBy")
 }
 
 // Single-row global configuration (id = 1).
@@ -1217,6 +1218,14 @@ model BankAccount {
   @@index([bankName])
 }
 
+// How an issued cheque died. A void cancels the payment INSTRUMENT, never the debt —
+// the supplier balance is restored to the linked purchase when this is set.
+enum ChequeVoidKind {
+  STOPPED // we instructed the bank not to honour it
+  BOUNCED // the bank returned it (dishonoured)
+  CANCELLED // spoiled/never handed over
+}
+
 model IssuedCheque {
   id            String      @id @default(cuid())
   bankAccount   BankAccount @relation(fields: [bankAccountId], references: [id], onDelete: Restrict)
@@ -1233,12 +1242,28 @@ model IssuedCheque {
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
+  // Lifecycle. A cheque record is never edited or deleted once issued — the bank
+  // statement references its number and the auditor will ask for it.
+  clearedDate    DateTime? // bank actually debited the account
+  voidedAt       DateTime?
+  voidKind       ChequeVoidKind?
+  voidReason     String?
+  voidedByUserId String?
+  voidedBy       User?           @relation("ChequeVoidedBy", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  reversedAmount Decimal?        @db.Decimal(12, 2) // supplier balance handed back on void
+
+  // Replacement chain: a stopped cheque is superseded by a NEW leaf, never reusing the number.
+  replacesChequeId String?       @unique
+  replaces         IssuedCheque? @relation("ChequeReplacement", fields: [replacesChequeId], references: [id], onDelete: SetNull)
+  replacedBy       IssuedCheque? @relation("ChequeReplacement")
+
   payments ChequePayment[]
 
   @@unique([bankAccountId, chequeNumber])
   @@index([supplierId])
   @@index([purchaseId])
   @@index([dueDate])
+  @@index([voidedAt])
 }
 
 model ChequePayment {

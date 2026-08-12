@@ -4,7 +4,13 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireActionStaffFinanceAccess } from "@/lib/auth";
-import { chequeBalance, validateChequePayment } from "@/lib/cheques";
+import {
+  applyChequeClear,
+  applyChequeVoid,
+  ChequeLifecycleError,
+  clearChequeSchema,
+  voidChequeSchema,
+} from "@/lib/cheque-void";
 import { prisma } from "@/lib/prisma";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
@@ -53,6 +59,7 @@ const chequeSchema = z.object({
   bankAccountId: z.string().min(1, "Select a bank account"),
   supplierId: z.string().min(1, "Select a supplier"),
   purchaseId: z.string().optional(),
+  replacesChequeId: z.string().optional(),
   chequeNumber: z.string().trim().min(1, "Enter the cheque number"),
   amount: z.coerce.number().positive("Enter a valid cheque amount"),
   issuedDate: z.string().min(1, "Choose the issue date"),
@@ -97,11 +104,25 @@ export async function issueCheque(
             purchaseApplied = round2(data.amount);
           }
 
+          // A replacement must point at a cheque that actually died, and each dead
+          // cheque can only be replaced once (the relation is 1:1).
+          if (data.replacesChequeId) {
+            const replaced = await tx.issuedCheque.findUnique({
+              where: { id: data.replacesChequeId },
+              select: { id: true, supplierId: true, voidedAt: true, replacedBy: { select: { id: true } } },
+            });
+            if (!replaced) throw new Error("The cheque being replaced no longer exists");
+            if (!replaced.voidedAt) throw new Error("Only a stopped, bounced or cancelled cheque can be replaced");
+            if (replaced.replacedBy) throw new Error("That cheque has already been replaced");
+            if (replaced.supplierId !== data.supplierId) throw new Error("A replacement must be for the same supplier");
+          }
+
           const created = await tx.issuedCheque.create({
             data: {
               bankAccountId: data.bankAccountId,
               supplierId: data.supplierId,
               purchaseId: data.purchaseId || null,
+              replacesChequeId: data.replacesChequeId || null,
               chequeNumber: data.chequeNumber,
               amount: round2(data.amount),
               issuedDate: new Date(data.issuedDate),
@@ -140,6 +161,7 @@ export async function issueCheque(
       revalidatePath("/dashboard");
       revalidatePath("/reminders");
       if (data.purchaseId) revalidatePath(`/purchases/${data.purchaseId}`);
+      if (data.replacesChequeId) revalidatePath(`/banking/cheques/${data.replacesChequeId}`);
       return { ok: true, id: cheque.id };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) {
@@ -155,54 +177,82 @@ export async function issueCheque(
   return { error: "Could not issue the cheque. Please try again." };
 }
 
-const repaymentSchema = z.object({
-  amount: z.coerce.number().positive("Enter a valid amount"),
-  paidDate: z.string().optional(),
-  note: z.string().trim().optional(),
-});
-
-export async function recordChequePayment(
+/** Mark a cheque as honoured by the bank — one shot, for its full remaining amount. */
+export async function clearCheque(
   chequeId: string,
   _previous: BankingActionState,
   formData: FormData,
 ): Promise<BankingActionState> {
   await requireActionStaffFinanceAccess();
-  const parsed = repaymentSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the payment details" };
+  const parsed = clearChequeSchema.safeParse({ chequeId, ...Object.fromEntries(formData) });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the clearing details" };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await prisma.$transaction(
+        (tx) =>
+          applyChequeClear(tx, {
+            chequeId,
+            clearedDate: new Date(parsed.data.clearedDate),
+            note: parsed.data.note,
+          }),
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
+      );
+      revalidatePath(`/banking/cheques/${chequeId}`);
+      revalidatePath("/banking");
+      revalidatePath("/banking/calendar");
+      return { ok: true };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
+      if (error instanceof ChequeLifecycleError) return { error: error.message };
+      console.error("clearCheque failed", error);
+      return { error: "Could not mark the cheque as cleared. Please try again." };
+    }
+  }
+  return { error: "Could not mark the cheque as cleared. Please try again." };
+}
+
+/**
+ * Stop / bounce / cancel a cheque. The cheque is frozen and the supplier balance it
+ * was meant to settle is handed straight back to the linked purchase.
+ */
+export async function voidCheque(
+  chequeId: string,
+  _previous: BankingActionState,
+  formData: FormData,
+): Promise<BankingActionState> {
+  const user = await requireActionStaffFinanceAccess();
+  const parsed = voidChequeSchema.safeParse({ chequeId, ...Object.fromEntries(formData) });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the stop-payment details" };
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await prisma.$transaction(
-        async (tx) => {
-          const cheque = await tx.issuedCheque.findUnique({
-            where: { id: chequeId },
-            include: { payments: { select: { amount: true } } },
-          });
-          if (!cheque) return { error: "Cheque not found" };
-          const remaining = chequeBalance(toNum(cheque.amount), cheque.payments.map((payment) => toNum(payment.amount)));
-          const paymentError = validateChequePayment(parsed.data.amount, remaining);
-          if (paymentError) return { error: paymentError };
-          await tx.chequePayment.create({
-            data: {
-              issuedChequeId: chequeId,
-              amount: round2(parsed.data.amount),
-              paidDate: parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date(),
-              note: parsed.data.note || null,
-            },
-          });
-          return { error: null };
-        },
+        (tx) =>
+          applyChequeVoid(tx, {
+            chequeId,
+            kind: parsed.data.kind,
+            reason: parsed.data.reason,
+            voidedDate: new Date(parsed.data.voidedDate),
+            userId: user.id,
+          }),
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 15000 },
       );
-      if (result.error) return { error: result.error };
       revalidatePath(`/banking/cheques/${chequeId}`);
       revalidatePath("/banking");
+      revalidatePath("/banking/calendar");
+      revalidatePath("/purchases");
+      revalidatePath("/suppliers");
+      revalidatePath("/dashboard");
+      revalidatePath("/reminders");
+      if (result.purchaseId) revalidatePath(`/purchases/${result.purchaseId}`);
       return { ok: true };
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
-      console.error("recordChequePayment failed", error);
-      return { error: "Could not record the payment. Please try again." };
+      if (error instanceof ChequeLifecycleError) return { error: error.message };
+      console.error("voidCheque failed", error);
+      return { error: "Could not stop the cheque. Please try again." };
     }
   }
-  return { error: "Could not record the payment. Please try again." };
+  return { error: "Could not stop the cheque. Please try again." };
 }

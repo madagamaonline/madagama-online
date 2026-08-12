@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Landmark } from "lucide-react";
+import { Landmark, RefreshCw } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { toNum } from "@/lib/utils";
 import { IssueChequeForm } from "@/components/issue-cheque-form";
@@ -10,9 +10,17 @@ import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewChequePage({ searchParams }: { searchParams: Promise<{ supplier?: string; purchase?: string }> }) {
+export default async function NewChequePage({ searchParams }: { searchParams: Promise<{ supplier?: string; purchase?: string; replaces?: string }> }) {
   const defaults = await searchParams;
   const ntEnabled = await nonTaxableEnabled();
+  // Replacement for a stopped cheque: carry over supplier, purchase and amount so
+  // the user only has to enter the new cheque leaf's number and dates.
+  const replaces = defaults.replaces
+    ? await prisma.issuedCheque.findFirst({
+        where: { id: defaults.replaces, voidedAt: { not: null }, replacedBy: null },
+        select: { id: true, chequeNumber: true, amount: true, supplierId: true, purchaseId: true, voidKind: true, reversedAmount: true },
+      })
+    : null;
   const [suppliers, accounts, purchaseRows] = await Promise.all([
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.bankAccount.findMany({ where: { active: true }, orderBy: [{ bankName: "asc" }, { accountName: "asc" }], select: { id: true, bankName: true, accountName: true, accountNumber: true } }),
@@ -20,7 +28,8 @@ export default async function NewChequePage({ searchParams }: { searchParams: Pr
   ]);
   const purchases = purchaseRows.map((purchase) => ({ id: purchase.id, supplierId: purchase.supplierId, ref: purchase.supplierInvoiceNo?.trim() || `Purchase ${purchase.id.slice(-6)}`, date: purchase.date.toISOString(), remaining: Math.max(0, toNum(purchase.total) - toNum(purchase.amountPaid)) })).filter((purchase) => purchase.remaining > 0);
 
-  return <div className="mx-auto max-w-5xl"><PageHeader title="Issue supplier cheque" subtitle="Move a supplier balance into a trackable bank cheque liability" />
-    {accounts.length === 0 ? <Card><CardContent className="py-10 text-center"><Landmark className="mx-auto h-9 w-9 text-faint" /><p className="mt-3 font-semibold">Add a bank account first</p><p className="mt-1 text-sm text-muted">A cheque must be issued from a registered active account.</p><Link href="/banking/accounts/new"><Button className="mt-4">Add bank account</Button></Link></CardContent></Card> : <IssueChequeForm suppliers={suppliers} accounts={accounts} purchases={purchases} defaultSupplierId={defaults.supplier} defaultPurchaseId={defaults.purchase} />}
+  return <div className="mx-auto max-w-5xl"><PageHeader title={replaces ? "Issue replacement cheque" : "Issue supplier cheque"} subtitle={replaces ? `Replaces cheque #${replaces.chequeNumber}, which was ${replaces.voidKind?.toLowerCase()}` : "Move a supplier balance into a trackable bank cheque liability"} />
+    {replaces && <div className="mb-4 rounded-xl border border-clay/30 bg-clay-soft px-4 py-3 text-sm text-clay-ink"><RefreshCw className="mr-2 inline h-4 w-4" />Use a <strong>new cheque leaf</strong> — a cheque number is never reused. The old cheque stays on record and the two will be linked.</div>}
+    {accounts.length === 0 ? <Card><CardContent className="py-10 text-center"><Landmark className="mx-auto h-9 w-9 text-faint" /><p className="mt-3 font-semibold">Add a bank account first</p><p className="mt-1 text-sm text-muted">A cheque must be issued from a registered active account.</p><Link href="/banking/accounts/new"><Button className="mt-4">Add bank account</Button></Link></CardContent></Card> : <IssueChequeForm suppliers={suppliers} accounts={accounts} purchases={purchases} defaultSupplierId={replaces?.supplierId ?? defaults.supplier} defaultPurchaseId={replaces?.purchaseId ?? defaults.purchase} replacesChequeId={replaces?.id} defaultAmount={replaces ? toNum(replaces.reversedAmount ?? replaces.amount) : undefined} />}
   </div>;
 }

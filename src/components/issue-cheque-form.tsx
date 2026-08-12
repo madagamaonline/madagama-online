@@ -25,12 +25,16 @@ export function IssueChequeForm({
   purchases,
   defaultSupplierId = "",
   defaultPurchaseId = "",
+  replacesChequeId,
+  defaultAmount,
 }: {
   suppliers: Supplier[];
   accounts: Account[];
   purchases: Purchase[];
   defaultSupplierId?: string;
   defaultPurchaseId?: string;
+  replacesChequeId?: string;
+  defaultAmount?: number;
 }) {
   const router = useRouter();
   const defaultPurchase = purchases.find((purchase) => purchase.id === defaultPurchaseId);
@@ -51,6 +55,7 @@ export function IssueChequeForm({
         <CardHeader><CardTitle>Cheque details</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {state.error && <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{state.error}</p>}
+          {replacesChequeId && <input type="hidden" name="replacesChequeId" value={replacesChequeId} />}
           <div>
             <Label>Supplier</Label>
             <SearchSelect
@@ -77,7 +82,7 @@ export function IssueChequeForm({
             <div><Label htmlFor="issuedDate">Issue date</Label><Input id="issuedDate" name="issuedDate" type="date" defaultValue={today} required /></div>
             <div><Label htmlFor="dueDate">Due date</Label><Input id="dueDate" name="dueDate" type="date" required /></div>
           </div>
-          <div><Label htmlFor="amount">Cheque amount (LKR)</Label><NumberInput id="amount" name="amount" min="0.01" required /></div>
+          <div><Label htmlFor="amount">Cheque amount (LKR)</Label><NumberInput id="amount" name="amount" min="0.01" defaultValue={defaultAmount} required /></div>
           <div><Label htmlFor="notes">Notes (optional)</Label><Textarea id="notes" name="notes" rows={3} /></div>
         </CardContent>
       </Card>

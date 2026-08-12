@@ -15,7 +15,8 @@ export default async function ChequeCalendarPage({ searchParams }: { searchParam
   const month = parseMonthKey((await searchParams).month);
   const today = businessDayKey(new Date());
   const [rows, accounts] = await Promise.all([
-    prisma.issuedCheque.findMany({ include: { supplier: { select: { name: true } }, bankAccount: { select: { id: true, bankName: true, accountName: true, accountNumber: true } }, payments: { select: { amount: true } } }, orderBy: { dueDate: "asc" } }),
+    // Voided cheques are no longer commitments — they must not sit on the calendar.
+    prisma.issuedCheque.findMany({ where: { voidedAt: null }, include: { supplier: { select: { name: true } }, bankAccount: { select: { id: true, bankName: true, accountName: true, accountNumber: true } }, payments: { select: { amount: true } } }, orderBy: { dueDate: "asc" } }),
     prisma.bankAccount.findMany({ where: { active: true }, orderBy: [{ bankName: "asc" }, { accountName: "asc" }] }),
   ]);
   const events = rows.map((row) => {

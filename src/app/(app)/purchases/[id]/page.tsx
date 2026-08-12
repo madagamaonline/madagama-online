@@ -10,6 +10,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { PurchasePayment } from "@/components/purchase-payment";
 import { formatLKR, formatDate, formatDateTime, toNum } from "@/lib/utils";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
+import { chequeBalance, chequeState, chequeStateLabel, chequeStateTone } from "@/lib/cheques";
 import { formatEnteredQuantity } from "@/lib/units";
 
 export const dynamic = "force-dynamic";
@@ -177,13 +178,19 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
                 </TR>
               </THead>
               <TBody>
-                {purchase.payments.map((p) => (
-                  <TR key={p.id}>
-                    <TD>{formatDateTime(p.paidDate)}</TD>
-                    <TD className="text-muted">{p.note ?? "—"}</TD>
-                    <TD className="text-right font-medium">{formatLKR(p.amount)}</TD>
-                  </TR>
-                ))}
+                {purchase.payments.map((p) => {
+                  // A negative row is a stopped/bounced cheque handing the balance back.
+                  const reversal = toNum(p.amount) < 0;
+                  return (
+                    <TR key={p.id}>
+                      <TD>{formatDateTime(p.paidDate)}</TD>
+                      <TD className="text-muted">{p.note ?? "—"}</TD>
+                      <TD className={`text-right font-medium ${reversal ? "text-danger" : ""}`}>
+                        {reversal ? `+ ${formatLKR(Math.abs(toNum(p.amount)))} owed again` : formatLKR(p.amount)}
+                      </TD>
+                    </TR>
+                  );
+                })}
               </TBody>
             </Table>
           </CardContent>
@@ -194,10 +201,12 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
         <Card className="mt-4">
           <CardHeader><CardTitle>Issued cheques</CardTitle></CardHeader>
           <CardContent className="p-0">
-            <Table><THead><TR><TH>Cheque</TH><TH>Bank</TH><TH>Date issued</TH><TH className="text-right">Amount</TH><TH className="text-right">Cheque balance</TH></TR></THead>
+            <Table><THead><TR><TH>Cheque</TH><TH>Bank</TH><TH>Date issued</TH><TH>Status</TH><TH className="text-right">Amount</TH><TH className="text-right">Cheque balance</TH></TR></THead>
               <TBody>{purchase.issuedCheques.map((cheque) => {
                 const chequePaid = cheque.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0);
-                return <TR key={cheque.id}><TD><Link href={`/banking/cheques/${cheque.id}`} className="font-mono font-semibold text-primary hover:underline">#{cheque.chequeNumber}</Link></TD><TD>{cheque.bankAccount.bankName} · {cheque.bankAccount.accountName}</TD><TD>{formatDate(cheque.issuedDate)}</TD><TD className="text-right font-medium">{formatLKR(cheque.amount)}</TD><TD className="text-right font-bold">{formatLKR(Math.max(0, toNum(cheque.amount) - chequePaid))}</TD></TR>;
+                const remaining = chequeBalance(toNum(cheque.amount), cheque.payments.map((payment) => toNum(payment.amount)));
+                const state = chequeState(cheque, remaining);
+                return <TR key={cheque.id}><TD><Link href={`/banking/cheques/${cheque.id}`} className="font-mono font-semibold text-primary hover:underline">#{cheque.chequeNumber}</Link></TD><TD>{cheque.bankAccount.bankName} · {cheque.bankAccount.accountName}</TD><TD>{formatDate(cheque.issuedDate)}</TD><TD><Badge tone={chequeStateTone[state]}>{chequeStateLabel[state]}</Badge></TD><TD className="text-right font-medium">{formatLKR(cheque.amount)}</TD><TD className="text-right font-bold">{cheque.voidedAt ? "—" : formatLKR(Math.max(0, toNum(cheque.amount) - chequePaid))}</TD></TR>;
               })}</TBody>
             </Table>
           </CardContent>

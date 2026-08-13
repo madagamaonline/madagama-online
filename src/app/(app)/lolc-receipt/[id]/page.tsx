@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ConfirmLolcForm,
-  MarkMcashSentForm,
   ReportIssueForm,
   VoidLolcForm,
 } from "@/components/lolc-receipt-actions";
@@ -16,7 +15,7 @@ import { requireUser } from "@/lib/auth";
 import { lolcReceiptNumber, lolcStatusLabel, lolcStatusTone } from "@/lib/lolc-receipts";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatDateTime, formatLKR } from "@/lib/utils";
-import { confirmLolcReceipt, markLolcReceiptSent, reportLolcReceiptIssue, voidLolcReceipt } from "../actions";
+import { confirmLolcReceipt, reportLolcReceiptIssue, voidLolcReceipt } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -71,13 +70,12 @@ export default async function LolcReceiptDetailPage({ params }: { params: Promis
         <span className={`inline-flex rounded-xl p-2.5 ${attention ? "bg-danger-soft text-danger" : "bg-primary-soft text-primary"}`}>{attention ? <AlertTriangle className="h-5 w-5" /> : <Send className="h-5 w-5" />}</span>
         <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.16em] text-faint">Next action</p>
         <h2 className="mt-1 text-lg font-bold text-foreground">{lolcNextAction(receipt.status)}</h2>
-        <p className="mt-1 text-sm leading-5 text-muted">{receipt.status === "COLLECTED" ? "Record the matching mCash transaction before this collection leaves the waiting queue." : receipt.status === "MCASH_SENT" ? "Check that LOLC applied the amount, then record the confirmation or flag a delay." : "Resolve the recorded issue, verify the agreement, and preserve the result here."}</p>
+        <p className="mt-1 text-sm leading-5 text-muted">{attention ? "Resolve the recorded issue, verify the agreement, and preserve the result here." : "Check that LOLC applied the amount, then record the confirmation or flag a delay."}</p>
         {attention && <p className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-xs font-medium text-danger-ink">{receipt.issueNote}</p>}
       </header>
       <div className="rounded-xl border border-border bg-background p-4">
-        {staffFinance && receipt.status === "COLLECTED" && <MarkMcashSentForm action={markLolcReceiptSent.bind(null, id)} idempotencyKey={crypto.randomUUID()} />}
-        {staffFinance && receipt.status === "MCASH_SENT" && <div className="space-y-5"><ConfirmLolcForm action={confirmLolcReceipt.bind(null, id)} idempotencyKey={crypto.randomUUID()} /><details className="border-t border-border pt-4"><summary className="cursor-pointer text-xs font-semibold text-danger">Payment not showing? Report an issue</summary><div className="mt-4"><ReportIssueForm action={reportLolcReceiptIssue.bind(null, id)} idempotencyKey={crypto.randomUUID()} /></div></details></div>}
-        {staffFinance && receipt.status === "NEEDS_ATTENTION" && <ConfirmLolcForm action={confirmLolcReceipt.bind(null, id)} idempotencyKey={crypto.randomUUID()} />}
+        {staffFinance && attention && <ConfirmLolcForm action={confirmLolcReceipt.bind(null, id)} idempotencyKey={crypto.randomUUID()} />}
+        {staffFinance && !attention && <div className="space-y-5"><ConfirmLolcForm action={confirmLolcReceipt.bind(null, id)} idempotencyKey={crypto.randomUUID()} /><details className="border-t border-border pt-4"><summary className="cursor-pointer text-xs font-semibold text-danger">Payment not showing? Report an issue</summary><div className="mt-4"><ReportIssueForm action={reportLolcReceiptIssue.bind(null, id)} idempotencyKey={crypto.randomUUID()} /></div></details></div>}
         {!staffFinance && <p className="text-sm text-muted">An admin or staff cashier must complete this checkpoint.</p>}
       </div>
     </section>}
@@ -95,7 +93,7 @@ export default async function LolcReceiptDetailPage({ params }: { params: Promis
       </dl>{receipt.note && <div className="mt-5 border-t border-border pt-4"><p className="text-xs text-muted">Original note</p><p className="mt-1 whitespace-pre-wrap text-sm">{receipt.note}</p></div>}</CardContent></Card>
 
       <aside className="space-y-5">
-        <Card><CardHeader><CardTitle>Checkpoint evidence</CardTitle></CardHeader><CardContent><dl className="space-y-4 text-sm"><Field label="mCash reference" value={receipt.mCashReference} mono /><Field label="Sent at" value={formatDateTime(receipt.remittedAt)} /><Field label="Sent by" value={receipt.remittedBy?.name} /><div className="border-t border-border pt-4"><Field label="LOLC confirmation reference" value={receipt.lolcConfirmationReference} mono /></div><Field label="Confirmed at" value={formatDateTime(receipt.confirmedAt)} /><Field label="Confirmed by" value={receipt.confirmedBy?.name} /></dl></CardContent></Card>
+        <Card><CardHeader><CardTitle>Checkpoint evidence</CardTitle></CardHeader><CardContent><dl className="space-y-4 text-sm">{receipt.remittedAt && <><Field label="mCash reference" value={receipt.mCashReference} mono /><Field label="Sent at" value={formatDateTime(receipt.remittedAt)} /><Field label="Sent by" value={receipt.remittedBy?.name} /><div className="border-t border-border pt-4" /></>}<Field label="LOLC confirmation reference" value={receipt.lolcConfirmationReference} mono /><Field label="Confirmed at" value={formatDateTime(receipt.confirmedAt)} /><Field label="Confirmed by" value={receipt.confirmedBy?.name} /></dl></CardContent></Card>
         {user.role === "ADMIN" && receipt.status !== "VOIDED" && <details className="rounded-xl border border-danger/20 bg-surface p-4"><summary className="cursor-pointer text-sm font-semibold text-danger">Void issued receipt</summary><div className="mt-4"><VoidLolcForm action={voidLolcReceipt.bind(null, id)} confirmed={receipt.status === "LOLC_CONFIRMED"} idempotencyKey={crypto.randomUUID()} /></div></details>}
       </aside>
     </div>

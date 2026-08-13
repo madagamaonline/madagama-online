@@ -23,7 +23,8 @@ export const LOLC_OPEN_STATUSES: LolcReceiptStatus[] = [
 ];
 
 const labels: Record<LolcReceiptStatus, string> = {
-  COLLECTED: "Waiting to send",
+  COLLECTED: "Waiting for LOLC",
+  // Legacy: receipts recorded before the mCash checkpoint was removed.
   MCASH_SENT: "Waiting for LOLC",
   NEEDS_ATTENTION: "Needs attention",
   LOLC_CONFIRMED: "Confirmed",
@@ -48,7 +49,8 @@ export function lolcStatusTone(status: LolcReceiptStatus): "amber" | "blue" | "r
 
 export function canTransitionLolcReceipt(from: LolcReceiptStatus, to: LolcReceiptStatus): boolean {
   if (to === "VOIDED") return from !== "VOIDED";
-  if (from === "COLLECTED") return to === "MCASH_SENT";
+  if (from === "COLLECTED") return to === "NEEDS_ATTENTION" || to === "LOLC_CONFIRMED";
+  // Legacy receipts that still sit in the removed mCash checkpoint.
   if (from === "MCASH_SENT") return to === "NEEDS_ATTENTION" || to === "LOLC_CONFIRMED";
   if (from === "NEEDS_ATTENTION") return to === "LOLC_CONFIRMED";
   return false;

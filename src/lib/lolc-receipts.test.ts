@@ -15,11 +15,14 @@ describe("LOLC receipt helpers", () => {
   });
 
   it("allows only the documented workflow", () => {
-    expect(canTransitionLolcReceipt("COLLECTED", "MCASH_SENT")).toBe(true);
-    expect(canTransitionLolcReceipt("MCASH_SENT", "NEEDS_ATTENTION")).toBe(true);
+    expect(canTransitionLolcReceipt("COLLECTED", "LOLC_CONFIRMED")).toBe(true);
+    expect(canTransitionLolcReceipt("COLLECTED", "NEEDS_ATTENTION")).toBe(true);
     expect(canTransitionLolcReceipt("NEEDS_ATTENTION", "LOLC_CONFIRMED")).toBe(true);
-    expect(canTransitionLolcReceipt("COLLECTED", "LOLC_CONFIRMED")).toBe(false);
+    expect(canTransitionLolcReceipt("COLLECTED", "MCASH_SENT")).toBe(false);
     expect(canTransitionLolcReceipt("VOIDED", "MCASH_SENT")).toBe(false);
+    // Legacy receipts left in the removed mCash checkpoint can still finish.
+    expect(canTransitionLolcReceipt("MCASH_SENT", "LOLC_CONFIRMED")).toBe(true);
+    expect(canTransitionLolcReceipt("MCASH_SENT", "NEEDS_ATTENTION")).toBe(true);
     expect(canTransitionLolcReceipt("LOLC_CONFIRMED", "VOIDED")).toBe(true);
   });
 

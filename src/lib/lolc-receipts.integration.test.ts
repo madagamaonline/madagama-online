@@ -72,31 +72,20 @@ integration("LOLC receipt workflow (isolated PostgreSQL)", () => {
       note: receipt.note,
     };
 
-    const send = (key: string) => db.$transaction((tx) => applyLolcReceiptTransition(tx, {
+    const report = (key: string) => db.$transaction((tx) => applyLolcReceiptTransition(tx, {
       receiptId,
       expectedStatuses: ["COLLECTED"],
-      toStatus: "MCASH_SENT",
-      eventType: "MCASH_SENT",
-      occurredAt: at(1),
-      actorUserId: userId,
-      idempotencyKey: key,
-      reference: "MC-1001",
-      update: { mCashReference: "MC-1001", remittedAt: at(1), remittedByUserId: userId },
-    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    const sends = await Promise.allSettled([send(`${suffix}:send-1`), send(`${suffix}:send-2`)]);
-    expect(sends.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-
-    await db.$transaction((tx) => applyLolcReceiptTransition(tx, {
-      receiptId,
-      expectedStatuses: ["MCASH_SENT"],
       toStatus: "NEEDS_ATTENTION",
       eventType: "ISSUE_REPORTED",
       occurredAt: at(2),
       actorUserId: userId,
-      idempotencyKey: `${suffix}:issue`,
+      idempotencyKey: key,
       note: "Not visible on agreement",
       update: { issueNote: "Not visible on agreement" },
-    }));
+    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    const reports = await Promise.allSettled([report(`${suffix}:issue-1`), report(`${suffix}:issue-2`)]);
+    expect(reports.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+
     await db.$transaction((tx) => applyLolcReceiptTransition(tx, {
       receiptId,
       expectedStatuses: ["NEEDS_ATTENTION"],
@@ -122,7 +111,7 @@ integration("LOLC receipt workflow (isolated PostgreSQL)", () => {
 
     const final = await db.lolcReceipt.findUniqueOrThrow({ where: { id: receiptId }, include: { events: { orderBy: { occurredAt: "asc" } } } });
     expect(final.status).toBe("VOIDED");
-    expect(final.events.map((event) => event.type)).toEqual(["CREATED", "MCASH_SENT", "ISSUE_REPORTED", "LOLC_CONFIRMED", "VOIDED"]);
+    expect(final.events.map((event) => event.type)).toEqual(["CREATED", "ISSUE_REPORTED", "LOLC_CONFIRMED", "VOIDED"]);
     expect({
       customerName: final.customerName,
       customerPhone: final.customerPhone,

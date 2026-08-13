@@ -15,11 +15,13 @@ import { formatDate, formatLKR } from "@/lib/utils";
 export const dynamic = "force-dynamic";
 
 const summary = [
-  { status: "COLLECTED" as const, label: "Waiting to send", icon: Send, className: "text-clay-ink bg-clay-soft" },
-  { status: "MCASH_SENT" as const, label: "Waiting for LOLC", icon: Clock3, className: "text-primary-ink bg-primary-soft" },
+  { status: "COLLECTED" as const, label: "Waiting for LOLC", icon: Clock3, className: "text-clay-ink bg-clay-soft" },
   { status: "NEEDS_ATTENTION" as const, label: "Needs attention", icon: AlertTriangle, className: "text-danger-ink bg-danger-soft" },
   { status: "LOLC_CONFIRMED" as const, label: "Confirmed", icon: CheckCircle2, className: "text-success-ink bg-success-soft" },
 ];
+
+// Legacy tile: only receipts recorded before the mCash checkpoint was removed sit here.
+const legacyMcashTile = { status: "MCASH_SENT" as const, label: "Sent through mCash", icon: Send, className: "text-primary-ink bg-primary-soft" };
 
 function searchWhere(query: string): Prisma.LolcReceiptWhereInput | undefined {
   if (!query) return undefined;
@@ -49,9 +51,10 @@ export default async function LolcReceiptPage({ searchParams }: { searchParams: 
     prisma.lolcReceipt.findMany({ where, orderBy: selectedStatus === "OPEN" ? { collectedAt: "asc" } : { collectedAt: "desc" }, take: 100 }),
   ]);
   const countMap = new Map(counts.map((item) => [item.status, item._count._all]));
+  const tiles = (countMap.get("MCASH_SENT") ?? 0) > 0 ? [...summary, legacyMcashTile] : summary;
 
   return <div className="mx-auto max-w-7xl">
-    <PageHeader title="LOLC Receipts" subtitle="Track customer collections, mCash remittance, and LOLC confirmation." action={
+    <PageHeader title="LOLC Receipts" subtitle="Track customer collections and LOLC confirmation." action={
       <Link href="/lolc-receipt/new"><Button><Plus className="h-4 w-4" />New LOLC receipt</Button></Link>
     } />
 
@@ -59,8 +62,8 @@ export default async function LolcReceiptPage({ searchParams }: { searchParams: 
       <strong>Operational tracking only</strong> — excluded from business accounts and shift cash.
     </div>
 
-    <section className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="LOLC receipt summary">
-      {summary.map((item) => { const Icon = item.icon; return <Link key={item.status} href={`/lolc-receipt?status=${item.status}`} className="group rounded-xl border border-border bg-surface p-4 transition-colors hover:border-primary/30">
+    <section className={`mb-5 grid grid-cols-2 gap-3 ${tiles.length === 4 ? "lg:grid-cols-4" : "lg:grid-cols-3"}`} aria-label="LOLC receipt summary">
+      {tiles.map((item) => { const Icon = item.icon; return <Link key={item.status} href={`/lolc-receipt?status=${item.status}`} className="group rounded-xl border border-border bg-surface p-4 transition-colors hover:border-primary/30">
         <div className="flex items-center justify-between"><span className={`rounded-lg p-2 ${item.className}`}><Icon className="h-4 w-4" /></span><span className="tabular text-2xl font-bold text-foreground">{countMap.get(item.status) ?? 0}</span></div>
         <p className="mt-3 text-xs font-semibold text-muted group-hover:text-foreground">{item.label}</p>
       </Link>; })}

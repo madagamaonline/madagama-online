@@ -4,7 +4,7 @@ import { ageInDays, lolcStatusLabel } from "@/lib/lolc-receipts";
 import { cn } from "@/lib/utils";
 
 const nextActions: Record<LolcReceiptStatus, string> = {
-  COLLECTED: "Send through mCash",
+  COLLECTED: "Confirm payment",
   MCASH_SENT: "Confirm payment",
   NEEDS_ATTENTION: "Resolve and confirm",
   LOLC_CONFIRMED: "Journey complete",
@@ -40,7 +40,7 @@ export function LolcWorkflowRail({
     <div className={cn("flex items-start", compact ? "max-w-[132px]" : "w-full")} aria-label={`Workflow: ${lolcStatusLabel(status)}`}>
       {steps.map((step, index) => {
         const interrupted = attention && index === 1;
-        const current = !voided && !interrupted && ((status === "COLLECTED" && index === 0) || (status === "MCASH_SENT" && index === 1));
+        const current = !voided && !interrupted && !lolcConfirmed && index === 1;
         const Icon = interrupted ? AlertTriangle : Check;
         return <div key={step.label} className="contents">
           {index > 0 && <span className={cn(

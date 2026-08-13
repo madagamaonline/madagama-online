@@ -29,17 +29,6 @@ function useReceiptAction(action: Action, key: string) {
   return { state, formAction, pending, key };
 }
 
-export function MarkMcashSentForm({ action, idempotencyKey }: { action: Action; idempotencyKey: string }) {
-  const { state, formAction, pending, key } = useReceiptAction(action, idempotencyKey);
-  return <form action={formAction} className="space-y-3">
-    <input type="hidden" name="idempotencyKey" value={key} />
-    <ActionMessage state={state} />
-    <div><Label htmlFor="mcash-reference">mCash transaction reference</Label><Input id="mcash-reference" name="reference" maxLength={120} required /></div>
-    <div><Label htmlFor="mcash-time">Sent date and time</Label><Input id="mcash-time" name="occurredAt" type="datetime-local" defaultValue={nowInSriLanka()} required /></div>
-    <Button type="submit" disabled={pending} className="w-full">{pending ? "Saving…" : "Mark mCash sent"}</Button>
-  </form>;
-}
-
 export function ReportIssueForm({ action, idempotencyKey }: { action: Action; idempotencyKey: string }) {
   const { state, formAction, pending, key } = useReceiptAction(action, idempotencyKey);
   return <form action={formAction} className="space-y-3">

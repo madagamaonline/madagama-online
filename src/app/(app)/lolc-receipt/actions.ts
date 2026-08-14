@@ -115,6 +115,40 @@ export async function createLolcReceipt(
   redirect(`/lolc-receipt/${receiptId}`);
 }
 
+const remitSchema = z.object({
+  idempotencyKey: keySchema,
+  reference: shortText("mCash reference", 120),
+  occurredAt: shortText("sent date and time", 16),
+});
+
+export async function markLolcReceiptSent(id: string, _previous: LolcActionState, formData: FormData): Promise<LolcActionState> {
+  const user = await requireActionStaffFinanceAccess();
+  const parsed = remitSchema.safeParse({
+    idempotencyKey: field(formData, "idempotencyKey"),
+    reference: field(formData, "reference"),
+    occurredAt: field(formData, "occurredAt"),
+  });
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the mCash details" };
+  try {
+    const occurredAt = parseOccurred(parsed.data.occurredAt, "sent date and time");
+    await prisma.$transaction((tx) => applyLolcReceiptTransition(tx, {
+      receiptId: id,
+      expectedStatuses: ["COLLECTED", "NEEDS_ATTENTION"],
+      toStatus: "MCASH_SENT",
+      eventType: "MCASH_SENT",
+      occurredAt,
+      actorUserId: user.id,
+      idempotencyKey: parsed.data.idempotencyKey,
+      reference: parsed.data.reference,
+      update: { mCashReference: parsed.data.reference, remittedAt: occurredAt, remittedByUserId: user.id, issueNote: null },
+    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    revalidateLolc(id);
+    return { success: true };
+  } catch (error) {
+    return mutationError(error, "Could not record the mCash transfer.");
+  }
+}
+
 const issueSchema = z.object({ idempotencyKey: keySchema, note: shortText("Issue note", 1000) });
 
 export async function reportLolcReceiptIssue(id: string, _previous: LolcActionState, formData: FormData): Promise<LolcActionState> {
@@ -125,7 +159,7 @@ export async function reportLolcReceiptIssue(id: string, _previous: LolcActionSt
     const occurredAt = new Date();
     await prisma.$transaction((tx) => applyLolcReceiptTransition(tx, {
       receiptId: id,
-      expectedStatuses: ["COLLECTED", "MCASH_SENT"],
+      expectedStatuses: ["COLLECTED"],
       toStatus: "NEEDS_ATTENTION",
       eventType: "ISSUE_REPORTED",
       occurredAt,
@@ -138,48 +172,6 @@ export async function reportLolcReceiptIssue(id: string, _previous: LolcActionSt
     return { success: true };
   } catch (error) {
     return mutationError(error, "Could not report the issue.");
-  }
-}
-
-const confirmSchema = z.object({
-  idempotencyKey: keySchema,
-  reference: optionalText(120),
-  note: optionalText(1000),
-  occurredAt: shortText("confirmation date and time", 16),
-}).refine((data) => Boolean(data.reference || data.note), { message: "Enter an LOLC reference or a verification note" });
-
-export async function confirmLolcReceipt(id: string, _previous: LolcActionState, formData: FormData): Promise<LolcActionState> {
-  const user = await requireActionStaffFinanceAccess();
-  const parsed = confirmSchema.safeParse({
-    idempotencyKey: field(formData, "idempotencyKey"),
-    reference: field(formData, "reference") || undefined,
-    note: field(formData, "note") || undefined,
-    occurredAt: field(formData, "occurredAt"),
-  });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the confirmation details" };
-  try {
-    const occurredAt = parseOccurred(parsed.data.occurredAt, "confirmation date and time");
-    await prisma.$transaction((tx) => applyLolcReceiptTransition(tx, {
-      receiptId: id,
-      expectedStatuses: ["COLLECTED", "MCASH_SENT", "NEEDS_ATTENTION"],
-      toStatus: "LOLC_CONFIRMED",
-      eventType: "LOLC_CONFIRMED",
-      occurredAt,
-      actorUserId: user.id,
-      idempotencyKey: parsed.data.idempotencyKey,
-      reference: parsed.data.reference,
-      note: parsed.data.note,
-      update: {
-        lolcConfirmationReference: parsed.data.reference || null,
-        confirmedAt: occurredAt,
-        confirmedByUserId: user.id,
-        issueNote: null,
-      },
-    }), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-    revalidateLolc(id);
-    return { success: true };
-  } catch (error) {
-    return mutationError(error, "Could not confirm the LOLC payment.");
   }
 }
 

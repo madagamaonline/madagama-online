@@ -11,18 +11,18 @@ import {
 describe("LOLC receipt helpers", () => {
   it("formats permanent numbers and status labels", () => {
     expect(lolcReceiptNumber(42)).toBe("LOLC-000042");
-    expect(lolcStatusLabel("MCASH_SENT")).toBe("Waiting for LOLC");
+    expect(lolcStatusLabel("MCASH_SENT")).toBe("Sent through mCash");
   });
 
   it("allows only the documented workflow", () => {
-    expect(canTransitionLolcReceipt("COLLECTED", "LOLC_CONFIRMED")).toBe(true);
+    expect(canTransitionLolcReceipt("COLLECTED", "MCASH_SENT")).toBe(true);
     expect(canTransitionLolcReceipt("COLLECTED", "NEEDS_ATTENTION")).toBe(true);
-    expect(canTransitionLolcReceipt("NEEDS_ATTENTION", "LOLC_CONFIRMED")).toBe(true);
-    expect(canTransitionLolcReceipt("COLLECTED", "MCASH_SENT")).toBe(false);
+    expect(canTransitionLolcReceipt("NEEDS_ATTENTION", "MCASH_SENT")).toBe(true);
+    expect(canTransitionLolcReceipt("COLLECTED", "LOLC_CONFIRMED")).toBe(false);
+    expect(canTransitionLolcReceipt("MCASH_SENT", "NEEDS_ATTENTION")).toBe(false);
     expect(canTransitionLolcReceipt("VOIDED", "MCASH_SENT")).toBe(false);
-    // Legacy receipts left in the removed mCash checkpoint can still finish.
-    expect(canTransitionLolcReceipt("MCASH_SENT", "LOLC_CONFIRMED")).toBe(true);
-    expect(canTransitionLolcReceipt("MCASH_SENT", "NEEDS_ATTENTION")).toBe(true);
+    // mCash is terminal; legacy confirmed receipts stay voidable.
+    expect(canTransitionLolcReceipt("MCASH_SENT", "VOIDED")).toBe(true);
     expect(canTransitionLolcReceipt("LOLC_CONFIRMED", "VOIDED")).toBe(true);
   });
 

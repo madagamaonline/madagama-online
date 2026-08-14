@@ -4,9 +4,9 @@ import { ageInDays, lolcStatusLabel } from "@/lib/lolc-receipts";
 import { cn } from "@/lib/utils";
 
 const nextActions: Record<LolcReceiptStatus, string> = {
-  COLLECTED: "Confirm payment",
-  MCASH_SENT: "Confirm payment",
-  NEEDS_ATTENTION: "Resolve and confirm",
+  COLLECTED: "Send through mCash",
+  MCASH_SENT: "Journey complete",
+  NEEDS_ATTENTION: "Resolve and send",
   LOLC_CONFIRMED: "Journey complete",
   VOIDED: "No further action",
 };
@@ -18,13 +18,13 @@ export function lolcNextAction(status: LolcReceiptStatus): string {
 export function LolcWorkflowRail({
   status,
   collectedAt,
-  lolcConfirmed,
+  remitted,
   compact = false,
   className,
 }: {
   status: LolcReceiptStatus;
   collectedAt: Date;
-  lolcConfirmed: boolean;
+  remitted: boolean;
   compact?: boolean;
   className?: string;
 }) {
@@ -33,14 +33,14 @@ export function LolcWorkflowRail({
   const age = ageInDays(collectedAt);
   const steps = [
     { label: "Collected", done: true },
-    { label: attention ? "Attention required" : "Confirmed", done: lolcConfirmed },
+    { label: attention ? "Attention required" : "Sent through mCash", done: remitted },
   ];
 
   return <div className={cn("min-w-0", className)}>
     <div className={cn("flex items-start", compact ? "max-w-[132px]" : "w-full")} aria-label={`Workflow: ${lolcStatusLabel(status)}`}>
       {steps.map((step, index) => {
         const interrupted = attention && index === 1;
-        const current = !voided && !interrupted && !lolcConfirmed && index === 1;
+        const current = !voided && !interrupted && !remitted && index === 1;
         const Icon = interrupted ? AlertTriangle : Check;
         return <div key={step.label} className="contents">
           {index > 0 && <span className={cn(
@@ -65,7 +65,7 @@ export function LolcWorkflowRail({
     </div>
     <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-0.5", compact ? "mt-1" : "mt-4 border-t border-border-subtle pt-3")}>
       <span className={cn("font-semibold", compact ? "text-[10px]" : "text-xs", attention ? "text-danger" : voided ? "text-muted" : "text-foreground")}>{lolcNextAction(status)}</span>
-      {!lolcConfirmed && !voided && <><span className="text-faint">·</span><span className={cn("tabular text-muted", compact ? "text-[10px]" : "text-xs")}>{age === 0 ? "today" : `${age}d in queue`}</span></>}
+      {!remitted && !voided && <><span className="text-faint">·</span><span className={cn("tabular text-muted", compact ? "text-[10px]" : "text-xs")}>{age === 0 ? "today" : `${age}d in queue`}</span></>}
     </div>
   </div>;
 }

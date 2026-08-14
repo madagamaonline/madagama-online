@@ -619,16 +619,18 @@ input:focus, select:focus, textarea:focus {
   animation: receipt-line-in 220ms calc(240ms + var(--workflow-index) * 100ms) var(--ease-enter) both;
 }
 
+/* Theme switch: the previous frame dissolves over the new one. Only opacity
+   animates, so the whole thing stays on the compositor. */
 html.theme-transitioning::view-transition-old(root),
 html.theme-transitioning::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
-html.theme-transitioning::view-transition-old(root) { z-index: 1; }
-html.theme-transitioning::view-transition-new(root) {
+html.theme-transitioning::view-transition-new(root) { z-index: 1; }
+html.theme-transitioning::view-transition-old(root) {
   z-index: 2;
-  animation: theme-radial-reveal 520ms var(--ease-enter) both;
+  animation: theme-dissolve 260ms var(--ease-standard) both;
 }
-@keyframes theme-radial-reveal {
-  from { clip-path: circle(0 at var(--theme-reveal-x) var(--theme-reveal-y)); }
-  to { clip-path: circle(var(--theme-reveal-radius) at var(--theme-reveal-x) var(--theme-reveal-y)); }
+@keyframes theme-dissolve {
+  from { opacity: 1; }
+  to { opacity: 0; }
 }
 
 /* Shimmer skeleton — themed pulse over a subtle base. */
@@ -681,7 +683,7 @@ html.theme-transitioning::view-transition-new(root) {
   .motion-workflow-node,
   .motion-workflow-current,
   .motion-workflow-label,
-  html.theme-transitioning::view-transition-new(root) {
+  html.theme-transitioning::view-transition-old(root) {
     animation: none !important;
   }
   .motion-drawn-check-ring,

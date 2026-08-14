@@ -9,12 +9,8 @@ type ViewTransitionHandle = {
   skipTransition?: () => void;
 };
 
-function clearRevealState() {
-  const root = document.documentElement;
-  root.classList.remove("theme-transitioning");
-  root.style.removeProperty("--theme-reveal-x");
-  root.style.removeProperty("--theme-reveal-y");
-  root.style.removeProperty("--theme-reveal-radius");
+function clearTransitionState() {
+  document.documentElement.classList.remove("theme-transitioning");
 }
 
 /**
@@ -23,7 +19,6 @@ function clearRevealState() {
  */
 export function ThemeToggle() {
   const [dark, setDark] = useState(false);
-  const buttonRef = useRef<HTMLButtonElement>(null);
   const desiredDarkRef = useRef(false);
   const transitionRef = useRef<ViewTransitionHandle | null>(null);
   const transitionGeneration = useRef(0);
@@ -37,7 +32,7 @@ export function ThemeToggle() {
       transitionGeneration.current += 1;
       try { transitionRef.current?.skipTransition?.(); } catch { /* already settled */ }
       transitionRef.current = null;
-      clearRevealState();
+      clearTransitionState();
     };
   }, []);
 
@@ -63,24 +58,16 @@ export function ThemeToggle() {
       startViewTransition?: (callback: () => void) => ViewTransitionHandle;
     }).startViewTransition;
     if (reduced || !startViewTransition) {
-      clearRevealState();
+      clearTransitionState();
       applyTheme(next);
       return;
     }
 
-    const rect = buttonRef.current?.getBoundingClientRect();
-    const x = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
-    const y = rect ? rect.top + rect.height / 2 : 0;
-    const radius = Math.hypot(Math.max(x, innerWidth - x), Math.max(y, innerHeight - y));
-    const root = document.documentElement;
-    root.style.setProperty("--theme-reveal-x", `${x}px`);
-    root.style.setProperty("--theme-reveal-y", `${y}px`);
-    root.style.setProperty("--theme-reveal-radius", `${radius}px`);
-    root.classList.add("theme-transitioning");
+    document.documentElement.classList.add("theme-transitioning");
     const cleanUp = (transition: ViewTransitionHandle | null) => {
       if (transitionGeneration.current !== generation) return;
       if (transitionRef.current === transition) transitionRef.current = null;
-      clearRevealState();
+      clearTransitionState();
     };
     try {
       const transition = startViewTransition.call(document, () => applyTheme(next));
@@ -99,7 +86,6 @@ export function ThemeToggle() {
 
   return (
     <button
-      ref={buttonRef}
       onClick={toggle}
       aria-label={dark ? "Switch to light mode" : "Switch to dark mode"}
       title={dark ? "Light mode" : "Dark mode"}

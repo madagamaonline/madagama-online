@@ -29,6 +29,17 @@ function useReceiptAction(action: Action, key: string) {
   return { state, formAction, pending, key };
 }
 
+export function MarkMcashSentForm({ action, idempotencyKey }: { action: Action; idempotencyKey: string }) {
+  const { state, formAction, pending, key } = useReceiptAction(action, idempotencyKey);
+  return <form action={formAction} className="space-y-3">
+    <input type="hidden" name="idempotencyKey" value={key} />
+    <ActionMessage state={state} />
+    <div><Label htmlFor="mcash-reference">mCash transaction reference</Label><Input id="mcash-reference" name="reference" maxLength={120} required /></div>
+    <div><Label htmlFor="mcash-time">Sent date and time</Label><Input id="mcash-time" name="occurredAt" type="datetime-local" defaultValue={nowInSriLanka()} required /></div>
+    <Button type="submit" disabled={pending} className="w-full">{pending ? "Saving…" : "Mark mCash sent"}</Button>
+  </form>;
+}
+
 export function ReportIssueForm({ action, idempotencyKey }: { action: Action; idempotencyKey: string }) {
   const { state, formAction, pending, key } = useReceiptAction(action, idempotencyKey);
   return <form action={formAction} className="space-y-3">
@@ -36,18 +47,6 @@ export function ReportIssueForm({ action, idempotencyKey }: { action: Action; id
     <ActionMessage state={state} />
     <div><Label htmlFor="issue-note">What needs attention?</Label><Textarea id="issue-note" name="note" maxLength={1000} placeholder="e.g. Agreement not credited after 24 hours" required /></div>
     <Button type="submit" disabled={pending} variant="outline" className="w-full">{pending ? "Saving…" : "Report an issue"}</Button>
-  </form>;
-}
-
-export function ConfirmLolcForm({ action, idempotencyKey }: { action: Action; idempotencyKey: string }) {
-  const { state, formAction, pending, key } = useReceiptAction(action, idempotencyKey);
-  return <form action={formAction} className="space-y-3">
-    <input type="hidden" name="idempotencyKey" value={key} />
-    <ActionMessage state={state} />
-    <div><Label htmlFor="confirmation-reference">LOLC reference (optional)</Label><Input id="confirmation-reference" name="reference" maxLength={120} /></div>
-    <div><Label htmlFor="confirmation-time">Confirmed date and time</Label><Input id="confirmation-time" name="occurredAt" type="datetime-local" defaultValue={nowInSriLanka()} required /></div>
-    <div><Label htmlFor="confirmation-note">Verification note</Label><Textarea id="confirmation-note" name="note" maxLength={1000} placeholder="Required when there is no LOLC reference" /></div>
-    <Button type="submit" disabled={pending} className="w-full">{pending ? "Saving…" : "Confirm LOLC applied payment"}</Button>
   </form>;
 }
 

@@ -18,15 +18,14 @@ export const LOLC_STATUSES: LolcReceiptStatus[] = [
 
 export const LOLC_OPEN_STATUSES: LolcReceiptStatus[] = [
   "COLLECTED",
-  "MCASH_SENT",
   "NEEDS_ATTENTION",
 ];
 
 const labels: Record<LolcReceiptStatus, string> = {
-  COLLECTED: "Waiting for LOLC",
-  // Legacy: receipts recorded before the mCash checkpoint was removed.
-  MCASH_SENT: "Waiting for LOLC",
+  COLLECTED: "Waiting to send",
+  MCASH_SENT: "Sent through mCash",
   NEEDS_ATTENTION: "Needs attention",
+  // Legacy: receipts finished under the removed LOLC confirmation checkpoint.
   LOLC_CONFIRMED: "Confirmed",
   VOIDED: "Voided",
 };
@@ -41,18 +40,15 @@ export function lolcStatusLabel(status: LolcReceiptStatus): string {
 
 export function lolcStatusTone(status: LolcReceiptStatus): "amber" | "blue" | "red" | "green" | "gray" {
   if (status === "COLLECTED") return "amber";
-  if (status === "MCASH_SENT") return "blue";
   if (status === "NEEDS_ATTENTION") return "red";
-  if (status === "LOLC_CONFIRMED") return "green";
+  if (status === "MCASH_SENT" || status === "LOLC_CONFIRMED") return "green";
   return "gray";
 }
 
 export function canTransitionLolcReceipt(from: LolcReceiptStatus, to: LolcReceiptStatus): boolean {
   if (to === "VOIDED") return from !== "VOIDED";
-  if (from === "COLLECTED") return to === "NEEDS_ATTENTION" || to === "LOLC_CONFIRMED";
-  // Legacy receipts that still sit in the removed mCash checkpoint.
-  if (from === "MCASH_SENT") return to === "NEEDS_ATTENTION" || to === "LOLC_CONFIRMED";
-  if (from === "NEEDS_ATTENTION") return to === "LOLC_CONFIRMED";
+  if (from === "COLLECTED") return to === "MCASH_SENT" || to === "NEEDS_ATTENTION";
+  if (from === "NEEDS_ATTENTION") return to === "MCASH_SENT";
   return false;
 }
 
@@ -141,16 +137,13 @@ export async function applyLolcReceiptTransition(tx: Prisma.TransactionClient, i
   }
   const prior = await tx.lolcReceipt.findUnique({
     where: { id: input.receiptId },
-    select: { status: true, collectedAt: true, remittedAt: true },
+    select: { status: true, collectedAt: true },
   });
   if (!prior) throw new Error("Receipt not found");
   if (!input.expectedStatuses.includes(prior.status) || !canTransitionLolcReceipt(prior.status, input.toStatus)) {
     throw new Error("This receipt has changed. Refresh the page and try again.");
   }
   if (input.occurredAt < prior.collectedAt) throw new Error("The checkpoint date cannot be before the collection date");
-  if (input.toStatus === "LOLC_CONFIRMED" && prior.remittedAt && input.occurredAt < prior.remittedAt) {
-    throw new Error("The confirmation date cannot be before the mCash sent date");
-  }
   const changed = await tx.lolcReceipt.updateMany({
     where: { id: input.receiptId, status: { in: input.expectedStatuses } },
     data: { ...input.update, status: input.toStatus },

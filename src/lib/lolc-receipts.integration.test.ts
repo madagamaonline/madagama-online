@@ -89,17 +89,17 @@ integration("LOLC receipt workflow (isolated PostgreSQL)", () => {
     await db.$transaction((tx) => applyLolcReceiptTransition(tx, {
       receiptId,
       expectedStatuses: ["NEEDS_ATTENTION"],
-      toStatus: "LOLC_CONFIRMED",
-      eventType: "LOLC_CONFIRMED",
+      toStatus: "MCASH_SENT",
+      eventType: "MCASH_SENT",
       occurredAt: at(3),
       actorUserId: userId,
-      idempotencyKey: `${suffix}:confirm`,
-      note: "Verified in LOLC portal",
-      update: { confirmedAt: at(3), confirmedByUserId: userId, issueNote: null },
+      idempotencyKey: `${suffix}:send`,
+      reference: "MC-1001",
+      update: { mCashReference: "MC-1001", remittedAt: at(3), remittedByUserId: userId, issueNote: null },
     }));
     await db.$transaction((tx) => applyLolcReceiptTransition(tx, {
       receiptId,
-      expectedStatuses: ["LOLC_CONFIRMED"],
+      expectedStatuses: ["MCASH_SENT"],
       toStatus: "VOIDED",
       eventType: "VOIDED",
       occurredAt: at(4),
@@ -111,7 +111,7 @@ integration("LOLC receipt workflow (isolated PostgreSQL)", () => {
 
     const final = await db.lolcReceipt.findUniqueOrThrow({ where: { id: receiptId }, include: { events: { orderBy: { occurredAt: "asc" } } } });
     expect(final.status).toBe("VOIDED");
-    expect(final.events.map((event) => event.type)).toEqual(["CREATED", "ISSUE_REPORTED", "LOLC_CONFIRMED", "VOIDED"]);
+    expect(final.events.map((event) => event.type)).toEqual(["CREATED", "ISSUE_REPORTED", "MCASH_SENT", "VOIDED"]);
     expect({
       customerName: final.customerName,
       customerPhone: final.customerPhone,

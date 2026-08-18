@@ -256,3 +256,37 @@ export async function voidCheque(
   }
   return { error: "Could not stop the cheque. Please try again." };
 }
+
+const chequeNotesSchema = z.object({
+  notes: z.string().trim().max(2000, "Notes are too long").optional(),
+});
+
+/**
+ * Notes are a free-form annotation, not part of the cheque's money trail, so they
+ * stay editable for the whole life of the cheque — including after it clears or is voided.
+ */
+export async function updateChequeNotes(
+  chequeId: string,
+  _previous: BankingActionState,
+  formData: FormData,
+): Promise<BankingActionState> {
+  await requireActionStaffFinanceAccess();
+  const parsed = chequeNotesSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the note" };
+
+  try {
+    await prisma.issuedCheque.update({
+      where: { id: chequeId },
+      data: { notes: parsed.data.notes || null },
+    });
+    revalidatePath(`/banking/cheques/${chequeId}`);
+    revalidatePath("/banking");
+    return { ok: true, id: chequeId };
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return { error: "That cheque no longer exists." };
+    }
+    console.error("updateChequeNotes failed", error);
+    return { error: "Could not save the notes. Please try again." };
+  }
+}

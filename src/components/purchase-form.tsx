@@ -241,6 +241,9 @@ export function PurchaseForm({
                     <tr key={l.product.id} className="border-b border-border last:border-0">
                       <td className="py-2">
                         <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
+                        {l.product.modelNumber && (
+                          <div className="font-mono text-xs text-muted">Model: {l.product.modelNumber}</div>
+                        )}
                         <div className="font-medium">{l.product.name}</div>
                       </td>
                       <td className="px-2">

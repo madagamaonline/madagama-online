@@ -31,7 +31,7 @@ export type QuickCreateProductInput = {
 export type QuickCreateProductResult =
   | {
       ok: true;
-      product: { id: string; code: string; name: string; costPrice: number; stock: number; trackingType: import("@prisma/client").InventoryTracking; defaultUnit: import("@prisma/client").UnitOfMeasure };
+      product: { id: string; code: string; name: string; modelNumber: string | null; costPrice: number; stock: number; trackingType: import("@prisma/client").InventoryTracking; defaultUnit: import("@prisma/client").UnitOfMeasure };
     }
   | { ok: false; error: string };
 
@@ -144,7 +144,7 @@ export async function quickCreateProduct(
             modelNumber: d.modelNumber?.trim() || null,
             primarySupplierId: d.primarySupplierId || null,
           },
-          select: { id: true, code: true, name: true, costPrice: true, quantityInStock: true, trackingType: true, defaultUnit: true },
+          select: { id: true, code: true, name: true, modelNumber: true, costPrice: true, quantityInStock: true, trackingType: true, defaultUnit: true },
         });
       },
       { timeout: 15000 },
@@ -157,6 +157,7 @@ export async function quickCreateProduct(
         id: product.id,
         code: product.code,
         name: product.name,
+        modelNumber: product.modelNumber,
         costPrice: toNum(product.costPrice),
         stock: toNum(product.quantityInStock),
         trackingType: product.trackingType,

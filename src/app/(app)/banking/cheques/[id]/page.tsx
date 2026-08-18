@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { chequeBalance, chequeState, chequeStateLabel, chequeStateTone, isVoidState, voidKindLabel } from "@/lib/cheques";
 import { formatDate, formatDateTime, formatLKR, toNum } from "@/lib/utils";
 import { ChequeLifecyclePanel } from "@/components/cheque-lifecycle-panel";
+import { ChequeNotesEditor } from "@/components/cheque-notes-editor";
 import { PageHeader } from "@/components/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -100,7 +101,7 @@ export default async function ChequeDetailPage({ params }: { params: Promise<{ i
             <div><dt className="flex items-center gap-1.5 text-xs text-muted"><Landmark className="h-3.5 w-3.5" /> Bank account</dt><dd className="mt-1 font-semibold">{cheque.bankAccount.bankName}</dd><dd className="font-mono text-xs text-muted">{cheque.bankAccount.accountName} · {cheque.bankAccount.accountNumber}</dd></div>
             <div className="grid grid-cols-2 gap-3"><div><dt className="flex items-center gap-1.5 text-xs text-muted"><CalendarDays className="h-3.5 w-3.5" /> Issued</dt><dd className="mt-1 font-medium">{formatDate(cheque.issuedDate)}</dd></div><div><dt className="text-xs text-muted">Due</dt><dd className={`mt-1 font-semibold ${status === "OVERDUE" ? "text-danger" : ""}`}>{formatDate(cheque.dueDate)}</dd></div></div>
             {cheque.purchase && <Link href={`/purchases/${cheque.purchase.id}`} className="flex items-center justify-between rounded-xl border border-border bg-surface p-3 transition-colors hover:bg-input"><span><span className="flex items-center gap-1.5 text-xs text-muted"><ReceiptText className="h-3.5 w-3.5" /> Linked purchase</span><span className="mt-1 block font-semibold">{cheque.purchase.supplierInvoiceNo || formatDate(cheque.purchase.date)}</span></span><ArrowRight className="h-4 w-4 text-primary" /></Link>}
-            {cheque.notes && <div><dt className="text-xs text-muted">Notes</dt><dd className="mt-1 whitespace-pre-wrap">{cheque.notes}</dd></div>}
+            <ChequeNotesEditor chequeId={cheque.id} notes={cheque.notes} />
           </dl>
         </div>
       </div>

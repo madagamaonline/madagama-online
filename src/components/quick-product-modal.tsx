@@ -21,7 +21,7 @@ export type QuickProductCategory = {
   subcategories: Subcategory[];
 };
 
-type CreatedProduct = { id: string; code: string; name: string; costPrice: number; stock: number; trackingType: InventoryTracking; defaultUnit: UnitOfMeasure };
+type CreatedProduct = { id: string; code: string; name: string; modelNumber?: string | null; costPrice: number; stock: number; trackingType: InventoryTracking; defaultUnit: UnitOfMeasure };
 
 export function QuickProductModal({
   initialName,

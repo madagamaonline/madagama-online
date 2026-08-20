@@ -2,6 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowRight, CalendarDays, Landmark, OctagonX, ReceiptText, RefreshCw, Truck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/auth";
+import { canVoidCheque } from "@/lib/authorization";
 import { chequeBalance, chequeState, chequeStateLabel, chequeStateTone, isVoidState, voidKindLabel } from "@/lib/cheques";
 import { formatDate, formatDateTime, formatLKR, toNum } from "@/lib/utils";
 import { ChequeLifecyclePanel } from "@/components/cheque-lifecycle-panel";
@@ -16,19 +18,23 @@ export const dynamic = "force-dynamic";
 
 export default async function ChequeDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const cheque = await prisma.issuedCheque.findUnique({
-    where: { id },
-    include: {
-      supplier: true,
-      bankAccount: true,
-      purchase: { select: { id: true, supplierInvoiceNo: true, date: true } },
-      payments: { orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }] },
-      voidedBy: { select: { name: true } },
-      replaces: { select: { id: true, chequeNumber: true, amount: true, voidKind: true } },
-      replacedBy: { select: { id: true, chequeNumber: true, amount: true, dueDate: true } },
-    },
-  });
+  const [cheque, session] = await Promise.all([
+    prisma.issuedCheque.findUnique({
+      where: { id },
+      include: {
+        supplier: true,
+        bankAccount: true,
+        purchase: { select: { id: true, supplierInvoiceNo: true, date: true } },
+        payments: { orderBy: [{ paidDate: "asc" }, { createdAt: "asc" }] },
+        voidedBy: { select: { name: true } },
+        replaces: { select: { id: true, chequeNumber: true, amount: true, voidKind: true } },
+        replacedBy: { select: { id: true, chequeNumber: true, amount: true, dueDate: true } },
+      },
+    }),
+    getSession(),
+  ]);
   if (!cheque) notFound();
+  const mayVoidCheque = session ? canVoidCheque(session.role) : false;
 
   const original = toNum(cheque.amount);
   const paid = cheque.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0);
@@ -118,7 +124,7 @@ export default async function ChequeDetailPage({ params }: { params: Promise<{ i
           {voided
             ? <div className="rounded-xl bg-danger-soft p-4 text-sm text-danger-ink">This cheque is frozen. Issue a replacement cheque, or record a cash payment on the linked purchase to settle the supplier.</div>
             : remaining > 0
-              ? <ChequeLifecyclePanel chequeId={cheque.id} remaining={remaining} />
+              ? <ChequeLifecyclePanel chequeId={cheque.id} remaining={remaining} canVoid={mayVoidCheque} />
               : <div className="rounded-xl bg-primary-soft p-4 text-center text-sm font-medium text-primary-ink">The bank has honoured this cheque in full{cheque.clearedDate ? ` on ${formatDate(cheque.clearedDate)}` : ""}.</div>}
         </CardContent>
       </Card>

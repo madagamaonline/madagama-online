@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canAccessStaffFinance,
   canCreatePayLaterSale,
+  canVoidCheque,
   defaultLandingPath,
   roleCanAccess,
 } from "./authorization";
@@ -14,6 +15,12 @@ describe("server action role matrix", () => {
   it("blocks staff from admin-only financial and management work", () => {
     expect(roleCanAccess("STAFF", "ADMIN")).toBe(false);
     expect(roleCanAccess("ADMIN", "ADMIN")).toBe(true);
+  });
+
+  it("only allows admins to void an issued cheque", () => {
+    expect(canVoidCheque("ADMIN")).toBe(true);
+    expect(canVoidCheque("STAFF")).toBe(false);
+    expect(canVoidCheque("SALESPERSON")).toBe(false);
   });
 
   it("blocks salespeople from staff-and-finance areas only", () => {

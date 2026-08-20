@@ -14,7 +14,15 @@ import { formatLKR } from "@/lib/utils";
 
 const initial: BankingActionState = {};
 
-export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string; remaining: number }) {
+export function ChequeLifecyclePanel({
+  chequeId,
+  remaining,
+  canVoid,
+}: {
+  chequeId: string;
+  remaining: number;
+  canVoid: boolean;
+}) {
   const router = useRouter();
   const [mode, setMode] = useState<"idle" | "clear" | "void">("idle");
   const [clearState, clearAction, clearing] = useActionState(clearCheque.bind(null, chequeId), initial);
@@ -28,7 +36,7 @@ export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string
     if (clearState.ok || voidState.ok) router.refresh();
   }, [clearState.ok, voidState.ok, router]);
 
-  if (mode === "idle") {
+  if (mode === "idle" || (mode === "void" && !canVoid)) {
     return (
       <div className="space-y-3">
         <div className="rounded-xl bg-clay-soft p-3">
@@ -38,9 +46,11 @@ export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string
         <Button className="w-full" onClick={() => setMode("clear")}>
           <CheckCircle2 className="h-4 w-4" /> Mark as cleared
         </Button>
-        <Button variant="outline" className="w-full text-danger" onClick={() => setMode("void")}>
-          <OctagonX className="h-4 w-4" /> Stop / bounce this cheque
-        </Button>
+        {canVoid && (
+          <Button variant="outline" className="w-full border-danger/40 text-danger hover:bg-danger-soft hover:text-danger-ink" onClick={() => setMode("void")}>
+            <OctagonX className="h-4 w-4" /> Void / cancel cheque
+          </Button>
+        )}
       </div>
     );
   }
@@ -80,13 +90,18 @@ export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string
       {voidState.error && (
         <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger-ink">{voidState.error}</p>
       )}
+      <div>
+        <p className="text-sm font-bold text-danger-ink">Void / cancel cheque</p>
+        <p className="mt-1 text-xs text-muted">Use this to correct a cheque issued by mistake, stop payment, or record a dishonoured cheque.</p>
+      </div>
       <p className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
-        This cancels the cheque, not the debt. {formatLKR(remaining)} goes straight back onto the supplier&apos;s
-        balance so you can reissue a cheque or pay cash. The cheque record is kept for the bank and the auditor.
+        This cancels the cheque instrument, not the supplier debt. {formatLKR(remaining)} goes straight back onto
+        the supplier&apos;s balance so you can reissue a cheque or pay cash. This cheque and your reason remain in the
+        permanent audit record.
       </p>
       <div>
         <Label htmlFor="cheque-void-kind">What happened?</Label>
-        <Select id="cheque-void-kind" name="kind" defaultValue="STOPPED" required>
+        <Select id="cheque-void-kind" name="kind" defaultValue="CANCELLED" required>
           {VOID_KINDS.map((kind) => (
             <option key={kind} value={kind}>{voidKindLabel[kind]}</option>
           ))}
@@ -98,7 +113,7 @@ export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string
       </div>
       <div>
         <Label htmlFor="cheque-void-reason">Reason</Label>
-        <Textarea id="cheque-void-reason" name="reason" rows={3} required placeholder="e.g. goods not delivered, funds short on due date, dispute over invoice…" />
+        <Textarea id="cheque-void-reason" name="reason" rows={3} required placeholder="e.g. cheque issued by mistake, goods not delivered, payment stopped…" />
       </div>
       <div className="flex gap-2">
         <Button type="button" variant="outline" className="flex-1" onClick={() => setMode("idle")} disabled={voiding}>
@@ -106,7 +121,7 @@ export function ChequeLifecyclePanel({ chequeId, remaining }: { chequeId: string
         </Button>
         <Button className="flex-1 bg-danger text-white hover:bg-danger" type="submit" disabled={voiding}>
           {voiding && <Loader2 className="h-4 w-4 animate-spin" />}
-          {voiding ? "Stopping…" : "Confirm"}
+          {voiding ? "Voiding…" : "Confirm void"}
         </Button>
       </div>
     </form>

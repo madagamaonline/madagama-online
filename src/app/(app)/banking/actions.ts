@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireActionStaffFinanceAccess } from "@/lib/auth";
+import { requireActionAdmin, requireActionStaffFinanceAccess } from "@/lib/auth";
 import {
   applyChequeClear,
   applyChequeVoid,
@@ -221,9 +221,9 @@ export async function voidCheque(
   _previous: BankingActionState,
   formData: FormData,
 ): Promise<BankingActionState> {
-  const user = await requireActionStaffFinanceAccess();
+  const user = await requireActionAdmin();
   const parsed = voidChequeSchema.safeParse({ chequeId, ...Object.fromEntries(formData) });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the stop-payment details" };
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the void details" };
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
@@ -251,10 +251,10 @@ export async function voidCheque(
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
       if (error instanceof ChequeLifecycleError) return { error: error.message };
       console.error("voidCheque failed", error);
-      return { error: "Could not stop the cheque. Please try again." };
+      return { error: "Could not void or cancel the cheque. Please try again." };
     }
   }
-  return { error: "Could not stop the cheque. Please try again." };
+  return { error: "Could not void or cancel the cheque. Please try again." };
 }
 
 const chequeNotesSchema = z.object({

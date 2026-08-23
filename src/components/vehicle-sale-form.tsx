@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { Fragment, useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Banknote, Building2, CalendarClock, Check, Equal, Minus, Tractor } from "lucide-react";
 import type { VehicleSaleType } from "@prisma/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { VehicleCombobox } from "@/components/vehicle-combobox";
 import { Textarea } from "@/components/ui/textarea";
 import { cn, formatLKR, round2 } from "@/lib/utils";
 import { ActionButtonContent, ActionFeedback } from "@/components/ui/action-feedback";
+import { QuickCustomerModal } from "@/components/quick-customer-modal";
 
 export type VehicleSaleFormState = { error?: string; ok?: boolean };
 
@@ -44,6 +44,8 @@ export function VehicleSaleForm({
   const [employeeId, setEmployeeId] = useState("");
   const [discount, setDiscount] = useState(0);
   const [downPayment, setDownPayment] = useState(vehicle.listPrice);
+  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
 
   const economics = useMemo(() => {
     const gross = round2(vehicle.listPrice - vehicle.supplierSettlementDue);
@@ -58,7 +60,10 @@ export function VehicleSaleForm({
     { value: "IN_HOUSE_CREDIT", label: "In-house credit", hint: "Collect customer installments in this system", icon: CalendarClock },
   ];
 
+  const localCustomers = [...addedCustomers, ...customers];
+
   return (
+    <Fragment>
     <form action={formAction} className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
       <input type="hidden" name="vehicleId" value={vehicle.id} />
       <input type="hidden" name="type" value={type} />
@@ -86,7 +91,7 @@ export function VehicleSaleForm({
             </fieldset>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div><VehicleCombobox id="customerId-combobox" label="Customer" options={customers.map((c) => ({ value: c.id, label: c.name, hint: c.phone }))} value={customerId} onChange={setCustomerId} placeholder="Search customer…" /><Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">+ Add customer record</Link></div>
+              <div><VehicleCombobox id="customerId-combobox" label="Customer" options={localCustomers.map((c) => ({ value: c.id, label: c.name, hint: c.phone }))} value={customerId} onChange={setCustomerId} placeholder="Search customer…" /><button type="button" onClick={() => setShowQuickCustomer(true)} className="mt-1 inline-block text-xs text-primary hover:underline">+ Quick add customer</button></div>
               <div><VehicleCombobox id="soldBy-combobox" label="Salesperson" options={employees.map((e) => ({ value: e.id, label: e.name }))} value={employeeId} onChange={setEmployeeId} placeholder="Select salesperson…" /></div>
               <div><Label htmlFor="saleDate">Sale date</Label><Input id="saleDate" name="saleDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></div>
               <div><Label htmlFor="customerDiscount">Customer discount (LKR)</Label><NumberInput id="customerDiscount" name="customerDiscount" min={0} max={economics.gross} value={discount} onValueChange={(v) => { const next = Number(v) || 0; setDiscount(next); if (type === "CASH") setDownPayment(round2(vehicle.listPrice - next)); }} /></div>
@@ -141,6 +146,16 @@ export function VehicleSaleForm({
         </Card>
       </aside>
     </form>
+    {showQuickCustomer && (
+      <QuickCustomerModal
+        onClose={() => setShowQuickCustomer(false)}
+        onSuccess={(customer) => {
+          setAddedCustomers((current) => [customer, ...current]);
+          setCustomerId(customer.id);
+        }}
+      />
+    )}
+    </Fragment>
   );
 }
 

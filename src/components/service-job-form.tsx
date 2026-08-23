@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
-import Link from "next/link";
+import { Fragment, useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ServiceJobFormState } from "@/app/(app)/services/actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,6 +56,7 @@ export function ServiceJobForm({
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
+  const [values, setValues] = useState(() => initial);
   const [customerId, setCustomerId] = useState(initial.customerId);
   const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
   const [showQuickCustomer, setShowQuickCustomer] = useState(false);
@@ -71,7 +71,8 @@ export function ServiceJobForm({
   }
 
   return (
-    <form action={formAction}>
+    <Fragment>
+      <form action={formAction}>
       <Card>
         <CardContent className="space-y-5">
           {state.error && (
@@ -85,18 +86,19 @@ export function ServiceJobForm({
               <Input
                 id="itemName"
                 name="itemName"
-                defaultValue={initial.itemName}
+                value={values.itemName}
+                onChange={(event) => setValues((current) => ({ ...current, itemName: event.target.value }))}
                 placeholder="e.g. Refrigerator"
                 required
               />
             </div>
             <div>
               <Label htmlFor="brand">Brand / model</Label>
-              <Input id="brand" name="brand" defaultValue={initial.brand} placeholder="e.g. LG GL-T" />
+              <Input id="brand" name="brand" value={values.brand} onChange={(event) => setValues((current) => ({ ...current, brand: event.target.value }))} placeholder="e.g. LG GL-T" />
             </div>
             <div>
               <Label htmlFor="serialNumber">Serial number</Label>
-              <Input id="serialNumber" name="serialNumber" defaultValue={initial.serialNumber} />
+              <Input id="serialNumber" name="serialNumber" value={values.serialNumber} onChange={(event) => setValues((current) => ({ ...current, serialNumber: event.target.value }))} />
             </div>
           </div>
 
@@ -104,7 +106,8 @@ export function ServiceJobForm({
             <input
               type="checkbox"
               name="underWarranty"
-              defaultChecked={initial.underWarranty}
+              checked={values.underWarranty}
+              onChange={(event) => setValues((current) => ({ ...current, underWarranty: event.target.checked }))}
               className="h-4 w-4 rounded border-border"
             />
             <span>Under warranty (warranty repair, not a paid job)</span>
@@ -115,7 +118,8 @@ export function ServiceJobForm({
             <Textarea
               id="issue"
               name="issue"
-              defaultValue={initial.issue}
+              value={values.issue}
+              onChange={(event) => setValues((current) => ({ ...current, issue: event.target.value }))}
               placeholder="What is wrong / what service is needed?"
               required
             />
@@ -144,14 +148,15 @@ export function ServiceJobForm({
             <div className="grid grid-cols-1 gap-4 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="contactName">Walk-in name</Label>
-                <Input id="contactName" name="contactName" defaultValue={initial.contactName} />
+                <Input id="contactName" name="contactName" value={values.contactName} onChange={(event) => setValues((current) => ({ ...current, contactName: event.target.value }))} />
               </div>
               <div>
                 <Label htmlFor="contactPhone">Walk-in phone</Label>
                 <Input
                   id="contactPhone"
                   name="contactPhone"
-                  defaultValue={initial.contactPhone}
+                  value={values.contactPhone}
+                  onChange={(event) => setValues((current) => ({ ...current, contactPhone: event.target.value }))}
                   placeholder="e.g. 0771234567"
                 />
               </div>
@@ -163,7 +168,8 @@ export function ServiceJobForm({
             <Textarea
               id="resolution"
               name="resolution"
-              defaultValue={initial.resolution}
+              value={values.resolution}
+              onChange={(event) => setValues((current) => ({ ...current, resolution: event.target.value }))}
               placeholder="Fill in once the service is done"
             />
           </div>
@@ -173,7 +179,8 @@ export function ServiceJobForm({
             <Textarea
               id="notes"
               name="notes"
-              defaultValue={initial.notes}
+              value={values.notes}
+              onChange={(event) => setValues((current) => ({ ...current, notes: event.target.value }))}
               placeholder="e.g. charged Rs. 3,500, gas refill, parts ordered"
             />
           </div>
@@ -191,12 +198,14 @@ export function ServiceJobForm({
         </CardContent>
       </Card>
 
+      </form>
+
       {showQuickCustomer && (
         <QuickCustomerModal
           onClose={() => setShowQuickCustomer(false)}
           onSuccess={handleQuickCustomerSuccess}
         />
       )}
-    </form>
+    </Fragment>
   );
 }

@@ -64,6 +64,7 @@ export function QuickProductModal({
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    event.stopPropagation();
     setError("");
     if (!name.trim()) return setError("Product name is required.");
     if (!categoryId) return setError("Select a category.");

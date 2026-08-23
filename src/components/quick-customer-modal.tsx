@@ -26,6 +26,9 @@ export function QuickCustomerModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // This modal is reused from several data-entry screens. Never allow its
+    // submit event to reach an ancestor form if a caller renders it there.
+    e.stopPropagation();
     setError("");
     if (!name.trim() || !phone.trim()) {
       setError("Name and phone are required.");
@@ -47,6 +50,7 @@ export function QuickCustomerModal({
     <div className="motion-backdrop-in fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-xs">
       <div role="dialog" aria-modal="true" aria-labelledby="quick-customer-title" className="motion-panel-in relative w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-xl">
         <button
+          type="button"
           onClick={onClose}
           className="motion-interactive absolute right-4 top-4 rounded-full p-1 text-muted hover:bg-border-subtle hover:text-foreground cursor-pointer"
           aria-label="Close"

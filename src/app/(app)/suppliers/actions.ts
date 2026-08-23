@@ -7,6 +7,9 @@ import { prisma } from "@/lib/prisma";
 import { requireActionAdmin } from "@/lib/auth";
 
 export type SupplierFormState = { error?: string };
+export type QuickSupplierResult =
+  | { ok: true; supplier: { id: string; name: string } }
+  | { ok: false; error: string };
 
 const schema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -24,6 +27,38 @@ function parse(formData: FormData) {
     email: formData.get("email") || undefined,
     address: formData.get("address") || undefined,
   });
+}
+
+export async function quickCreateSupplier(data: {
+  name: string;
+  contactPerson?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+}): Promise<QuickSupplierResult> {
+  await requireActionAdmin();
+  const parsed = schema.safeParse(data);
+  if (!parsed.success) {
+    return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid supplier details" };
+  }
+  const d = parsed.data;
+  try {
+    const supplier = await prisma.supplier.create({
+      data: {
+        name: d.name.trim(),
+        contactPerson: d.contactPerson?.trim() || null,
+        phone: d.phone?.trim() || null,
+        email: d.email?.trim() || null,
+        address: d.address?.trim() || null,
+      },
+      select: { id: true, name: true },
+    });
+    revalidatePath("/suppliers");
+    return { ok: true, supplier };
+  } catch (error) {
+    console.error("quickCreateSupplier failed", error);
+    return { ok: false, error: "Could not create the supplier. Please try again." };
+  }
 }
 
 export async function createSupplier(

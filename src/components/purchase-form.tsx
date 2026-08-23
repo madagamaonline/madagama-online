@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Search, Trash2, Loader2, PackagePlus } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
+import { QuickSupplierModal } from "@/components/quick-supplier-modal";
 import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
@@ -59,6 +59,8 @@ export function PurchaseForm({
   } = productSearch;
   const [open, setOpen] = useState(false);
   const [quickProductOpen, setQuickProductOpen] = useState(false);
+  const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
+  const [addedSuppliers, setAddedSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [supplierId, setSupplierId] = useState(defaultSupplierId);
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
@@ -313,16 +315,16 @@ export function PurchaseForm({
             <div>
               <Label>Supplier</Label>
               <SearchSelect
-                options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+                options={[...addedSuppliers, ...suppliers].map((s) => ({ value: s.id, label: s.name }))}
                 value={supplierId}
                 onChange={setSupplierId}
                 placeholder="Select supplier…"
                 searchPlaceholder="Search suppliers…"
                 emptyText="No suppliers match."
               />
-              <Link href="/suppliers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
+              <button type="button" onClick={() => setQuickSupplierOpen(true)} className="mt-1 inline-block text-xs text-primary hover:underline">
                 + Add new supplier
-              </Link>
+              </button>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -390,6 +392,15 @@ export function PurchaseForm({
           onSuccess={(product) => {
             setQuickProductOpen(false);
             addProduct(product, true);
+          }}
+        />
+      )}
+      {quickSupplierOpen && (
+        <QuickSupplierModal
+          onClose={() => setQuickSupplierOpen(false)}
+          onSuccess={(supplier) => {
+            setAddedSuppliers((current) => [supplier, ...current]);
+            setSupplierId(supplier.id);
           }}
         />
       )}

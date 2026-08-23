@@ -580,8 +580,8 @@ export function CreditSale({
                 inputId="credit-sale-customer"
                 emptyText="Select a customer to continue"
               />
-              <Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">
-                + Add detailed customer
+              <Link href="/customers/new" target="_blank" rel="noreferrer" className="mt-1 inline-block text-xs text-primary hover:underline">
+                + Add detailed customer in new tab
               </Link>
             </div>
             <div>

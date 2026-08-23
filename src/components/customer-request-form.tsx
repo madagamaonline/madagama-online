@@ -1,7 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import Link from "next/link";
+import { Fragment, useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { CustomerRequestFormState } from "@/app/(app)/requests/actions";
 import { REQUEST_PRIORITY_OPTIONS, REQUEST_TYPE_OPTIONS } from "@/lib/customer-requests";
@@ -11,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { QuickCustomerModal } from "@/components/quick-customer-modal";
 
 export type CustomerRequestInitial = {
   title: string;
@@ -73,9 +73,14 @@ export function CustomerRequestForm({
   const values = initial ?? { ...empty, assignedToUserId: defaultAssigneeId };
   const [state, formAction, pending] = useActionState(action, {});
   const [customerId, setCustomerId] = useState(values.customerId);
+  const [addedCustomers, setAddedCustomers] = useState<typeof customers>([]);
+  const [showQuickCustomer, setShowQuickCustomer] = useState(false);
   const [followUpDate, setFollowUpDate] = useState(values.followUpDate);
 
+  const localCustomers = [...addedCustomers, ...customers];
+
   return (
+    <Fragment>
     <form action={formAction}>
       <Card>
         <CardContent className="space-y-5">
@@ -121,9 +126,9 @@ export function CustomerRequestForm({
             <Label htmlFor="customerId">Customer</Label>
             <Select id="customerId" name="customerId" value={customerId} onChange={(event) => setCustomerId(event.target.value)}>
               <option value="">Walk-in / no customer account</option>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} — {customer.phone}</option>)}
+              {localCustomers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} — {customer.phone}</option>)}
             </Select>
-            <Link href="/customers/new" className="mt-1 inline-block text-xs text-primary hover:underline">+ Add a customer record</Link>
+            <button type="button" onClick={() => setShowQuickCustomer(true)} className="mt-1 inline-block text-xs text-primary hover:underline">+ Quick add customer</button>
           </div>
 
           {!customerId && (
@@ -189,5 +194,15 @@ export function CustomerRequestForm({
         </CardContent>
       </Card>
     </form>
+    {showQuickCustomer && (
+      <QuickCustomerModal
+        onClose={() => setShowQuickCustomer(false)}
+        onSuccess={(customer) => {
+          setAddedCustomers((current) => [customer, ...current]);
+          setCustomerId(customer.id);
+        }}
+      />
+    )}
+    </Fragment>
   );
 }

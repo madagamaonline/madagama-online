@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 /**
  * Builds a human-readable product code: CATEGORY-SUBCATEGORY-NNNN
@@ -48,4 +49,24 @@ export async function nextProductCode(
     data: { seq: { increment: 1 } },
   });
   return buildProductCode(cat.code, null, cat.seq);
+}
+
+/**
+ * Peeks at the sticker code the next product will get, without consuming it.
+ * shortCode is a Postgres SERIAL, so the true next value lives in the sequence
+ * (max(shortCode) + 1 would be wrong once a product has been deleted). Purely
+ * a hint for the "New Product" form — a concurrent create can still take it,
+ * so never persist or rely on this value.
+ */
+export async function peekNextShortCode(): Promise<number | null> {
+  try {
+    const rows = await prisma.$queryRaw<{ last_value: bigint; is_called: boolean }[]>`
+      SELECT last_value, is_called FROM "Product_shortCode_seq"
+    `;
+    const row = rows[0];
+    if (!row) return null;
+    return Number(row.last_value) + (row.is_called ? 1 : 0);
+  } catch {
+    return null;
+  }
 }

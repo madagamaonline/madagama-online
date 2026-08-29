@@ -67,6 +67,7 @@ export function ProductForm({
   isEdit = false,
   nonTaxableEnabled = true,
   defaultTargetMarginPct = 20,
+  nextShortCode = null,
 }: {
   categories: Category[];
   suppliers: Supplier[];
@@ -76,6 +77,8 @@ export function ProductForm({
   isEdit?: boolean;
   nonTaxableEnabled?: boolean;
   defaultTargetMarginPct?: number;
+  /** Sticker code the next product will most likely get — a hint only. */
+  nextShortCode?: number | null;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
@@ -110,6 +113,15 @@ export function ProductForm({
             <div className="rounded-lg bg-input px-3 py-2 text-sm">
               Product code: <b>{initial.code}</b>{" "}
               <span className="text-muted">(generated automatically)</span>
+            </div>
+          )}
+
+          {!initial.code && nextShortCode != null && (
+            <div className="rounded-lg bg-input px-3 py-2 text-sm">
+              Next sticker code: <b className="font-mono text-primary-ink">#{nextShortCode}</b>{" "}
+              <span className="text-muted">
+                (assigned when you save — check the product page if someone else adds one first)
+              </span>
             </div>
           )}
 

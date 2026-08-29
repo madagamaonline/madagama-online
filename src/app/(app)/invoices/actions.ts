@@ -65,6 +65,8 @@ type Computed = {
   unitDiscount: number;
   warrantyMonths: number | null;
   costSnapshot: number;
+  supplierAtSaleId: string | null;
+  supplierNameSnapshot: string | null;
 };
 
 export async function createCashInvoice(input: CreateInvoiceInput): Promise<CreateInvoiceResult> {
@@ -120,6 +122,8 @@ async function createSale(
       quantityReserved: true,
       costPrice: true,
       trackingType: true,
+      primarySupplierId: true,
+      primarySupplier: { select: { name: true } },
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -167,6 +171,8 @@ async function createSale(
       unitDiscount: line.unitDiscount,
       warrantyMonths: line.warrantyMonths ?? null,
       costSnapshot: toNum(p.costPrice),
+      supplierAtSaleId: p.primarySupplierId,
+      supplierNameSnapshot: p.primarySupplier?.name ?? null,
     };
     (p.taxable ? taxable : nonTaxable).push(entry);
   }
@@ -237,6 +243,9 @@ async function createSale(
                     warrantyMonths: it.warrantyMonths,
                     lineTotal: round2(it.qty * (it.unitPrice - it.unitDiscount)),
                     costSnapshot: it.costSnapshot,
+                    supplierAtSaleId: it.supplierAtSaleId,
+                    supplierNameSnapshot: it.supplierNameSnapshot,
+                    supplierAttribution: "CAPTURED",
                   })),
                 },
               },

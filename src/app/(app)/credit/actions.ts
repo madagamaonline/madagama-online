@@ -117,6 +117,8 @@ export async function createCreditSale(
       quantityInStock: true,
       costPrice: true,
       trackingType: true,
+      primarySupplierId: true,
+      primarySupplier: { select: { name: true } },
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -202,6 +204,9 @@ export async function createCreditSale(
                   warrantyMonths: line.warrantyMonths ?? null,
                   lineTotal: line.qty * (line.unitPrice - line.unitDiscount),
                   costSnapshot: toNum(p.costPrice),
+                  supplierAtSaleId: p.primarySupplierId,
+                  supplierNameSnapshot: p.primarySupplier?.name ?? null,
+                  supplierAttribution: "CAPTURED",
                 })),
               },
             },

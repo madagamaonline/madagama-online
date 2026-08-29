@@ -142,6 +142,11 @@ enum UnitOfMeasure {
   INCH
 }
 
+enum SupplierAttribution {
+  CAPTURED
+  LEGACY_INFERRED
+}
+
 model Product {
   id                String            @id @default(cuid())
   code              String            @unique // e.g. AGR-TOOL-0001
@@ -310,6 +315,7 @@ model Supplier {
   issuedCheques              IssuedCheque[]
   consignmentVehicles        ConsignmentVehicle[]
   vehicleSupplierSettlements VehicleSupplierSettlement[]
+  invoiceItemsAtSale         InvoiceItem[]               @relation("InvoiceItemSupplierAtSale")
 }
 
 // ----------------------------------------------------------------------------
@@ -974,28 +980,35 @@ model LayawayPayment {
 }
 
 model InvoiceItem {
-  id             String         @id @default(cuid())
-  invoice        Invoice        @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  invoiceId      String
-  product        Product?       @relation(fields: [productId], references: [id])
-  productId      String?
-  nameSnapshot   String
-  codeSnapshot   String?
-  qty            Decimal        @db.Decimal(16, 4)
-  unit           UnitOfMeasure  @default(EACH)
-  enteredQty     Decimal?       @db.Decimal(16, 4)
-  enteredUnit    UnitOfMeasure?
-  unitPrice      Decimal        @db.Decimal(12, 2)
-  unitDiscount   Decimal        @default("0") @db.Decimal(12, 2)
-  warrantyMonths Int?
-  lineTotal      Decimal        @db.Decimal(12, 2)
+  id                   String               @id @default(cuid())
+  invoice              Invoice              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceId            String
+  product              Product?             @relation(fields: [productId], references: [id])
+  productId            String?
+  nameSnapshot         String
+  codeSnapshot         String?
+  qty                  Decimal              @db.Decimal(16, 4)
+  unit                 UnitOfMeasure        @default(EACH)
+  enteredQty           Decimal?             @db.Decimal(16, 4)
+  enteredUnit          UnitOfMeasure?
+  unitPrice            Decimal              @db.Decimal(12, 2)
+  unitDiscount         Decimal              @default("0") @db.Decimal(12, 2)
+  warrantyMonths       Int?
+  lineTotal            Decimal              @db.Decimal(12, 2)
   // Product cost at the moment of sale, captured so profit reports stay correct
   // even after the product's cost later changes (WAC / bulk re-pricing). Null on
   // rows created before this field existed — reports fall back to current cost.
-  costSnapshot   Decimal?       @db.Decimal(12, 2)
+  costSnapshot         Decimal?             @db.Decimal(12, 2)
+  // Supplier attribution is frozen with the sale for stable historical reports.
+  // Legacy rows are best-effort backfills from the product's primary supplier.
+  supplierAtSale       Supplier?            @relation("InvoiceItemSupplierAtSale", fields: [supplierAtSaleId], references: [id], onDelete: SetNull)
+  supplierAtSaleId     String?
+  supplierNameSnapshot String?
+  supplierAttribution  SupplierAttribution?
 
   @@index([invoiceId])
   @@index([productId])
+  @@index([supplierAtSaleId])
 }
 
 // ----------------------------------------------------------------------------

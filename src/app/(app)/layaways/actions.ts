@@ -151,7 +151,7 @@ export async function handoverLayaway(_previous: LayawayActionState, formData: F
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const result = await prisma.$transaction(async (tx) => {
-        const order = await tx.layawayOrder.findUnique({ where: { id: orderId }, include: { items: { include: { product: { select: { taxable: true, quantityInStock: true, quantityReserved: true } } } }, payments: { select: { amount: true } } } });
+        const order = await tx.layawayOrder.findUnique({ where: { id: orderId }, include: { items: { include: { product: { select: { taxable: true, quantityInStock: true, quantityReserved: true, primarySupplierId: true, primarySupplier: { select: { name: true } } } } } }, payments: { select: { amount: true } } } });
         if (!order) throw new Error("Layaway not found.");
         if (order.status === "RELEASED" && order.invoiceId) return { invoiceId: order.invoiceId, customerId: order.customerId };
         const collected = round2(order.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0));
@@ -160,7 +160,7 @@ export async function handoverLayaway(_previous: LayawayActionState, formData: F
         if (order.items.some((item) => item.product.taxable !== taxable)) throw new Error("Mixed tax categories cannot be handed over on one invoice.");
         const invoiceNumber = await generateInvoiceNumber(tx, taxable ? "TAXABLE" : "NON_TAXABLE");
         const invoice = await tx.invoice.create({ data: { invoiceNumber, type: "LAYAWAY", taxCategory: taxable ? "TAXABLE" : "NON_TAXABLE", customerId: order.customerId, subtotal: order.subtotal, discount: order.discount, grandTotal: order.total, amountPaid: order.total, status: "PAID", notes: `Handover for layaway LAY-${String(order.orderNumber).padStart(6, "0")}`, createdByUserId: user.id,
-          items: { create: order.items.map((item) => ({ productId: item.productId, nameSnapshot: item.nameSnapshot, codeSnapshot: item.codeSnapshot, qty: item.qty, unit: item.unit, enteredQty: item.enteredQty, enteredUnit: item.enteredUnit, unitPrice: item.unitPrice, lineTotal: item.lineTotal, costSnapshot: item.costSnapshot })) } } });
+          items: { create: order.items.map((item) => ({ productId: item.productId, nameSnapshot: item.nameSnapshot, codeSnapshot: item.codeSnapshot, qty: item.qty, unit: item.unit, enteredQty: item.enteredQty, enteredUnit: item.enteredUnit, unitPrice: item.unitPrice, lineTotal: item.lineTotal, costSnapshot: item.costSnapshot, supplierAtSaleId: item.product.primarySupplierId, supplierNameSnapshot: item.product.primarySupplier?.name ?? null, supplierAttribution: "CAPTURED" })) } } });
         for (const item of order.items) {
           const updated = await tx.product.updateMany({ where: { id: item.productId, quantityReserved: { gte: item.qty }, quantityInStock: { gte: item.qty } }, data: { quantityReserved: { decrement: item.qty }, quantityInStock: { decrement: item.qty } } });
           if (updated.count !== 1) throw new Error(`Stock is inconsistent for ${item.codeSnapshot}.`);

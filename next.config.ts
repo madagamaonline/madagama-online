@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // PDFKit loads its built-in font metrics from the filesystem at runtime.
+  // Keep it as a native Node dependency instead of bundling it into Route Handlers.
+  serverExternalPackages: ["pdfkit"],
   async headers() {
     return [
       {

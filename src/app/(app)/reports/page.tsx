@@ -29,6 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, toNum, round2 } from "@/lib/utils";
 import { canonicalUnit, formatQuantity } from "@/lib/units";
+import { getSupplierSalesReport } from "@/lib/supplier-sales";
 
 export const dynamic = "force-dynamic";
 
@@ -120,6 +121,7 @@ export default async function ReportsPage({
     interestAgreements,
     realizedInvoices,
     vehicleSales,
+    supplierSalesReport,
   ] = await Promise.all([
     prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
@@ -233,6 +235,7 @@ export default async function ReportsPage({
         customerCollected: true,
       },
     }),
+    getSupplierSalesReport(selKey),
   ]);
   const [payLaterIssuedAgg, payLaterCollectedAgg, payLaterAccounts] = await Promise.all([
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, _count: true, where: { type: "OPEN_ACCOUNT", createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
@@ -541,6 +544,18 @@ export default async function ReportsPage({
               >
                 <Download className="h-4 w-4" /> Daily CSV
               </a>
+              <a
+                href={`/api/export/supplier-sales/xlsx?month=${selKey}`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Download className="h-4 w-4" /> Supplier Excel
+              </a>
+              <a
+                href={`/api/export/supplier-sales/pdf?month=${selKey}`}
+                className={buttonVariants({ variant: "outline", size: "sm" })}
+              >
+                <Download className="h-4 w-4" /> Supplier PDF
+              </a>
               <PrintButton label="Print / Save PDF" />
             </div>
           }
@@ -662,6 +677,72 @@ export default async function ReportsPage({
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mb-4">
+        <CardHeader>
+          <CardTitle>Supplier-wise merchandise sales (month)</CardTitle>
+          <p className="text-sm text-muted">Sales use the supplier frozen on each invoice line. Returns are assigned back to the original sale supplier.</p>
+        </CardHeader>
+        <CardContent className="p-0">
+          {supplierSalesReport.suppliers.length === 0 ? (
+            <div className="px-5 py-8 text-center text-sm text-muted">No supplier-attributed sales or returns this month.</div>
+          ) : (
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Supplier</TH>
+                  <TH className="text-right">Invoices</TH>
+                  <TH className="text-right">Sales</TH>
+                  <TH className="text-right">Returns</TH>
+                  <TH className="text-right">Net sales</TH>
+                  <TH className="text-right">Net COGS</TH>
+                  <TH className="text-right">Gross profit</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {supplierSalesReport.suppliers.map((row) => (
+                  <TR key={row.key}>
+                    <TD className="font-medium">
+                      {row.supplierName}
+                      {row.inferredLineCount > 0 && <span className="ml-1 text-xs font-normal text-muted">({row.inferredLineCount} legacy inferred)</span>}
+                    </TD>
+                    <TD className="text-right">{row.invoiceCount}</TD>
+                    <TD className="text-right">{formatLKR(row.sales)}</TD>
+                    <TD className="text-right">{formatLKR(row.returns)}</TD>
+                    <TD className="text-right font-medium">{formatLKR(row.netSales)}</TD>
+                    <TD className="text-right">{formatLKR(row.cogs)}</TD>
+                    <TD className="text-right font-medium">{formatLKR(row.grossProfit)}</TD>
+                  </TR>
+                ))}
+                <TR>
+                  <TD className="font-bold">Total</TD>
+                  <TD className="text-right font-bold">{supplierSalesReport.totals.invoiceCount}</TD>
+                  <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.sales)}</TD>
+                  <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.returns)}</TD>
+                  <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.netSales)}</TD>
+                  <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.cogs)}</TD>
+                  <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.grossProfit)}</TD>
+                </TR>
+              </TBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {supplierSalesReport.vehicleSuppliers.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader>
+            <CardTitle>Consignment vehicle sales by supplier</CardTitle>
+            <p className="text-sm text-muted">Kept separate because dealership revenue is the net commission, not the full vehicle selling price.</p>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <THead><TR><TH>Supplier</TH><TH className="text-right">Vehicles</TH><TH className="text-right">Customer price</TH><TH className="text-right">Supplier due</TH><TH className="text-right">Net commission</TH></TR></THead>
+              <TBody>{supplierSalesReport.vehicleSuppliers.map((row) => <TR key={row.supplierId}><TD className="font-medium">{row.supplierName}</TD><TD className="text-right">{row.vehiclesSold}</TD><TD className="text-right">{formatLKR(row.customerPrice)}</TD><TD className="text-right">{formatLKR(row.supplierSettlementDue)}</TD><TD className="text-right font-medium">{formatLKR(row.netCommission)}</TD></TR>)}</TBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Charts are on-screen only — the printed report keeps the tables. */}
       <div className="no-print grid grid-cols-1 gap-4 lg:grid-cols-2">

@@ -42,6 +42,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { CommandPalette } from "@/components/command-palette";
 import { ConfirmProvider } from "@/components/ui/confirm-dialog";
 import { Pwa } from "@/components/pwa";
+import { NumberInputWheelGuard } from "@/components/number-input-wheel-guard";
 
 type NavItem = {
   href: string;
@@ -303,6 +304,7 @@ export function AppShell({
             </div>
           </div>
         </header>
+        <NumberInputWheelGuard />
         <main className="min-h-0 flex-1 overflow-y-auto px-5 pt-6 pb-10 lg:overflow-visible lg:px-6 lg:py-6">
           <div key={pathname} className="animate-page-in">
             {children}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useState, useTransition } from "react";
+import Link from "next/link";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import {
   createCategory,
@@ -18,7 +19,13 @@ import { Badge } from "@/components/ui/badge";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
 type Sub = { id: string; name: string; code: string; _count: { products: number } };
-type Category = { id: string; name: string; code: string; subcategories: Sub[] };
+type Category = {
+  id: string;
+  name: string;
+  code: string;
+  _count: { products: number };
+  subcategories: Sub[];
+};
 
 const initial: ActionState = {};
 
@@ -228,7 +235,13 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
               ) : (
                 <div className="flex items-center justify-between gap-2">
                   <CardTitle>
-                    {cat.name} <Badge tone="blue">{cat.code}</Badge>
+                    <Link href={`/products?cat=${cat.id}`} className="hover:underline" title={`View products in ${cat.name}`}>
+                      {cat.name}
+                    </Link>{" "}
+                    <Badge tone="blue">{cat.code}</Badge>{" "}
+                    <span className="text-xs font-normal text-muted">
+                      {cat._count.products} item(s) in total
+                    </span>
                   </CardTitle>
                   <div className="flex items-center gap-1">
                     <button
@@ -259,7 +272,13 @@ export function CategoryManager({ categories }: { categories: Category[] }) {
                       ) : (
                         <div className="flex items-center justify-between gap-2">
                           <span className="flex flex-wrap items-center gap-2">
-                            <b>{s.name}</b>
+                            <Link
+                              href={`/products?sub=${s.id}`}
+                              className="font-bold hover:underline"
+                              title={`View products in ${s.name}`}
+                            >
+                              {s.name}
+                            </Link>
                             <Badge>
                               {cat.code}-{s.code}
                             </Badge>

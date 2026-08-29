@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Tags, Pencil, Download, Percent, Sticker } from "lucide-react";
+import { Plus, Tags, Pencil, Download, Percent, Sticker, X } from "lucide-react";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
@@ -15,6 +15,7 @@ import { formatLKR, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
+import { ProductCategoryFilter } from "@/components/product-category-filter";
 import { toggleProductActive } from "./actions";
 import { canonicalUnit, formatQuantity } from "@/lib/units";
 
@@ -25,10 +26,13 @@ const PAGE_SIZE = 50;
 export default async function ProductsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; cat?: string; sub?: string }>;
 }) {
-  const { q, page } = await searchParams;
+  const { q, page, cat, sub } = await searchParams;
   const query = (q ?? "").trim();
+  // A subcategory already implies its parent, so it wins when both are present.
+  const catId = (cat ?? "").trim() || undefined;
+  const subId = (sub ?? "").trim() || undefined;
   const ntEnabled = await nonTaxableEnabled();
 
   // Same parser the POS type-ahead uses, so a query typed here and at the till
@@ -43,6 +47,8 @@ export default async function ProductsPage({
   ]);
   const where: Prisma.ProductWhereInput = {
     ...productTaxableWhere(ntEnabled),
+    // Kept at the top level so it ANDs with the search OR below.
+    ...(subId ? { subcategoryId: subId } : catId ? { categoryId: catId } : {}),
     ...(parsed.isEmpty
       ? {}
       : {
@@ -59,7 +65,7 @@ export default async function ProductsPage({
   // still lands on a real page instead of an empty table.
   const currentPage = Math.min(Math.max(1, Number(page) || 1), totalPages);
 
-  const [products, settings, session] = await Promise.all([
+  const [products, settings, session, filterCategories, selectedSub, selectedCat] = await Promise.all([
     prisma.product.findMany({
       where,
       orderBy: { code: "asc" },
@@ -69,17 +75,51 @@ export default async function ProductsPage({
     }),
     getSettings(),
     getSession(),
+    prisma.category.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        subcategories: { orderBy: { name: "asc" }, select: { id: true, name: true } },
+      },
+    }),
+    subId
+      ? prisma.subcategory.findUnique({
+          where: { id: subId },
+          select: { id: true, name: true, category: { select: { id: true, name: true } } },
+        })
+      : null,
+    catId && !subId
+      ? prisma.category.findUnique({ where: { id: catId }, select: { id: true, name: true } })
+      : null,
   ]);
   const defaultTarget = toNum(settings?.defaultTargetMarginPct ?? 20);
   const isAdmin = session?.role === "ADMIN";
 
-  const pageHref = (p: number) => {
+  // The active filter, resolved to names for the chip. A stale id (deleted
+  // category) resolves to null and simply shows no chip.
+  const filterLabel = selectedSub
+    ? `${selectedSub.category.name} / ${selectedSub.name}`
+    : selectedCat
+      ? selectedCat.name
+      : null;
+  const filterValue = selectedSub ? `sub:${selectedSub.id}` : selectedCat ? `cat:${selectedCat.id}` : "";
+
+  const listHref = (params: { page?: number; cat?: string; sub?: string; keepFilter?: boolean }) => {
     const sp = new URLSearchParams();
     if (query) sp.set("q", query);
-    if (p > 1) sp.set("page", String(p));
+    if (params.keepFilter) {
+      if (subId) sp.set("sub", subId);
+      else if (catId) sp.set("cat", catId);
+    }
+    if (params.sub) sp.set("sub", params.sub);
+    else if (params.cat) sp.set("cat", params.cat);
+    if (params.page && params.page > 1) sp.set("page", String(params.page));
     const qs = sp.toString();
     return qs ? `/products?${qs}` : "/products";
   };
+  // Paging must carry the filter, or "Next" would silently widen the list.
+  const pageHref = (p: number) => listHref({ page: p, keepFilter: true });
 
   const rows = products.map((p) => {
     const available = toNum(p.quantityInStock) - toNum(p.quantityReserved);
@@ -131,16 +171,38 @@ export default async function ProductsPage({
 
       <Card>
         <CardContent className="p-0">
-          <div className="border-b border-border p-4">
-            <ListSearch
-              placeholder="Search by sticker # (e.g. 12), code, name or barcode…"
-              resetParams={["page"]}
-            />
+          <div className="space-y-3 border-b border-border p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <ListSearch
+                placeholder="Search by sticker # (e.g. 12), code, name or barcode…"
+                resetParams={["page"]}
+                className="relative w-full sm:max-w-md"
+              />
+              <ProductCategoryFilter categories={filterCategories} current={filterValue} />
+            </div>
+            {filterLabel && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted">Filtered to</span>
+                <Link
+                  href={listHref({})}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-3 py-1 font-medium hover:bg-border-subtle"
+                  title="Clear category filter"
+                >
+                  {filterLabel}
+                  <X className="h-3.5 w-3.5 text-muted" />
+                </Link>
+                <span className="text-muted">
+                  {total} product{total === 1 ? "" : "s"}
+                </span>
+              </div>
+            )}
           </div>
 
           {products.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">
-              {query ? "No products match your search." : "No products yet. Add your first product."}
+              {query || filterLabel
+                ? "No products match the current search or filter."
+                : "No products yet. Add your first product."}
             </div>
           ) : (
             <>
@@ -186,8 +248,17 @@ export default async function ProductsPage({
                           {p.modelNumber ? <Highlight text={p.modelNumber} query={query} /> : "—"}
                         </TD>
                         <TD className="text-muted">
-                          {p.category.name}
-                          {p.subcategory ? ` / ${p.subcategory.name}` : ""}
+                          <Link href={listHref({ cat: p.categoryId })} className="hover:underline">
+                            {p.category.name}
+                          </Link>
+                          {p.subcategory && (
+                            <>
+                              {" / "}
+                              <Link href={listHref({ sub: p.subcategoryId! })} className="hover:underline">
+                                {p.subcategory.name}
+                              </Link>
+                            </>
+                          )}
                         </TD>
                         <TD className="text-right text-muted">{formatLKR(cost)}</TD>
                         <TD className="text-right">{formatLKR(p.sellingPrice)}</TD>
@@ -252,8 +323,17 @@ export default async function ProductsPage({
                           <Highlight text={p.name} query={query} />
                         </Link>
                         <div className="mt-0.5 text-xs text-muted">
-                          {p.category.name}
-                          {p.subcategory ? ` / ${p.subcategory.name}` : ""}
+                          <Link href={listHref({ cat: p.categoryId })} className="hover:underline">
+                            {p.category.name}
+                          </Link>
+                          {p.subcategory && (
+                            <>
+                              {" / "}
+                              <Link href={listHref({ sub: p.subcategoryId! })} className="hover:underline">
+                                {p.subcategory.name}
+                              </Link>
+                            </>
+                          )}
                           {p.modelNumber && (
                             <>
                               {" · "}

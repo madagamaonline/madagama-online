@@ -6,12 +6,16 @@ export function StatCard({
   hint,
   icon: Icon,
   tone = "default",
+  valueClassName,
+  compactOnMobile = false,
 }: {
   label: string;
   value: string;
   hint?: string;
   icon?: React.ElementType;
   tone?: "default" | "green" | "amber" | "red" | "blue";
+  valueClassName?: string;
+  compactOnMobile?: boolean;
 }) {
   const toneClasses: Record<string, string> = {
     default: "bg-border-subtle text-muted",
@@ -41,19 +45,20 @@ export function StatCard({
     <div
       className={cn(
         "rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] transition-all",
+        compactOnMobile && "p-4 sm:p-5",
         borderClasses[tone],
       )}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[12.5px] font-medium text-muted">{label}</p>
-          <p className={cn("tabular mt-1.5 text-2xl font-extrabold tracking-tight", valueColorClasses[tone])}>
+          <p className={cn("tabular mt-1.5 text-2xl font-extrabold tracking-tight", valueColorClasses[tone], valueClassName)}>
             {value}
           </p>
           {hint && <p className="mt-1 text-xs text-faint">{hint}</p>}
         </div>
         {Icon && (
-          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px]", toneClasses[tone])}>
+          <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px]", compactOnMobile && "hidden sm:flex", toneClasses[tone])}>
             <Icon className="h-[18px] w-[18px]" />
           </div>
         )}
@@ -61,4 +66,3 @@ export function StatCard({
     </div>
   );
 }
-

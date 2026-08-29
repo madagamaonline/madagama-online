@@ -697,6 +697,7 @@ export default async function ReportsPage({
                   <TH className="text-right">Net sales</TH>
                   <TH className="text-right">Net COGS</TH>
                   <TH className="text-right">Gross profit</TH>
+                  <TH className="text-right">Details</TH>
                 </TR>
               </THead>
               <TBody>
@@ -712,6 +713,14 @@ export default async function ReportsPage({
                     <TD className="text-right font-medium">{formatLKR(row.netSales)}</TD>
                     <TD className="text-right">{formatLKR(row.cogs)}</TD>
                     <TD className="text-right font-medium">{formatLKR(row.grossProfit)}</TD>
+                    <TD className="text-right">
+                      <Link
+                        href={`/reports/supplier-sales?from=${selKey}-01&to=${businessDayKey(addDays(monthEnd, -1))}&supplier=${encodeURIComponent(row.key)}`}
+                        className="text-xs font-bold text-primary hover:underline"
+                      >
+                        View details
+                      </Link>
+                    </TD>
                   </TR>
                 ))}
                 <TR>
@@ -722,6 +731,9 @@ export default async function ReportsPage({
                   <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.netSales)}</TD>
                   <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.cogs)}</TD>
                   <TD className="text-right font-bold">{formatLKR(supplierSalesReport.totals.grossProfit)}</TD>
+                  <TD className="text-right">
+                    <Link href={`/reports/supplier-sales?from=${selKey}-01&to=${businessDayKey(addDays(monthEnd, -1))}`} className="text-xs font-bold text-primary hover:underline">Explore all</Link>
+                  </TD>
                 </TR>
               </TBody>
             </Table>

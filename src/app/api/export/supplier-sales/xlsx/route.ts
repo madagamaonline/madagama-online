@@ -29,7 +29,12 @@ export async function GET(request: Request) {
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canAccessStaffFinance(session.role)) return new Response("Forbidden", { status: 403 });
 
-  const report = await getSupplierSalesReport(new URL(request.url).searchParams.get("month"));
+  const params = new URL(request.url).searchParams;
+  const activity = params.get("activity");
+  const report = await getSupplierSalesReport(params.get("month"), {
+    from: params.get("from"), to: params.get("to"), supplier: params.get("supplier"), product: params.get("product"),
+    activity: activity === "sales" || activity === "returns" ? activity : "all",
+  });
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Madagama";
   workbook.created = report.generatedAt;
@@ -73,7 +78,7 @@ export async function GET(request: Request) {
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="supplier-sales-${report.monthKey}.xlsx"`,
+      "Content-Disposition": `attachment; filename="supplier-sales-${report.monthLabel.replaceAll(" ", "-")}.xlsx"`,
       "Cache-Control": "private, no-store",
     },
   });

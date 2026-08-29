@@ -29,8 +29,13 @@ export async function GET(request: Request) {
   if (!session) return new Response("Unauthorized", { status: 401 });
   if (!canAccessStaffFinance(session.role)) return new Response("Forbidden", { status: 403 });
 
+  const params = new URL(request.url).searchParams;
+  const activity = params.get("activity");
   const [report, settings] = await Promise.all([
-    getSupplierSalesReport(new URL(request.url).searchParams.get("month")),
+    getSupplierSalesReport(params.get("month"), {
+      from: params.get("from"), to: params.get("to"), supplier: params.get("supplier"), product: params.get("product"),
+      activity: activity === "sales" || activity === "returns" ? activity : "all",
+    }),
     getSettings(),
   ]);
   const doc = new PDFDocument({ size: "A4", layout: "landscape", margin: 30, bufferPages: true, info: { Title: `Supplier sales - ${report.monthLabel}`, Author: settings?.businessName ?? "Madagama Pvt Ltd" } });
@@ -110,7 +115,7 @@ export async function GET(request: Request) {
   return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="supplier-sales-${report.monthKey}.pdf"`,
+      "Content-Disposition": `attachment; filename="supplier-sales-${report.monthLabel.replaceAll(" ", "-")}.pdf"`,
       "Cache-Control": "private, no-store",
     },
   });

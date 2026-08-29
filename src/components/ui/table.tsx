@@ -3,7 +3,12 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
+export function Table({
+  className,
+  containerClassName,
+  scrollHint = false,
+  ...props
+}: React.TableHTMLAttributes<HTMLTableElement> & { containerClassName?: string; scrollHint?: boolean }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [edges, setEdges] = React.useState({ left: false, right: false });
 
@@ -32,9 +37,14 @@ export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTab
 
   return (
     <div className="relative">
-      <div ref={ref} className="w-full overflow-x-auto scrollbar-thin">
+      <div ref={ref} className={cn("w-full overflow-auto scrollbar-thin", containerClassName)}>
         <table className={cn("w-full border-collapse text-sm", className)} {...props} />
       </div>
+      {scrollHint && edges.right && (
+        <div className="pointer-events-none absolute bottom-2 right-3 z-30 rounded-md border border-border bg-surface/95 px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-muted shadow-sm sm:hidden">
+          Swipe for more →
+        </div>
+      )}
       {/* Soft-edge fades hint at horizontally scrollable content. */}
       <div
         className={cn(

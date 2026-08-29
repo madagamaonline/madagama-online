@@ -2,15 +2,16 @@ import "server-only";
 
 import type { SupplierAttribution, UnitOfMeasure } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { addDays, businessMonthKey, businessStartOfMonth } from "@/lib/dates";
 import { activeInvoiceWhere, nonTaxableEnabled } from "@/lib/tax-mode";
 import { round2, toNum } from "@/lib/utils";
 import { allocateInvoiceTotal } from "@/lib/supplier-sales-math";
+import { reportBounds } from "@/lib/supplier-sales-analytics";
 
 export type SupplierSalesDetailRow = {
   kind: "SALE" | "RETURN";
   date: Date;
   invoiceNumber: string;
+  invoiceId: string | null;
   supplierId: string | null;
   supplierName: string;
   attribution: SupplierAttribution | null;
@@ -23,6 +24,10 @@ export type SupplierSalesDetailRow = {
   returns: number;
   cogs: number;
   returnedCogs: number;
+  customerName: string;
+  cashierName: string;
+  salespersonName: string;
+  saleType: string;
 };
 
 export type SupplierSalesRow = {
@@ -57,21 +62,21 @@ export type SupplierSalesReport = {
   monthKey: string;
   monthLabel: string;
   generatedAt: Date;
+  start: Date;
+  end: Date;
   details: SupplierSalesDetailRow[];
   suppliers: SupplierSalesRow[];
   vehicleSuppliers: VehicleSupplierSalesRow[];
   totals: Omit<SupplierSalesRow, "key" | "supplierId" | "supplierName">;
 };
 
-export function normalizedReportMonth(raw: string | null | undefined, now = new Date()): string {
-  const nowKey = businessMonthKey(now);
-  return raw && /^\d{4}-(0[1-9]|1[0-2])$/.test(raw) && raw <= nowKey ? raw : nowKey;
-}
-
-function monthBounds(key: string) {
-  const start = businessStartOfMonth(new Date(`${key}-15T00:00:00Z`));
-  return { start, end: businessStartOfMonth(addDays(start, 45)) };
-}
+export type SupplierSalesReportOptions = {
+  from?: string | null;
+  to?: string | null;
+  supplier?: string | null;
+  product?: string | null;
+  activity?: "all" | "sales" | "returns" | null;
+};
 
 function supplierIdentity(item: {
   supplierAtSaleId: string | null;
@@ -87,10 +92,9 @@ function supplierIdentity(item: {
   };
 }
 
-export async function getSupplierSalesReport(rawMonth?: string | null): Promise<SupplierSalesReport> {
+export async function getSupplierSalesReport(rawMonth?: string | null, options: SupplierSalesReportOptions = {}): Promise<SupplierSalesReport> {
   const generatedAt = new Date();
-  const monthKey = normalizedReportMonth(rawMonth, generatedAt);
-  const { start, end } = monthBounds(monthKey);
+  const { monthKey, from, to, start, end } = reportBounds(rawMonth, options, generatedAt);
   const ntEnabled = await nonTaxableEnabled();
   const invoiceFilter = activeInvoiceWhere(ntEnabled);
 
@@ -103,6 +107,10 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
         invoiceNumber: true,
         createdAt: true,
         grandTotal: true,
+        type: true,
+        customer: { select: { name: true } },
+        createdBy: { select: { name: true } },
+        soldBy: { select: { name: true } },
         items: {
           orderBy: { id: "asc" },
           select: {
@@ -122,16 +130,26 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
       },
     }),
     prisma.salesReturn.findMany({
-      where: { date: { gte: start, lt: end }, ...(ntEnabled ? {} : { invoice: invoiceFilter }) },
+      // Returns against a voided/hidden invoice drop out, but a return with no
+      // invoice at all still belongs in the ledger (the report renders those as
+      // "Unlinked return") — a bare relation filter would silently exclude them.
+      where: { date: { gte: start, lt: end }, OR: [{ invoiceId: null }, { invoice: invoiceFilter }] },
       orderBy: [{ date: "asc" }, { id: "asc" }],
       select: {
         date: true,
         invoice: {
           select: {
+            id: true,
             invoiceNumber: true,
+            type: true,
+            customer: { select: { name: true } },
+            createdBy: { select: { name: true } },
+            soldBy: { select: { name: true } },
             items: {
               select: {
                 productId: true,
+                codeSnapshot: true,
+                nameSnapshot: true,
                 supplierAtSaleId: true,
                 supplierNameSnapshot: true,
                 supplierAttribution: true,
@@ -176,6 +194,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
         kind: "SALE",
         date: invoice.createdAt,
         invoiceNumber: invoice.invoiceNumber,
+        invoiceId: invoice.id,
         supplierId: supplier.id,
         supplierName: supplier.name,
         attribution: supplier.attribution,
@@ -188,6 +207,10 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
         returns: 0,
         cogs: round2(toNum(item.qty) * toNum(item.costSnapshot ?? item.product?.costPrice ?? 0)),
         returnedCogs: 0,
+        customerName: invoice.customer?.name ?? "Walk-in customer",
+        cashierName: invoice.createdBy?.name ?? "Not recorded",
+        salespersonName: invoice.soldBy?.name ?? "Not recorded",
+        saleType: invoice.type,
       });
     });
   }
@@ -204,21 +227,36 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
         kind: "RETURN",
         date: customerReturn.date,
         invoiceNumber: customerReturn.invoice?.invoiceNumber ?? "Unlinked return",
+        invoiceId: customerReturn.invoice?.id ?? null,
         supplierId: supplier.id,
         supplierName: supplier.name,
         attribution: supplier.attribution,
         productId: item.productId,
-        productCode: item.product.code,
-        productName: item.product.name,
+        productCode: original?.codeSnapshot ?? item.product.code,
+        productName: original?.nameSnapshot ?? item.product.name,
         quantity: -toNum(item.qty),
         unit: item.unit,
         sales: 0,
         returns: toNum(item.lineTotal),
         cogs: 0,
         returnedCogs: round2(toNum(item.qty) * toNum(item.costSnapshot ?? item.product.costPrice)),
+        customerName: customerReturn.invoice?.customer?.name ?? "Walk-in customer",
+        cashierName: customerReturn.invoice?.createdBy?.name ?? "Not recorded",
+        salespersonName: customerReturn.invoice?.soldBy?.name ?? "Not recorded",
+        saleType: customerReturn.invoice?.type ?? "RETURN",
       });
     }
   }
+
+  const activity = options.activity ?? "all";
+  const filteredDetails = details.filter((row) => {
+    const key = row.supplierId ?? (row.supplierName === "Unassigned supplier" ? "unassigned" : `snapshot:${row.supplierName}`);
+    if (options.supplier && options.supplier !== "all" && key !== options.supplier) return false;
+    if (options.product && options.product !== "all" && row.productId !== options.product) return false;
+    if (activity === "sales" && row.kind !== "SALE") return false;
+    if (activity === "returns" && row.kind !== "RETURN") return false;
+    return true;
+  });
 
   type Acc = Omit<SupplierSalesRow, "invoiceCount" | "productCount" | "netSales" | "cogs" | "grossProfit" | "marginPct"> & {
     invoiceIds: Set<string>;
@@ -227,7 +265,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
     returnedCogs: number;
   };
   const grouped = new Map<string, Acc>();
-  for (const detail of details) {
+  for (const detail of filteredDetails) {
     const key = detail.supplierId ?? (detail.supplierName === "Unassigned supplier" ? "unassigned" : `snapshot:${detail.supplierName}`);
     const row = grouped.get(key) ?? {
       key,
@@ -246,8 +284,8 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
     row.returns += detail.returns;
     row.saleCogs += detail.cogs;
     row.returnedCogs += detail.returnedCogs;
-    if (detail.kind === "SALE") row.invoiceIds.add(detail.invoiceNumber);
-    if (detail.kind === "SALE" && detail.productId) row.productIds.add(detail.productId);
+    row.invoiceIds.add(detail.invoiceNumber);
+    if (detail.productId) row.productIds.add(detail.productId);
     if (detail.attribution === "LEGACY_INFERRED") row.inferredLineCount += 1;
     if (!detail.supplierId && detail.supplierName === "Unassigned supplier") row.unassignedLineCount += 1;
     grouped.set(key, row);
@@ -289,10 +327,12 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
     row.customerCollected += toNum(sale.customerCollected);
     vehicleMap.set(id, row);
   }
-  const vehicleSuppliers = [...vehicleMap.values()].map((row) => ({ ...row, customerPrice: round2(row.customerPrice), supplierSettlementDue: round2(row.supplierSettlementDue), grossCommission: round2(row.grossCommission), customerDiscount: round2(row.customerDiscount), netCommission: round2(row.netCommission), customerCollected: round2(row.customerCollected) })).sort((a, b) => b.netCommission - a.netCommission);
+  const vehicleSuppliers = [...vehicleMap.values()].map((row) => ({ ...row, customerPrice: round2(row.customerPrice), supplierSettlementDue: round2(row.supplierSettlementDue), grossCommission: round2(row.grossCommission), customerDiscount: round2(row.customerDiscount), netCommission: round2(row.netCommission), customerCollected: round2(row.customerCollected) }))
+    .filter((row) => !options.product && (!options.supplier || options.supplier === "all" || row.supplierId === options.supplier))
+    .sort((a, b) => b.netCommission - a.netCommission);
 
-  const allInvoiceNumbers = new Set(details.filter((row) => row.kind === "SALE").map((row) => row.invoiceNumber));
-  const allProductIds = new Set(details.flatMap((row) => row.kind === "SALE" && row.productId ? [row.productId] : []));
+  const allInvoiceNumbers = new Set(filteredDetails.map((row) => row.invoiceNumber));
+  const allProductIds = new Set(filteredDetails.flatMap((row) => row.productId ? [row.productId] : []));
   const totals = suppliers.reduce((total, row) => ({
     invoiceCount: allInvoiceNumbers.size,
     productCount: allProductIds.size,
@@ -309,9 +349,13 @@ export async function getSupplierSalesReport(rawMonth?: string | null): Promise<
 
   return {
     monthKey,
-    monthLabel: new Date(`${monthKey}-01T12:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
+    monthLabel: options.from || options.to
+      ? (from === to ? from : `${from} to ${to}`)
+      : new Date(`${monthKey}-01T12:00:00Z`).toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" }),
     generatedAt,
-    details,
+    start,
+    end,
+    details: filteredDetails,
     suppliers,
     vehicleSuppliers,
     totals,

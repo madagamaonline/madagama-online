@@ -1,6 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { getCurrentShiftSummary, getShiftReports } from "./actions";
-import { ShiftReportForm } from "@/components/shift-report-form";
+import { OpeningShiftForm, ShiftReportForm } from "@/components/shift-report-form";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -21,12 +21,16 @@ export default async function ShiftReportPage() {
     <div className="space-y-8">
       <PageHeader
         title="Shift & Cash Drawer"
-        subtitle="Perform end-of-shift drawer count checks and reconcile actual vs expected cash."
+        subtitle="Open the drawer with a change fund, track cash activity, and reconcile it at closing."
       />
 
       <div className="space-y-6">
         {/* Active Reconciliation Form */}
-        <ShiftReportForm summary={summary} cashierName={cashierName} />
+        {summary ? (
+          <ShiftReportForm summary={summary} cashierName={cashierName} />
+        ) : (
+          <OpeningShiftForm cashierName={cashierName} />
+        )}
 
         {/* History Table */}
         <Card className="mt-8">
@@ -45,6 +49,7 @@ export default async function ShiftReportPage() {
                   <TR>
                     <TH>Shift Timeframe</TH>
                     <TH>Operator</TH>
+                    <TH className="text-right">Opening Float</TH>
                     <TH className="text-right">Expected</TH>
                     <TH className="text-right">Actual</TH>
                     <TH className="text-right">Discrepancy</TH>
@@ -67,7 +72,12 @@ export default async function ShiftReportPage() {
                           </span>
                         </TD>
                         <TD className="font-semibold text-xs text-foreground">
-                          {r.operatorName}
+                          {r.openedByName ? (
+                            <><span className="block">Opened: {r.openedByName}</span><span className="block text-[10px] font-normal text-faint">Closed: {r.operatorName}</span></>
+                          ) : r.operatorName}
+                        </TD>
+                        <TD className="text-right text-xs text-muted">
+                          {r.openingCash == null ? "Legacy" : formatLKR(r.openingCash)}
                         </TD>
                         <TD className="text-right text-xs text-muted">
                           {formatLKR(r.expectedCash)}

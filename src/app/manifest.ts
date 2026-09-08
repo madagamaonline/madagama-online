@@ -13,7 +13,10 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     orientation: "portrait-primary",
     background_color: "#eef1f6",
-    theme_color: "#eef1f6",
+    // Installed Android PWAs can use this before page metadata is available.
+    // Keep the fallback dark enough that white system icons always remain
+    // legible, including on newer edge-to-edge Samsung devices.
+    theme_color: "#293681",
     icons: [
       { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
       { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },

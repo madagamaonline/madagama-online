@@ -47,6 +47,7 @@ body {
 }
 
 :root {
+  color-scheme: light;
   --motion-fast: 120ms;
   --motion-overlay: 180ms;
   --motion-panel: 240ms;
@@ -55,6 +56,18 @@ body {
   --ease-enter: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Android 15+ may make an installed PWA's status bar transparent. Reserve the
+   top inset for system icons and paint it with the same background as the
+   app's active theme, matching the theme-color metadata set in the document. */
+.pwa-safe-header::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: env(safe-area-inset-top);
+  background: var(--color-background);
+  pointer-events: none;
 }
 
 /* A credit statement is a literal paper preview, not an application surface.

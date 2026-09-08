@@ -270,7 +270,7 @@ export function AppShell({
 
       {/* Main */}
       <div className="flex h-dvh min-w-0 flex-1 flex-col lg:h-auto">
-        <header className="sticky top-0 z-20 flex h-[62px] items-center justify-between border-b border-border-subtle bg-background/85 px-5 backdrop-blur-md lg:px-6 shadow-[0_1px_2px_rgba(30,41,74,0.02)]">
+        <header className="pwa-safe-header sticky top-0 z-20 flex h-[calc(62px+env(safe-area-inset-top))] items-center justify-between border-b border-border-subtle bg-background/85 px-5 pt-[env(safe-area-inset-top)] backdrop-blur-md shadow-[0_1px_2px_rgba(30,41,74,0.02)] lg:h-[62px] lg:px-6 lg:pt-0">
           <button
             className="motion-interactive rounded-lg p-2 text-muted hover:bg-border-subtle lg:hidden"
             onClick={() => setOpen(true)}

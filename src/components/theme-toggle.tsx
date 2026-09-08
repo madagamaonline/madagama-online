@@ -13,6 +13,14 @@ function clearTransitionState() {
   document.documentElement.classList.remove("theme-transitioning");
 }
 
+function syncBrowserChrome(dark: boolean) {
+  const color = dark ? "#12151b" : "#eef1f6";
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  document.querySelectorAll<HTMLMetaElement>('meta[name="theme-color"]').forEach((meta) => {
+    meta.content = color;
+  });
+}
+
 /**
  * Dark-mode toggle. The initial class is applied by the no-flash script in the
  * root layout before paint; this button only flips it and persists the choice.
@@ -39,6 +47,7 @@ export function ThemeToggle() {
   function applyTheme(next: boolean) {
     desiredDarkRef.current = next;
     document.documentElement.classList.toggle("dark", next);
+    syncBrowserChrome(next);
     setDark(next);
     try {
       localStorage.setItem(STORAGE_KEY, next ? "dark" : "light");

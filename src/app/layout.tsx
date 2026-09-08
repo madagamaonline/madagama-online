@@ -36,6 +36,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  colorScheme: "light dark",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#eef1f6" },
     { media: "(prefers-color-scheme: dark)", color: "#12151b" },
@@ -44,7 +45,7 @@ export const viewport: Viewport = {
 
 // Applies the saved (or system) theme before first paint to avoid a flash of
 // the wrong palette. Runs inline in <head> ahead of hydration.
-const themeScript = `(function(){try{var t=localStorage.getItem('madagama:theme');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+const themeScript = `(function(){try{var t=localStorage.getItem('madagama:theme');var d=t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches);var c=d?'#12151b':'#eef1f6';document.documentElement.classList.toggle('dark',d);document.documentElement.style.colorScheme=d?'dark':'light';var s=function(){document.querySelectorAll('meta[name="theme-color"]').forEach(function(m){m.setAttribute('content',c);});};s();if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',s,{once:true});}}catch(e){}})();`;
 
 export default function RootLayout({
   children,

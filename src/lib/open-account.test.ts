@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeOpenAccountState, invoiceTypeLabel, openAccountInvoiceStatus, openAccountStatusLabel } from "./open-account";
+import { allocateOpenAccountPayment, computeOpenAccountState, invoiceTypeLabel, openAccountInvoiceStatus, openAccountStatusLabel } from "./open-account";
 
 describe("open account state", () => {
   it("handles unpaid, partial and exact settlement", () => {
@@ -22,5 +22,12 @@ describe("open account state", () => {
     expect(openAccountInvoiceStatus(100, 0)).toBe("CREDIT");
     expect(openAccountInvoiceStatus(100, 50)).toBe("PARTIAL");
     expect(openAccountInvoiceStatus(100, 100)).toBe("PAID");
+  });
+  it("allocates an initial payment across split invoices without losing cents", () => {
+    expect(allocateOpenAccountPayment(0, [600, 400])).toEqual([0, 0]);
+    expect(allocateOpenAccountPayment(250, [600, 400])).toEqual([150, 100]);
+    expect(allocateOpenAccountPayment(0.01, [0.01, 0.02])).toEqual([0, 0.01]);
+    expect(allocateOpenAccountPayment(1000, [600, 400])).toEqual([600, 400]);
+    expect(() => allocateOpenAccountPayment(1000.01, [600, 400])).toThrow("cannot exceed");
   });
 });

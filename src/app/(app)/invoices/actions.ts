@@ -12,6 +12,7 @@ import { logStockMovement } from "@/lib/stock";
 import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { round2, toNum } from "@/lib/utils";
+import { allocateOpenAccountPayment, OPEN_ACCOUNT_USER_PAYMENT_METHODS, openAccountInvoiceStatus, type OpenAccountPaymentMethod } from "@/lib/open-account";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
@@ -40,6 +41,12 @@ const inputSchema = z.object({
   customerId: z.string().optional().nullable(),
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+});
+
+const openAccountSaleSchema = inputSchema.extend({
+  dueDate: z.string().trim().optional().nullable(),
+  initialPayment: z.coerce.number().min(0, "Advance payment cannot be negative.").default(0),
+  initialPaymentMethod: z.enum(OPEN_ACCOUNT_USER_PAYMENT_METHODS).default("CASH"),
 });
 
 export type CreateInvoiceInput = z.input<typeof inputSchema>;
@@ -74,18 +81,34 @@ export async function createCashInvoice(input: CreateInvoiceInput): Promise<Crea
 }
 
 export async function createOpenAccountSale(
-  input: CreateInvoiceInput & { dueDate?: string | null },
+  input: CreateInvoiceInput & {
+    dueDate?: string | null;
+    initialPayment?: number;
+    initialPaymentMethod?: Exclude<OpenAccountPaymentMethod, "RETURN">;
+  },
 ): Promise<CreateInvoiceResult> {
-  if (!input.customerId) return { ok: false, error: "Select a customer for Pay Later." };
-  const dueDate = input.dueDate ? new Date(`${input.dueDate}T00:00:00+05:30`) : null;
+  const parsed = openAccountSaleSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid Pay Later sale." };
+  if (!parsed.data.customerId) return { ok: false, error: "Select a customer for Pay Later." };
+  const dueDate = parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T00:00:00+05:30`) : null;
   if (dueDate && Number.isNaN(dueDate.getTime())) return { ok: false, error: "Enter a valid promised date." };
-  return createSale(input, "OPEN_ACCOUNT", dueDate);
+  return createSale(parsed.data, "OPEN_ACCOUNT", {
+    dueDate,
+    initialPayment: round2(parsed.data.initialPayment),
+    initialPaymentMethod: parsed.data.initialPaymentMethod,
+  });
 }
+
+type OpenAccountSaleOptions = {
+  dueDate: Date | null;
+  initialPayment: number;
+  initialPaymentMethod: Exclude<OpenAccountPaymentMethod, "RETURN">;
+};
 
 async function createSale(
   input: CreateInvoiceInput,
   type: "CASH" | "OPEN_ACCOUNT",
-  dueDate: Date | null = null,
+  openAccountOptions: OpenAccountSaleOptions | null = null,
 ): Promise<CreateInvoiceResult> {
   const parsed = inputSchema.safeParse(input);
   if (!parsed.success) {
@@ -205,21 +228,33 @@ async function createSale(
   if (taxable.length) groups.push({ category: "TAXABLE", items: taxable, discount: discTaxable });
   if (nonTaxable.length) groups.push({ category: "NON_TAXABLE", items: nonTaxable, discount: discNon });
 
+  const groupTotals = groups.map((group) => sumLines(group.items, group.discount));
+  const saleTotal = round2(groupTotals.reduce((sum, totals) => sum + totals.grandTotal, 0));
+  const initialPayment = type === "OPEN_ACCOUNT" ? (openAccountOptions?.initialPayment ?? 0) : 0;
+  if (initialPayment > saleTotal) {
+    return { ok: false, error: `Advance payment cannot exceed the sale total of LKR ${saleTotal.toFixed(2)}.` };
+  }
+  const paymentAllocations = allocateOpenAccountPayment(
+    initialPayment,
+    groupTotals.map((totals) => totals.grandTotal),
+  );
+
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const created = await prisma.$transaction(
         async (tx) => {
           const saleGroup = await tx.saleGroup.create({ data: {} });
           const out: CreatedInvoice[] = [];
-          for (const g of groups) {
-            const totals = sumLines(g.items, g.discount);
+          for (const [groupIndex, g] of groups.entries()) {
+            const totals = groupTotals[groupIndex]!;
+            const paidNow = paymentAllocations[groupIndex] ?? 0;
             const invoiceNumber = await generateInvoiceNumber(tx, g.category);
             const inv = await tx.invoice.create({
               data: {
                 invoiceNumber,
                 type,
                 taxCategory: g.category,
-                status: type === "CASH" ? "PAID" : "CREDIT",
+                status: type === "CASH" ? "PAID" : openAccountInvoiceStatus(totals.grandTotal, paidNow),
                 customerId: data.customerId || null,
                 soldByEmployeeId: data.soldByEmployeeId || null,
                 createdByUserId: session?.id ?? null,
@@ -228,7 +263,7 @@ async function createSale(
                 subtotal: totals.subtotal,
                 discount: totals.discount,
                 grandTotal: totals.grandTotal,
-                amountPaid: type === "CASH" ? totals.grandTotal : 0,
+                amountPaid: type === "CASH" ? totals.grandTotal : paidNow,
                 items: {
                   create: g.items.map((it) => ({
                     productId: it.productId,
@@ -256,7 +291,17 @@ async function createSale(
                   invoiceId: inv.id,
                   customerId: data.customerId!,
                   principal: totals.grandTotal,
-                  dueDate,
+                  dueDate: openAccountOptions?.dueDate ?? null,
+                  status: paidNow >= totals.grandTotal ? "SETTLED" : "ACTIVE",
+                  payments: paidNow > 0 ? {
+                    create: {
+                      amount: paidNow,
+                      paidDate: new Date(),
+                      method: openAccountOptions!.initialPaymentMethod,
+                      note: "Advance received at sale",
+                      recordedByUserId: session.id,
+                    },
+                  } : undefined,
                 },
               });
             }
@@ -287,6 +332,10 @@ async function createSale(
       revalidatePath("/products");
       revalidatePath("/dashboard");
       revalidatePath("/open-accounts");
+      revalidatePath("/reports");
+      revalidatePath("/shift-report");
+      revalidatePath("/reminders");
+      revalidatePath("/customers");
       if (data.customerId) revalidatePath(`/customers/${data.customerId}`);
       return { ok: true, ...created };
     } catch (e) {

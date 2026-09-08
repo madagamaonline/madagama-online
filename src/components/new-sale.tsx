@@ -84,7 +84,12 @@ type RecentInvoice = {
   grandTotal: number;
   saleGroupId?: string;
 };
-type CompletedSale = { saleGroupId: string; invoices: CreatedInvoice[] };
+type CompletedSale = {
+  saleGroupId: string;
+  invoices: CreatedInvoice[];
+  initialPayment?: number;
+  initialPaymentMethod?: "CASH" | "BANK" | "CHEQUE" | "CARD";
+};
 type ParkedSale = {
   id: string;
   label: string;
@@ -159,6 +164,8 @@ export function NewSale({
   const [completionState, setCompletionState] = useState<"idle" | "success">("idle");
   const [showPayLater, setShowPayLater] = useState(false);
   const [promisedDate, setPromisedDate] = useState("");
+  const [advancePayment, setAdvancePayment] = useState(0);
+  const [advancePaymentMethod, setAdvancePaymentMethod] = useState<"CASH" | "BANK" | "CHEQUE" | "CARD">("CASH");
   const searchRef = useRef<HTMLInputElement>(null);
   const cartDestinationRef = useRef<HTMLDivElement>(null);
   const searchResultRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -383,6 +390,9 @@ export function NewSale({
     setNotes("");
     setError("");
     setResumed(false);
+    setPromisedDate("");
+    setAdvancePayment(0);
+    setAdvancePaymentMethod("CASH");
   }
 
   function persistParked(list: ParkedSale[]) {
@@ -526,7 +536,7 @@ export function NewSale({
         submissionLock.current = false;
         return;
       }
-      const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      const completed: CompletedSale = { saleGroupId: res.saleGroupId, invoices: res.invoices };
       setCompletionState("success");
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         await new Promise((resolve) => window.setTimeout(resolve, 500));
@@ -553,6 +563,7 @@ export function NewSale({
     setError("");
     if (!customerId) { setError("Select or quick-add a customer for Pay Later."); return; }
     if (cart.length === 0) { setError("Add at least one item."); return; }
+    if (advancePayment > totals.grandTotal) { setError("Advance payment cannot exceed the sale total."); return; }
     submissionLock.current = true;
     startTransition(async () => {
       const res = await createOpenAccountSale({
@@ -570,9 +581,16 @@ export function NewSale({
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
         dueDate: promisedDate || null,
+        initialPayment: advancePayment,
+        initialPaymentMethod: advancePaymentMethod,
       });
       if (!res.ok) { setError(res.error); submissionLock.current = false; return; }
-      const completed = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      const completed: CompletedSale = {
+        saleGroupId: res.saleGroupId,
+        invoices: res.invoices,
+        initialPayment: round2(advancePayment),
+        initialPaymentMethod: advancePaymentMethod,
+      };
       setCompletionState("success");
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         await new Promise((resolve) => window.setTimeout(resolve, 500));
@@ -582,6 +600,8 @@ export function NewSale({
       rememberSale(completed);
       setShowPayLater(false);
       setPromisedDate("");
+      setAdvancePayment(0);
+      setAdvancePaymentMethod("CASH");
       try { localStorage.removeItem(DRAFT_KEY); } catch {}
       setCart([]); setDiscount(0); setTendered(0); setCustomerId(""); setSelectedCustomer(null); setSoldBy(""); setNotes(""); setResumed(false);
       setCompletionState("idle");
@@ -604,7 +624,13 @@ export function NewSale({
               <DrawnSuccessIcon className="h-7 w-7" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
-            {resultMode === "pay-later" && <p className="motion-receipt-item rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">No payment was received. The full balance is now on the customer&apos;s account.</p>}
+            {resultMode === "pay-later" && (
+              <p className="motion-receipt-item rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
+                {(result.initialPayment ?? 0) > 0
+                  ? `${formatLKR(result.initialPayment ?? 0)} advance recorded by ${paymentMethodLabel(result.initialPaymentMethod)}. Remaining balance: ${formatLKR(round2(result.invoices.reduce((sum, invoice) => sum + invoice.grandTotal, 0) - (result.initialPayment ?? 0)))}.`
+                  : "No payment was received. The full balance is on the customer’s account."}
+              </p>
+            )}
             <Link href={`/invoices/groups/${result.saleGroupId}`} className="motion-receipt-item block">
               <Button size="lg" className="w-full">
                 <Printer className="h-5 w-5" /> View / Print full sale
@@ -1256,10 +1282,15 @@ export function NewSale({
             <div className="motion-collapse" data-closed={!showPayLater} inert={!showPayLater ? true : undefined} aria-hidden={!showPayLater}>
               <div className="motion-collapse-inner">
               <div className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
-                <div><div className="font-semibold">Pay Later account</div><div className="text-xs text-amber-800 dark:text-amber-300">The customer takes the items now and owes the full balance. No interest or guarantor.</div></div>
+                <div><div className="font-semibold">Pay Later account</div><div className="text-xs text-amber-800 dark:text-amber-300">Record any advance received now; the customer owes the remaining balance. No interest or guarantor.</div></div>
                 {!customerId && <p className="rounded-lg bg-surface px-3 py-2 text-xs font-medium dark:text-amber-100">Select or quick-add the customer above.</p>}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div><Label htmlFor="advance-payment" className="dark:text-amber-100">Advance received now</Label><NumberInput id="advance-payment" value={advancePayment || ""} onValueChange={(value) => setAdvancePayment(Math.max(0, Number(value) || 0))} placeholder="0.00" aria-describedby="advance-payment-help" /></div>
+                  <div><Label htmlFor="advance-method" className="dark:text-amber-100">Payment method</Label><Select id="advance-method" value={advancePaymentMethod} onChange={(event) => setAdvancePaymentMethod(event.target.value as typeof advancePaymentMethod)} disabled={advancePayment <= 0}><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="CARD">Card</option></Select></div>
+                </div>
+                <p id="advance-payment-help" className="text-xs text-amber-800 dark:text-amber-300">Leave at zero if nothing is paid today.</p>
                 <div><Label htmlFor="promised-date" className="dark:text-amber-100">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setPromisedDate(event.target.value)} /></div>
-                <div className="space-y-1 border-t border-amber-300 pt-2 text-sm dark:border-amber-800"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(0)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><AnimatedMoney value={totals.grandTotal} className="font-bold tabular-nums" /></div></div>
+                <div className="space-y-1 border-t border-amber-300 pt-2 text-sm dark:border-amber-800"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(advancePayment)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><AnimatedMoney value={round2(Math.max(0, totals.grandTotal - advancePayment))} className="font-bold tabular-nums" /></div></div>
                 <Button onClick={completePayLater} disabled={pending || !customerId} className={`w-full overflow-hidden text-white dark:disabled:opacity-70 ${completionState === "success" ? "motion-success-sweep bg-success hover:bg-success dark:text-slate-950" : "bg-amber-700 hover:bg-amber-800"}`} aria-live="polite">{completionState === "success" ? <DrawnSuccessIcon className="h-4 w-4" /> : pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} {completionState === "success" ? "Invoice created" : "Create Pay Later Invoice"}</Button>
               </div>
               </div>
@@ -1294,4 +1325,13 @@ function quickTenders(total: number): number[] {
     if (up > total) out.add(up);
   }
   return [...out].sort((a, b) => a - b).slice(0, 4);
+}
+
+function paymentMethodLabel(method?: "CASH" | "BANK" | "CHEQUE" | "CARD"): string {
+  return {
+    CASH: "cash",
+    BANK: "bank transfer",
+    CHEQUE: "cheque",
+    CARD: "card",
+  }[method ?? "CASH"];
 }

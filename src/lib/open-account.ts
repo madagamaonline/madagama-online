@@ -27,6 +27,35 @@ export function openAccountInvoiceStatus(principal: number, credited: number): "
   return credited >= principal ? "PAID" : "PARTIAL";
 }
 
+/**
+ * Split one checkout payment across the physical invoice books without losing
+ * a cent. The last account receives the rounding remainder, so the ledger rows
+ * always add back to the amount handed over at checkout.
+ */
+export function allocateOpenAccountPayment(payment: number, principals: number[]): number[] {
+  const paymentCents = Math.round(round2(payment) * 100);
+  const principalCents = principals.map((principal) => Math.round(round2(principal) * 100));
+  const totalCents = principalCents.reduce((sum, principal) => sum + principal, 0);
+
+  if (paymentCents <= 0) return principals.map(() => 0);
+  if (totalCents <= 0 || paymentCents > totalCents) {
+    throw new Error("Initial payment cannot exceed the sale total.");
+  }
+  if (paymentCents === totalCents) return principalCents.map((principal) => principal / 100);
+
+  let remainingPayment = paymentCents;
+  let remainingPrincipal = totalCents;
+  return principalCents.map((principal, index) => {
+    const isLast = index === principalCents.length - 1;
+    const allocated = isLast
+      ? remainingPayment
+      : Math.min(principal, Math.round((remainingPayment * principal) / remainingPrincipal));
+    remainingPayment -= allocated;
+    remainingPrincipal -= principal;
+    return allocated / 100;
+  });
+}
+
 export function openAccountStatusLabel(status: "CREDIT" | "PARTIAL" | "PAID"): string {
   return status === "CREDIT" ? "UNPAID" : status === "PARTIAL" ? "PARTIAL" : "PAID";
 }

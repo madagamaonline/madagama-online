@@ -4,13 +4,12 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { PackageX } from "lucide-react";
 import { createSupplierReturn } from "@/app/(app)/supplier-returns/actions";
-import { NumberInput } from "@/components/ui/number-input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { formatLKR } from "@/lib/utils";
+import { round2, formatLKR } from "@/lib/utils";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 import type { UnitOfMeasure } from "@prisma/client";
 import { formatQuantity } from "@/lib/units";
@@ -23,6 +22,7 @@ export type SupplierReturnLine = {
   inStock: number;
   unit: UnitOfMeasure;
   unitCost: number;
+  refundableValue: number;
 };
 
 export function SupplierReturnForm({
@@ -36,16 +36,13 @@ export function SupplierReturnForm({
 }) {
   const router = useRouter();
   const [qtys, setQtys] = useState<Record<string, number>>({});
-  const [costs, setCosts] = useState<Record<string, number>>(
-    () => Object.fromEntries(lines.map((l) => [l.productId, l.unitCost])),
-  );
   const [method, setMethod] = useState<"REDUCE_PAYABLE" | "CASH_REFUND" | "REPLACEMENT">("REDUCE_PAYABLE");
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
 
-  const value = lines.reduce((s, l) => s + (qtys[l.productId] || 0) * (costs[l.productId] ?? 0), 0);
+  const value = lines.reduce((s, l) => s + round2((qtys[l.productId] || 0) * l.refundableValue / l.purchased), 0);
   const applied = method === "REDUCE_PAYABLE" ? Math.min(balance, value) : 0;
 
   // Cap the return qty at whatever is currently in stock — you can't send back
@@ -59,7 +56,7 @@ export function SupplierReturnForm({
     setSaved(false);
     const out = lines
       .filter((l) => (qtys[l.productId] || 0) > 0)
-      .map((l) => ({ productId: l.productId, qty: qtys[l.productId], unitCost: costs[l.productId] ?? 0 }));
+      .map((l) => ({ productId: l.productId, qty: qtys[l.productId], unitCost: l.unitCost }));
     if (out.length === 0) return setError("Enter a return quantity for at least one item.");
     start(async () => {
       const res = await createSupplierReturn({ purchaseId, method, reason, lines: out });
@@ -79,8 +76,8 @@ export function SupplierReturnForm({
           <thead>
             <tr className="border-b border-border text-left text-muted">
               <th className="py-2 pr-2 font-medium">Item</th>
-              <th className="px-2 text-right font-medium">Bought</th>
-              <th className="px-2 text-right font-medium">In stock</th>
+              <th className="px-2 text-right font-medium">Returnable</th>
+              <th className="px-2 text-right font-medium">Available</th>
               <th className="px-2 text-right font-medium">Return qty</th>
               <th className="px-2 text-right font-medium">Unit cost</th>
               <th className="py-2 pl-2 text-right font-medium">Value</th>
@@ -110,16 +107,10 @@ export function SupplierReturnForm({
                     />
                   </td>
                   <td className="px-2 text-right">
-                    <NumberInput
-                      value={costs[l.productId] ?? 0}
-                      onValueChange={(clean) =>
-                        setCosts((prev) => ({ ...prev, [l.productId]: Number(clean) || 0 }))
-                      }
-                      className="h-9 w-28 text-right"
-                    />
+                    {formatLKR(l.unitCost)}
                   </td>
                   <td className="py-2 pl-2 text-right font-medium">
-                    {formatLKR(q * (costs[l.productId] ?? 0))}
+                    {formatLKR(round2(q * l.refundableValue / l.purchased))}
                   </td>
                 </tr>
               );

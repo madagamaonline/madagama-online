@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { SupplierReturnForm, type SupplierReturnLine } from "@/components/supplier-return-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { supplierReturnAllowances } from "@/lib/return-values";
 import { formatDate, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
@@ -40,9 +41,10 @@ export default async function NewSupplierReturnPage({
     where: { id: purchaseId, ...purchaseTaxableWhere(await nonTaxableEnabled()) },
     include: {
       supplier: { select: { name: true } },
+      returns: { include: { items: true } },
       items: {
         include: {
-          product: { select: { id: true, code: true, name: true, quantityInStock: true, trackingType: true } },
+          product: { select: { id: true, code: true, name: true, quantityInStock: true, quantityReserved: true, trackingType: true } },
         },
       },
     },
@@ -51,15 +53,16 @@ export default async function NewSupplierReturnPage({
 
   const balance = Math.max(0, toNum(purchase.total) - toNum(purchase.amountPaid));
 
-  const lines: SupplierReturnLine[] = purchase.items.map((it) => ({
-    productId: it.product.id,
-    code: it.product.code,
-    name: it.product.name,
-    purchased: toNum(it.qty),
-    inStock: toNum(it.product.quantityInStock),
-    unit: it.product.trackingType === "LENGTH" ? "METER" : "EACH",
-    unitCost: toNum(it.costPrice),
-  }));
+  const allowances = supplierReturnAllowances(
+    purchase.items.map((item) => ({ ...item, qty: toNum(item.qty), costPrice: toNum(item.costPrice) })),
+    purchase.returns.flatMap((ret) => ret.items.map((item) => ({ ...item, qty: toNum(item.qty), lineTotal: toNum(item.lineTotal) }))),
+  );
+  const lines: SupplierReturnLine[] = [...allowances].filter(([, a]) => a.qty > 0).map(([productId, allowance]) => {
+    const item = purchase.items.find((it) => it.productId === productId)!;
+    return { productId, code: item.product.code, name: item.product.name, purchased: allowance.qty,
+      inStock: Math.max(0, toNum(item.product.quantityInStock) - toNum(item.product.quantityReserved)),
+      unit: item.unit, unitCost: allowance.value / allowance.qty, refundableValue: allowance.value };
+  });
 
   return (
     <div className="mx-auto max-w-3xl">

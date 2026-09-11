@@ -31,7 +31,7 @@ npm run dev
 
 Open http://localhost:3000 — sign in with **admin@madagama.lk / admin123** (change this in production).
 
-Run unit tests (interest engine + code generator): `npm test`.
+Run the offline regression suite with `TEST_DATABASE_URL= npm test`. Database integration suites require an explicitly configured disposable test database. See [financial safety rollout](docs/financial-safety-rollout.md) for the production rollout constraints and offline checks.
 
 ## Environment variables
 
@@ -52,14 +52,15 @@ Run unit tests (interest engine + code generator): `npm test`.
 2. Set all environment variables above in the Vercel project.
    - **Important:** set `STORAGE_DRIVER=s3` and the `S3_*` vars — Vercel's filesystem is ephemeral, so the `local` driver would lose uploaded NIC images.
    - Set `CRON_SECRET`; Vercel automatically sends it as a Bearer token to the cron route.
-3. The build runs `prisma generate && next build`. Apply migrations on deploy with `npm run db:deploy` (or set the build command to `prisma migrate deploy && prisma generate && next build`). The full schema lives in `prisma/migrations` — **do not run `prisma db push` against production**; it bypasses migration history and causes drift.
+3. The build runs `prisma generate && next build` and does not apply migrations. Apply migrations only as a separate, approved rollout step using `npm run db:deploy`, after staging validation and backup verification. The full schema lives in `prisma/migrations` — **do not run `prisma db push` against production**; it bypasses migration history and causes drift.
 4. The daily reminder cron is configured in `vercel.json` (`/api/cron/reminders`, 03:00 UTC).
 
 ## Operations
 
 - **Health check** — `GET /api/health` runs a trivial `SELECT 1` and returns `{ "status": "ok" }` (HTTP 200) or `{ "status": "error" }` (HTTP 503) if the database is unreachable. It's public (no session). Point an external monitor (UptimeRobot, Better Stack) at it for downtime alerts.
-- **Off-site backups** — `.github/workflows/db-backup.yml` dumps the database nightly and uploads it to an rclone remote (e.g. Google Drive), independent of Neon's built-in PITR. It needs the `BACKUP_DATABASE_URL` and `RCLONE_CONF_BASE64` repository secrets (see the file header). Trigger a manual run from the Actions tab to verify before relying on it.
+- **Off-site backups** — `.github/workflows/db-backup.yml` dumps the database nightly and uploads it to Cloudflare R2, independent of Neon's built-in PITR. It needs `BACKUP_DATABASE_URL` and the R2 repository secrets listed in the workflow header. Trigger a manual run from the Actions tab to verify before relying on it.
 
 ## Notes / follow-ups
 
-- Net profit in Reports is approximate (uses current product cost for COGS; excludes credit interest income).
+- Reports use historical cost snapshots where available, with current product cost as a fallback for legacy rows. Cash-recovery gross profit and finance income are reported separately.
+- The financial safety changes include an additive migration; its application record and deployment requirements are documented. Read [the rollout and recovery notes](docs/financial-safety-rollout.md) before deploying this version.

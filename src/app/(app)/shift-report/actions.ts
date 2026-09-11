@@ -13,6 +13,7 @@ import {
   type CashActivity,
   type DenominationCounts,
 } from "@/lib/cash-drawer";
+import { cashRefundAmount } from "@/lib/returns";
 import { round2 } from "@/lib/utils";
 
 export type ShiftSummary = CashActivity & {
@@ -65,9 +66,9 @@ async function calculateCashActivity(
         where: { method: "CASH", paidDate: moneyWindow(startTime, endTime) },
         _sum: { amount: true },
       }),
-      tx.salesReturn.aggregate({
-        where: { method: "CASH", createdAt: moneyWindow(startTime, endTime) },
-        _sum: { totalRefund: true },
+      tx.salesReturn.findMany({
+        where: { createdAt: moneyWindow(startTime, endTime) },
+        select: { totalRefund: true, method: true, cashRefund: true },
       }),
       tx.cashDrawerMovement.groupBy({
         by: ["type"],
@@ -84,7 +85,7 @@ async function calculateCashActivity(
     totalRepayments: Number(cashPayments._sum.amount ?? 0),
     totalOpenAccountCollections: Number(openAccountCashPayments._sum.amount ?? 0),
     totalLayawayCollections: Number(layawayCashPayments._sum.amount ?? 0),
-    totalCashRefunds: Number(cashRefunds._sum.totalRefund ?? 0),
+    totalCashRefunds: round2(cashRefunds.reduce((sum, refund) => sum + cashRefundAmount(refund), 0)),
     totalCashAdditions: movementAmount(CashDrawerMovementType.ADDITION),
     totalCashWithdrawals: movementAmount(CashDrawerMovementType.WITHDRAWAL),
   };

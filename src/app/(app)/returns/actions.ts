@@ -5,10 +5,8 @@ import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireActionUser } from "@/lib/auth";
-import {
-  assertUniqueProductLines,
-  remainingReturnableByProduct,
-} from "@/lib/financial-guards";
+import { assertUniqueProductLines } from "@/lib/financial-guards";
+import { customerReturnAllowances, returnLineValue } from "@/lib/return-values";
 import { logStockMovement } from "@/lib/stock";
 import { computeCreditState } from "@/lib/credit";
 import { round2, toNum } from "@/lib/utils";
@@ -52,6 +50,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
           where: { id: d.invoiceId },
           select: {
             voidedAt: true,
+            grandTotal: true,
             items: {
               select: {
                 productId: true,
@@ -63,34 +62,30 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
               },
             },
             returns: {
-              select: { items: { select: { productId: true, qty: true } } },
+              select: { totalRefund: true, items: { select: { productId: true, qty: true, lineTotal: true } } },
             },
           },
         });
         if (!invoice) throw new ReturnValidationError("Invoice not found.");
         if (invoice.voidedAt) throw new ReturnValidationError("A voided invoice cannot receive returns.");
 
-        const remaining = remainingReturnableByProduct(
-          invoice.items.map((item) => ({
-            productId: item.productId,
-            qty: toNum(item.qty),
-            unitPrice: toNum(item.unitPrice) - toNum(item.unitDiscount),
-          })),
-          invoice.returns.flatMap((ret) => ret.items.map((item) => ({ ...item, qty: toNum(item.qty) }))),
-        );
-        const returnLines = d.lines.map((line) => {
-          const allowed = remaining.get(line.productId);
-          if (!allowed || allowed.qty <= 0) {
-            throw new ReturnValidationError("One of the selected products is not returnable on this invoice.");
-          }
-          if (line.qty > allowed.qty) {
-            throw new ReturnValidationError(
-              `Return quantity exceeds the ${allowed.qty} unit(s) remaining for one item.`,
-            );
-          }
-          return { ...line, unitPrice: allowed.unitPrice };
-        });
-        const total = round2(returnLines.reduce((sum, line) => sum + line.qty * line.unitPrice, 0));
+        let returnLines;
+        try {
+          const remaining = customerReturnAllowances(
+            toNum(invoice.grandTotal),
+            invoice.items.map((item) => ({ ...item, qty: toNum(item.qty), unitPrice: toNum(item.unitPrice), unitDiscount: toNum(item.unitDiscount) })),
+            invoice.returns.map((ret) => ({ totalRefund: toNum(ret.totalRefund), items: ret.items.map((item) => ({ ...item, qty: toNum(item.qty), lineTotal: toNum(item.lineTotal) })) })),
+          );
+          returnLines = d.lines.map((line) => {
+            const allowed = remaining.get(line.productId);
+            if (!allowed || allowed.qty <= 0) throw new Error("One of the selected products is not returnable on this invoice.");
+            const lineTotal = returnLineValue(allowed, line.qty);
+            return { ...line, unitPrice: round2(lineTotal / line.qty), lineTotal };
+          });
+        } catch (error) {
+          throw new ReturnValidationError(error instanceof Error ? error.message : "Invalid return quantity.");
+        }
+        const total = round2(returnLines.reduce((sum, line) => sum + line.lineTotal, 0));
 
         // If the invoice is a credit sale with an unsettled agreement, the
         // refund is applied to the customer's outstanding balance (capped at
@@ -99,6 +94,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         // interest-first allocation, invoice status, and settlement logic all
         // stay authoritative.
         let creditedToBalance = 0;
+        const returnDate = new Date();
         const agreement = await tx.creditAgreement.findUnique({
           where: { invoiceId: d.invoiceId },
           include: { payments: true },
@@ -107,7 +103,16 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         const openAccount = await tx.openAccount.findUnique({ where: { invoiceId: d.invoiceId }, include: { payments: true } });
         const activeOpenAccount = openAccount && openAccount.status === "ACTIVE" ? openAccount : null;
         const openState = activeOpenAccount ? computeOpenAccountState(toNum(activeOpenAccount.principal), activeOpenAccount.payments.map((p) => ({ amount: toNum(p.amount), method: p.method }))) : null;
-        if (openState && total > openState.outstanding) throw new ReturnValidationError(`This return exceeds the Pay Later balance of LKR ${openState.outstanding.toFixed(2)}.`);
+        const creditState = openAgreement ? computeCreditState({
+          principal: toNum(openAgreement.principal), startDate: openAgreement.startDate,
+          interestRatePerMonth: toNum(openAgreement.interestRatePerMonth), interestFreeMonths: openAgreement.interestFreeMonths,
+        }, openAgreement.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })), returnDate) : null;
+        const outstanding = creditState?.outstanding ?? openState?.outstanding ?? 0;
+        creditedToBalance = round2(Math.min(outstanding, total));
+        const cashRefund = openAgreement || activeOpenAccount || !d.method || d.method === "CASH"
+          ? round2(total - creditedToBalance) : 0;
+        const method = creditedToBalance > 0
+          ? (cashRefund > 0 ? "MIXED" : "CREDIT_BALANCE") : (openAgreement || activeOpenAccount ? "CASH" : d.method || "CASH");
 
         // Capture the cost each returned product was sold at, so profit reports
         // credit the restock back to COGS at the same cost it was charged out at
@@ -132,8 +137,11 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
         const created = await tx.salesReturn.create({
           data: {
             invoiceId: d.invoiceId,
+            date: returnDate,
             totalRefund: total,
-            method: openAgreement || activeOpenAccount ? "CREDIT_BALANCE" : d.method?.trim() || "CASH",
+            method,
+            cashRefund,
+            balanceCredit: creditedToBalance,
             reason: d.reason?.trim() || null,
             createdByUserId: session?.id ?? null,
             items: {
@@ -142,7 +150,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
                 qty: l.qty,
                 unit: invoice.items.find((item) => item.productId === l.productId)?.unit ?? "EACH",
                 unitPrice: l.unitPrice,
-                lineTotal: round2(l.qty * l.unitPrice),
+                lineTotal: l.lineTotal,
                 costSnapshot: saleCostByProduct.get(l.productId) ?? productCosts.get(l.productId) ?? null,
               })),
             },
@@ -161,11 +169,11 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
             discount: toNum(p.discount),
             paidDate: p.paidDate,
           }));
-          const before = computeCreditState(agreementInput, payments);
+          const before = computeCreditState(agreementInput, payments, returnDate);
           creditedToBalance = round2(Math.min(before.outstanding, total));
 
           if (creditedToBalance > 0) {
-            const paidDate = new Date();
+            const paidDate = returnDate;
             await tx.payment.create({
               data: {
                 agreementId: openAgreement.id,
@@ -179,7 +187,7 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
             const after = computeCreditState(agreementInput, [
               ...payments,
               { amount: creditedToBalance, paidDate },
-            ]);
+            ], returnDate);
             const totalPaid = round2(
               payments.reduce((s, p) => s + p.amount, 0) + creditedToBalance,
             );
@@ -198,10 +206,9 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
             }
           }
         }
-        if (activeOpenAccount && openState && total > 0) {
-          creditedToBalance = total;
-          await tx.openAccountPayment.create({ data: { accountId: activeOpenAccount.id, amount: total, paidDate: new Date(), method: "RETURN", note: `Goods returned (return ${created.id})`, recordedByUserId: session.id } });
-          const credited = round2(openState.credited + total);
+        if (activeOpenAccount && openState && creditedToBalance > 0) {
+          await tx.openAccountPayment.create({ data: { accountId: activeOpenAccount.id, amount: creditedToBalance, paidDate: returnDate, method: "RETURN", note: `Goods returned (return ${created.id})`, recordedByUserId: session.id } });
+          const credited = round2(openState.credited + creditedToBalance);
           const settled = credited >= toNum(activeOpenAccount.principal);
           await tx.invoice.update({ where: { id: activeOpenAccount.invoiceId }, data: { amountPaid: credited, status: openAccountInvoiceStatus(toNum(activeOpenAccount.principal), credited) } });
           await tx.openAccount.update({ where: { id: activeOpenAccount.id }, data: { status: settled ? "SETTLED" : "ACTIVE" } });
@@ -233,6 +240,8 @@ export async function createReturn(input: CreateReturnInput): Promise<CreateRetu
     revalidatePath("/credit");
     revalidatePath("/dashboard");
     revalidatePath("/open-accounts");
+    revalidatePath("/reports");
+    revalidatePath("/shift-report");
     if (d.invoiceId) revalidatePath(`/invoices/${d.invoiceId}`);
     return { ok: true, id: result.id, creditedToBalance: result.creditedToBalance };
   } catch (e) {

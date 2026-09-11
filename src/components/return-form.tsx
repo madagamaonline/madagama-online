@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { formatLKR } from "@/lib/utils";
+import { round2, formatLKR } from "@/lib/utils";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
 import type { UnitOfMeasure } from "@prisma/client";
 import { formatQuantity } from "@/lib/units";
@@ -21,6 +21,7 @@ export type ReturnLine = {
   sold: number;
   unit: UnitOfMeasure;
   unitPrice: number;
+  refundableValue: number;
 };
 
 export function ReturnForm({
@@ -43,7 +44,7 @@ export function ReturnForm({
   const [pending, start] = useTransition();
   const [saved, setSaved] = useState(false);
 
-  const refund = lines.reduce((s, l) => s + (qtys[l.productId] || 0) * l.unitPrice, 0);
+  const refund = lines.reduce((s, l) => s + round2(l.refundableValue * (qtys[l.productId] || 0) / l.sold), 0);
 
   function setQty(productId: string, value: number, max: number) {
     setQtys((prev) => ({ ...prev, [productId]: Math.max(0, Math.min(max, value || 0)) }));
@@ -55,6 +56,7 @@ export function ReturnForm({
     const out = lines
       .filter((l) => (qtys[l.productId] || 0) > 0)
       .map((l) => ({ productId: l.productId, qty: qtys[l.productId], unitPrice: l.unitPrice }));
+    if (lines.some((l) => l.unit === "EACH" && !Number.isInteger(qtys[l.productId] || 0))) return setError("Piece products must be returned in whole quantities.");
     if (out.length === 0) return setError("Enter a return quantity for at least one item.");
     start(async () => {
       const res = await createReturn({ invoiceId, method, reason, lines: out });
@@ -102,7 +104,7 @@ export function ReturnForm({
                       className="h-9 w-20 text-right"
                     />
                   </td>
-                  <td className="py-2 pl-2 text-right font-medium">{formatLKR(q * l.unitPrice)}</td>
+                  <td className="py-2 pl-2 text-right font-medium">{formatLKR(round2(l.refundableValue * q / l.sold))}</td>
                 </tr>
               );
             })}

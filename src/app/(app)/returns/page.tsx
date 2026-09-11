@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDateTime } from "@/lib/utils";
-import { returnMethodLabel } from "@/lib/returns";
+import { returnSettlementLabel } from "@/lib/returns";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +50,7 @@ export default async function ReturnsPage() {
                       <span className="shrink-0 font-medium">{formatLKR(r.totalRefund)}</span>
                     </div>
                     <div className="mt-2 text-sm text-muted">
-                      {r._count.items} item{r._count.items === 1 ? "" : "s"} · {returnMethodLabel(r.method)}
+                      {r._count.items} item{r._count.items === 1 ? "" : "s"} · {returnSettlementLabel(r)}
                       {r.reason ? ` · ${r.reason}` : ""}
                     </div>
                   </div>
@@ -84,7 +84,7 @@ export default async function ReturnsPage() {
                           )}
                         </TD>
                         <TD className="text-right">{r._count.items}</TD>
-                        <TD>{returnMethodLabel(r.method)}</TD>
+                        <TD>{returnSettlementLabel(r)}</TD>
                         <TD className="text-muted">{r.reason ?? "—"}</TD>
                         <TD className="text-muted">{r.createdBy?.name ?? "—"}</TD>
                         <TD className="text-right font-medium">{formatLKR(r.totalRefund)}</TD>

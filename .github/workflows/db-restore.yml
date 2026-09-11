@@ -29,7 +29,7 @@ on:
 
 # Never let two restores run at once.
 concurrency:
-  group: db-restore
+  group: db-maintenance
   cancel-in-progress: false
 
 jobs:
@@ -101,8 +101,27 @@ jobs:
             echo "::error::Downloaded backup is suspiciously small (<1KB) - aborting"; exit 1
           fi
 
-          echo "Restoring into the live database (this overwrites existing data) ..."
-          # ON_ERROR_STOP halts on the first failed statement instead of leaving a
-          # half-restored database. pipefail surfaces a psql failure through gunzip.
-          gunzip -c "./${BACKUP_FILE}" | psql -v ON_ERROR_STOP=1 "$BACKUP_DATABASE_URL"
+          # Fully validate and decompress before opening a database transaction.
+          # A failed gunzip in a pipe must never result in a partial SQL commit.
+          gzip -t "./${BACKUP_FILE}"
+          gunzip -c "./${BACKUP_FILE}" > restore.sql
+
+          # Preserve the current database off-site BEFORE replacing any records.
+          # These snapshots intentionally live outside the routine backup prefix.
+          stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+          safety_key="pre-restore/madagama-${stamp}-${GITHUB_RUN_ID}.sql.gz"
+          pg_dump --no-owner --no-privileges --clean --if-exists "$BACKUP_DATABASE_URL" | gzip -9 > before-restore.sql.gz
+          gzip -t before-restore.sql.gz
+          if [ "$(stat -c%s before-restore.sql.gz)" -lt 1024 ]; then
+            echo "::error::Pre-restore snapshot is too small; refusing restore"; exit 1
+          fi
+          checksum="$(sha256sum before-restore.sql.gz | cut -d ' ' -f 1)"
+          aws s3 cp before-restore.sql.gz "s3://${R2_BUCKET}/${safety_key}" --endpoint-url "$R2_ENDPOINT" --metadata "sha256=${checksum}"
+          aws s3 cp "s3://${R2_BUCKET}/${safety_key}" verified-snapshot.sql.gz --endpoint-url "$R2_ENDPOINT"
+          printf '%s  %s\n' "$checksum" verified-snapshot.sql.gz | sha256sum --check --status
+          echo "Pre-restore recovery snapshot verified: ${safety_key}"
+
+          # Ignore psqlrc; execute the complete restore atomically. Any SQL error
+          # rolls back earlier drops/inserts instead of committing half a restore.
+          psql -X --single-transaction -v ON_ERROR_STOP=1 --file=restore.sql "$BACKUP_DATABASE_URL"
           echo "Restore complete."

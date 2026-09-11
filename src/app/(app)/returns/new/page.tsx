@@ -7,6 +7,8 @@ import { ReturnForm, type ReturnLine } from "@/components/return-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { computeCreditState } from "@/lib/credit";
+import { customerReturnAllowances } from "@/lib/return-values";
+import { computeOpenAccountState } from "@/lib/open-account";
 import { toNum } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -40,9 +42,10 @@ export default async function NewReturnPage({
     where: { id: invoiceId },
     include: {
       items: true,
-      returns: { include: { items: { select: { productId: true, qty: true } } } },
+      returns: { include: { items: { select: { productId: true, qty: true, lineTotal: true } } } },
       customer: { select: { name: true } },
       creditAgreement: { include: { payments: true } },
+      openAccount: { include: { payments: true } },
     },
   });
   if (!invoice) notFound();
@@ -72,26 +75,20 @@ export default async function NewReturnPage({
           },
           agreement.payments.map((p) => ({ amount: toNum(p.amount), discount: toNum(p.discount), paidDate: p.paidDate })),
         ).outstanding
-      : null;
+      : invoice.openAccount?.status === "ACTIVE"
+        ? computeOpenAccountState(toNum(invoice.openAccount.principal), invoice.openAccount.payments.map((p) => ({ amount: toNum(p.amount), method: p.method }))).outstanding
+        : null;
 
-  const returnedByProduct = new Map<string, number>();
-  for (const ret of invoice.returns) {
-    for (const item of ret.items) {
-      returnedByProduct.set(item.productId, (returnedByProduct.get(item.productId) ?? 0) + toNum(item.qty));
-    }
-  }
-
-  // Only items still linked to a product and not already fully returned can be restocked.
-  const lines: ReturnLine[] = invoice.items
-    .filter((it) => it.productId && toNum(it.qty) > (returnedByProduct.get(it.productId) ?? 0))
-    .map((it) => ({
-      productId: it.productId as string,
-      code: it.codeSnapshot ?? "",
-      name: it.nameSnapshot,
-      sold: toNum(it.qty) - (returnedByProduct.get(it.productId as string) ?? 0),
-      unit: it.unit,
-      unitPrice: toNum(it.unitPrice) - toNum(it.unitDiscount),
-    }));
+  const allowances = customerReturnAllowances(
+    toNum(invoice.grandTotal),
+    invoice.items.map((it) => ({ ...it, qty: toNum(it.qty), unitPrice: toNum(it.unitPrice), unitDiscount: toNum(it.unitDiscount) })),
+    invoice.returns.map((ret) => ({ totalRefund: toNum(ret.totalRefund), items: ret.items.map((it) => ({ ...it, qty: toNum(it.qty), lineTotal: toNum(it.lineTotal) })) })),
+  );
+  const lines: ReturnLine[] = [...allowances].filter(([, allowance]) => allowance.qty > 0).map(([productId, allowance]) => {
+    const item = invoice.items.find((it) => it.productId === productId)!;
+    return { productId, code: item.codeSnapshot ?? "", name: item.nameSnapshot, sold: allowance.qty,
+      refundableValue: allowance.value, unit: item.unit, unitPrice: allowance.value / allowance.qty };
+  });
 
   return (
     <div className="mx-auto max-w-3xl">

@@ -11,6 +11,7 @@ import { logPriceChange } from "@/lib/price-change";
 import { weightedAvgCost } from "@/lib/pricing";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
+import { serializableTransaction } from "@/lib/serializable-transaction";
 import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
 
 const lineSchema = z.object({
@@ -76,7 +77,7 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
   const status = statusFor(total, amountPaid);
 
   try {
-    const purchase = await prisma.$transaction(
+    const purchase = await serializableTransaction(
       async (tx) => {
         const created = await tx.purchase.create({
           data: {
@@ -105,7 +106,7 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
         });
         // Increase stock and re-derive each product's cost as the weighted
         // average of existing stock and the newly-purchased units.
-        for (const l of normalizedLines) {
+        for (const l of [...normalizedLines].sort((a, b) => a.productId.localeCompare(b.productId))) {
           const before = await tx.product.findUnique({
             where: { id: l.productId },
             select: { quantityInStock: true, costPrice: true, sellingPrice: true },
@@ -144,7 +145,6 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
         }
         return created;
       },
-      { timeout: 20000 },
     );
 
     revalidatePath("/purchases");

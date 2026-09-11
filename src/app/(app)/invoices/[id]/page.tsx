@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InvoicePrintControls } from "@/components/invoice-print-controls";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
-import { returnMethodLabel } from "@/lib/returns";
+import { returnSettlementLabel } from "@/lib/returns";
 import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSession } from "@/lib/auth";
 import { VoidInvoiceButton } from "@/components/void-invoice-button";
@@ -548,7 +548,7 @@ export default async function InvoiceViewPage({
               <div key={r.id} className="py-3 text-sm first:pt-0 last:pb-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-muted">
-                    {formatDateTime(r.createdAt)} · {returnMethodLabel(r.method)}
+                    {formatDateTime(r.createdAt)} · {returnSettlementLabel(r)}
                     {r.createdBy?.name ? ` · by ${r.createdBy.name}` : ""}
                   </span>
                   <span className="font-medium">{formatLKR(r.totalRefund)}</span>

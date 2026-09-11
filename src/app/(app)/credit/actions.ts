@@ -1,5 +1,6 @@
 "use server";
 
+import { validateCreditPaymentTimeline } from "@/lib/credit-payment-validation";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -431,6 +432,8 @@ export async function recordPayment(
             before.outstanding,
           );
           if (paymentError) return { notFound: false as const, error: paymentError };
+          const timelineError = validateCreditPaymentTimeline(agreementInput, beforePayments, { amount: parsed.data.amount, discount: parsed.data.discount, paidDate });
+          if (timelineError) return { notFound: false as const, error: timelineError };
 
           const method = parsed.data.method?.trim() || "CASH";
           const note = parsed.data.note?.trim() || null;

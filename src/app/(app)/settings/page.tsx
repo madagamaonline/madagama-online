@@ -56,7 +56,7 @@ export default async function SettingsPage() {
           interestFreeMonths: s?.interestFreeMonths ?? 4,
           smsSenderId: s?.smsSenderId ?? "Madagama",
           smsEnabled: s?.smsEnabled ?? false,
-          textlkApiToken: s?.textlkApiToken ?? "",
+          textlkApiTokenConfigured: isAdmin && !!s?.textlkApiToken,
           reminderDayOfMonth: s?.reminderDayOfMonth ?? 1,
           nonTaxableEnabled: s?.nonTaxableEnabled ?? true,
           defaultTargetMarginPct: toNum(s?.defaultTargetMarginPct ?? 20),

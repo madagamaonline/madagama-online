@@ -17,7 +17,7 @@ export type SettingsInitial = {
   interestFreeMonths: number;
   smsSenderId: string;
   smsEnabled: boolean;
-  textlkApiToken: string;
+  textlkApiTokenConfigured: boolean;
   reminderDayOfMonth: number;
   nonTaxableEnabled: boolean;
   defaultTargetMarginPct: number;
@@ -93,17 +93,14 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
               <Input id="reminderDayOfMonth" name="reminderDayOfMonth" type="number" min="1" max="28" defaultValue={initial.reminderDayOfMonth} />
             </div>
           </div>
-          <div>
-            <Label htmlFor="textlkApiToken">text.lk API token</Label>
-            <Input
-              id="textlkApiToken"
-              name="textlkApiToken"
-              type="password"
-              autoComplete="off"
-              defaultValue={initial.textlkApiToken}
-              placeholder="Paste your text.lk API token"
-            />
-          </div>
+          {isAdmin && <div>
+            <Label htmlFor="textlkApiToken">Replace text.lk API token</Label>
+            <Input id="textlkApiToken" name="textlkApiToken" type="password" autoComplete="new-password"
+              placeholder={initial.textlkApiTokenConfigured ? "Token configured — leave blank to keep it" : "Paste your text.lk API token"} />
+            {initial.textlkApiTokenConfigured && <label className="mt-2 flex items-center gap-2 text-sm">
+              <input type="checkbox" name="clearTextlkApiToken" /> Remove the stored token
+            </label>}
+          </div>}
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="smsEnabled" defaultChecked={initial.smsEnabled} className="h-4 w-4 rounded border-border" />
             Enable sending SMS

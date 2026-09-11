@@ -1,3 +1,4 @@
+import { cashRefundAmount } from "@/lib/returns";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import {
@@ -204,6 +205,7 @@ export default async function ReportsPage({
           select: {
             date: true,
             totalRefund: true,
+            cashRefund: true,
             method: true,
             items: { select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } } },
           },
@@ -448,7 +450,7 @@ export default async function ReportsPage({
         const cashRefunds = round2(
           returnsToDate.reduce(
             (refundSum, customerReturn) =>
-              refundSum + (customerReturn.method === "CREDIT_BALANCE" ? 0 : toNum(customerReturn.totalRefund)),
+              refundSum + cashRefundAmount(customerReturn),
             0,
           ),
         );

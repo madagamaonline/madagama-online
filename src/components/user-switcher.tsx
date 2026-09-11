@@ -41,7 +41,7 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
 
   const pickUser = (u: LoginUserInfo) => {
     if (u.isCurrent) return;
-    if (!u.hasPin) {
+    if (!u.hasPin && !u.requiresPassword) {
       setError(`${u.name} has no quick-switch PIN. Set one in Settings → Users.`);
       return;
     }
@@ -87,7 +87,7 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
 
   // Keyboard support for PIN entry.
   useEffect(() => {
-    if (!selected || !isOpen) return;
+    if (!selected || !isOpen || selected.requiresPassword) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key >= "0" && e.key <= "9") pressDigit(e.key);
       else if (e.key === "Backspace") backspace();
@@ -141,7 +141,7 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
                     Switch user
                   </h3>
                   <p className="mt-0.5 text-xs text-muted">
-                    Take over the till as another family member, secured by their PIN.
+                    Switch users with a PIN, or a full password for administrators.
                   </p>
 
                   <div className="mt-4 max-h-[280px] space-y-2 overflow-y-auto pr-1">
@@ -149,12 +149,12 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
                       <div className="py-8 text-center text-xs text-muted">Loading users…</div>
                     ) : (
                       users.map((u) => {
-                        const switchable = !u.isCurrent && u.hasPin;
+                        const switchable = !u.isCurrent && (u.hasPin || u.requiresPassword);
                         return (
                           <button
                             key={u.id}
                             onClick={() => pickUser(u)}
-                            disabled={u.isCurrent || !u.hasPin}
+                            disabled={!switchable}
                             className={`motion-interactive flex w-full items-center justify-between rounded-xl border p-3 text-left ${
                               u.isCurrent
                                 ? "border-primary bg-primary-soft text-primary-ink"
@@ -177,13 +177,13 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
                                   {roleLabel(u.role)}
                                   {u.isCurrent
                                     ? " · Active now"
-                                    : u.hasPin
+                                    : u.requiresPassword ? " · Password protected" : u.hasPin
                                       ? " · PIN protected"
                                       : " · No PIN set"}
                                 </p>
                               </div>
                             </div>
-                            {!u.isCurrent && u.hasPin && <Lock className="h-3.5 w-3.5 shrink-0 text-faint" />}
+                            {!u.isCurrent && (u.hasPin || u.requiresPassword) && <Lock className="h-3.5 w-3.5 shrink-0 text-faint" />}
                           </button>
                         );
                       })
@@ -197,6 +197,17 @@ export function UserSwitcher({ currentUser }: { currentUser: CurrentUser }) {
                     </p>
                   )}
                 </div>
+              ) : selected.requiresPassword ? (
+                <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); submitPin(pin); }}>
+                  <h3 className="text-base font-bold">Verify {selected.name}</h3>
+                  <label className="block text-sm" htmlFor="switch-password">Administrator password</label>
+                  <input id="switch-password" type="password" autoComplete="current-password" autoFocus required
+                    className="w-full rounded-lg border border-border bg-surface p-3" value={pin}
+                    onChange={(e) => setPin(e.target.value)} disabled={pending} />
+                  {error && <p role="alert" className="text-sm text-danger">{error}</p>}
+                  <button type="submit" disabled={pending} className="rounded-lg bg-primary px-4 py-2 text-primary-foreground">{pending ? "Switching…" : "Switch account"}</button>
+                  <button type="button" disabled={pending} onClick={() => { setSelected(null); setPin(""); setError(""); }} className="ml-3 text-sm">Back</button>
+                </form>
               ) : (
                 <div className="flex flex-col items-center">
                   <h3 className="text-base font-bold text-foreground">Verify identity</h3>

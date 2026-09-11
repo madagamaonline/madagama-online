@@ -76,7 +76,9 @@ export async function updateSettings(
     ? {
         interestRatePerMonth: d.interestRatePct / 100,
         interestFreeMonths: d.interestFreeMonths,
-        textlkApiToken: d.textlkApiToken?.trim() || null,
+        ...(formData.get("clearTextlkApiToken") === "on"
+          ? { textlkApiToken: null }
+          : d.textlkApiToken?.trim() ? { textlkApiToken: d.textlkApiToken.trim() } : {}),
         ...(current?.nonTaxableEnabled ? { nonTaxableEnabled } : {}),
         defaultTargetMarginPct: d.defaultTargetMarginPct,
         epfEmployeeRate: d.epfEmployeePct / 100,

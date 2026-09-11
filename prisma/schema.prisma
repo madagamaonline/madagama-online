@@ -1565,6 +1565,9 @@ model SalesReturn {
   invoiceId       String?
   date            DateTime @default(now())
   totalRefund     Decimal  @db.Decimal(12, 2)
+  // Null denotes legacy records whose cash/credit split was not captured.
+  cashRefund      Decimal? @db.Decimal(12, 2)
+  balanceCredit   Decimal? @db.Decimal(12, 2)
   method          String   @default("CASH")
   reason          String?
   createdBy       User?    @relation(fields: [createdByUserId], references: [id])
@@ -1575,6 +1578,13 @@ model SalesReturn {
 
   @@index([invoiceId])
   @@index([createdAt])
+}
+
+// Shared across application instances; no in-memory PIN attempt counters.
+model AuthAttemptWindow {
+  key       String   @id
+  attempts  Int
+  expiresAt DateTime
 }
 
 model SalesReturnItem {

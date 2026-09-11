@@ -14,6 +14,7 @@ import {
   requireActionStaffFinanceAccess,
   requireActionUser,
 } from "@/lib/auth";
+import { validateCreditPaymentTimeline } from "@/lib/credit-payment-validation";
 import { computeCreditState } from "@/lib/credit";
 import { prisma } from "@/lib/prisma";
 import { round2, toNum } from "@/lib/utils";
@@ -311,14 +312,16 @@ export async function recordVehicleCustomerPayment(
           interestRatePerMonth: toNum(sale.creditAgreement.interestRatePerMonth),
           interestFreeMonths: sale.creditAgreement.interestFreeMonths,
         };
-        const state = computeCreditState(terms, installmentPayments, paidDate);
+        const timelineError = validateCreditPaymentTimeline(terms, installmentPayments, { amount: data.amount, paidDate }, now);
+        if (timelineError) return { error: timelineError };
+        const state = computeCreditState(terms, installmentPayments, now);
         if (round2(data.amount) > round2(state.outstanding)) {
           return { error: `Payment exceeds the current balance of LKR ${state.outstanding.toFixed(2)}.` };
         }
         const after = computeCreditState(
           terms,
           [...installmentPayments, { amount: data.amount, paidDate }],
-          paidDate,
+          now,
         );
         await tx.vehicleCustomerPayment.create({
           data: {

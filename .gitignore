@@ -42,3 +42,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database backups contain business and customer data. Never commit them.
+/artifacts/backups/

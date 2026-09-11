@@ -18,7 +18,7 @@ on:
   workflow_dispatch: {} # allow manual runs from the Actions tab
 
 concurrency:
-  group: db-backup
+  group: db-maintenance
   cancel-in-progress: false
 
 jobs:

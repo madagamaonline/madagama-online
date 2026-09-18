@@ -7,15 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { InvoicePrintControls } from "@/components/invoice-print-controls";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
 import { returnSettlementLabel } from "@/lib/returns";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSession } from "@/lib/auth";
 import { VoidInvoiceButton } from "@/components/void-invoice-button";
 import { buildCreditPaymentLedger, computeCreditState } from "@/lib/credit";
 import { computeOpenAccountState, invoiceTypeLabel } from "@/lib/open-account";
 import { formatWarrantyMonths } from "@/lib/warranty";
 import { formatEnteredQuantity, formatQuantity } from "@/lib/units";
-
-const CATEGORY_LABEL = { TAXABLE: "TAXABLE", NON_TAXABLE: "NON-TAXABLE" } as const;
 
 function paymentMethodLabel(method: string): string {
   return {
@@ -38,7 +35,7 @@ export default async function InvoiceViewPage({
   const { id } = await params;
   const { new: isNew } = await searchParams;
 
-  const [invoice, setting, ntEnabled, session] = await Promise.all([
+  const [invoice, setting, session] = await Promise.all([
     prisma.invoice.findUnique({
       where: { id },
       include: {
@@ -68,12 +65,10 @@ export default async function InvoiceViewPage({
       },
     }),
     prisma.setting.findUnique({ where: { id: 1 } }),
-    nonTaxableEnabled(),
     getSession(),
   ]);
 
-  // When non-taxable is off, a non-taxable invoice has no traces — even by URL.
-  if (!invoice || (!ntEnabled && invoice.taxCategory === "NON_TAXABLE")) notFound();
+  if (!invoice) notFound();
 
   const soldQty = invoice.items.reduce((s, it) => s + toNum(it.qty), 0);
   const returnedQty = invoice.returns.reduce((s, r) => s + r.items.reduce((a, it) => a + toNum(it.qty), 0), 0);
@@ -206,13 +201,6 @@ export default async function InvoiceViewPage({
             <p className="text-[16.5px] font-medium leading-snug">{invoice.invoiceNumber}</p>
             <p className="text-[16.5px] leading-snug text-muted">{formatDateTime(invoice.createdAt)}</p>
             <div className="mt-1 flex justify-end gap-2">
-              {ntEnabled && (
-                <span className="no-print">
-                  <Badge tone={invoice.taxCategory === "TAXABLE" ? "blue" : "gray"}>
-                    {CATEGORY_LABEL[invoice.taxCategory]}
-                  </Badge>
-                </span>
-              )}
               <Badge tone={invoice.type === "CASH" ? "green" : invoice.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(invoice.type)}</Badge>
               {invoice.voidedAt && <Badge tone="red">VOIDED</Badge>}
               {returnedQty > 0 && (

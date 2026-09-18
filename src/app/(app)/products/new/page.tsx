@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { Button } from "@/components/ui/button";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
 import { peekNextShortCode } from "@/lib/product-code";
 import { toNum } from "@/lib/utils";
@@ -12,13 +11,12 @@ import { createProduct } from "../actions";
 export const dynamic = "force-dynamic";
 
 export default async function NewProductPage() {
-  const [categories, suppliers, ntEnabled, settings, nextShortCode] = await Promise.all([
+  const [categories, suppliers, settings, nextShortCode] = await Promise.all([
     prisma.category.findMany({
       orderBy: { name: "asc" },
       include: { subcategories: { orderBy: { name: "asc" } } },
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    nonTaxableEnabled(),
     getSettings(),
     peekNextShortCode(),
   ]);
@@ -42,7 +40,6 @@ export default async function NewProductPage() {
           suppliers={suppliers}
           action={createProduct}
           submitLabel="Create Product"
-          nonTaxableEnabled={ntEnabled}
           defaultTargetMarginPct={defaultTargetMarginPct}
           nextShortCode={nextShortCode}
         />

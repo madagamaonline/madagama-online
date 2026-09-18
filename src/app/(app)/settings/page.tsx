@@ -44,7 +44,7 @@ export default async function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <PageHeader title="Settings" subtitle="Business, tax, credit and SMS configuration" />
+      <PageHeader title="Settings" subtitle="Business, credit and SMS configuration" />
       <SettingsForm
         isAdmin={isAdmin}
         initial={{
@@ -58,7 +58,6 @@ export default async function SettingsPage() {
           smsEnabled: s?.smsEnabled ?? false,
           textlkApiTokenConfigured: isAdmin && !!s?.textlkApiToken,
           reminderDayOfMonth: s?.reminderDayOfMonth ?? 1,
-          nonTaxableEnabled: s?.nonTaxableEnabled ?? true,
           defaultTargetMarginPct: toNum(s?.defaultTargetMarginPct ?? 20),
           epfEmployeePct: Math.round(toNum(s?.epfEmployeeRate ?? 0.08) * 10000) / 100,
           epfEmployerPct: Math.round(toNum(s?.epfEmployerRate ?? 0.12) * 10000) / 100,

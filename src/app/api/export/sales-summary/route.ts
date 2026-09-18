@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse } from "@/lib/csv";
 import { toNum, round2 } from "@/lib/utils";
-import { nonTaxableEnabled, activeInvoiceWhere } from "@/lib/tax-mode";
 import { businessStartOfDay, businessStartOfMonth, businessMonthKey, businessDayKey, addDays } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
@@ -31,44 +30,117 @@ export async function GET(req: Request) {
   // For the current month, stop at today instead of listing empty future days.
   const rowsEnd = monthEnd > now ? addDays(businessStartOfDay(now), 1) : monthEnd;
 
-  const ntEnabled = await nonTaxableEnabled();
-  const taxF = activeInvoiceWhere(ntEnabled);
-
   const [invoices, returns] = await Promise.all([
     prisma.invoice.findMany({
-      where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF },
-      select: { createdAt: true, grandTotal: true },
+      where: { createdAt: { gte: monthStart, lt: monthEnd }, voidedAt: null },
+      select: { createdAt: true, grandTotal: true, taxCategory: true },
     }),
     prisma.salesReturn.findMany({
-      where: { date: { gte: monthStart, lt: monthEnd }, ...(ntEnabled ? {} : { invoice: taxF }) },
-      select: { date: true, totalRefund: true },
+      where: {
+        date: { gte: monthStart, lt: monthEnd },
+        OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }],
+      },
+      select: { date: true, totalRefund: true, invoice: { select: { taxCategory: true } } },
     }),
   ]);
 
-  const salesByDay = new Map<string, number>();
-  const countByDay = new Map<string, number>();
+  type DayTotals = {
+    taxableCount: number;
+    nonTaxableCount: number;
+    taxableSales: number;
+    nonTaxableSales: number;
+    taxableRefunds: number;
+    nonTaxableRefunds: number;
+    unclassifiedRefunds: number;
+  };
+  const emptyDay = (): DayTotals => ({
+    taxableCount: 0,
+    nonTaxableCount: 0,
+    taxableSales: 0,
+    nonTaxableSales: 0,
+    taxableRefunds: 0,
+    nonTaxableRefunds: 0,
+    unclassifiedRefunds: 0,
+  });
+  const totalsByDay = new Map<string, DayTotals>();
   for (const inv of invoices) {
     const k = businessDayKey(inv.createdAt);
-    salesByDay.set(k, (salesByDay.get(k) ?? 0) + toNum(inv.grandTotal));
-    countByDay.set(k, (countByDay.get(k) ?? 0) + 1);
+    const day = totalsByDay.get(k) ?? emptyDay();
+    if (inv.taxCategory === "TAXABLE") {
+      day.taxableCount += 1;
+      day.taxableSales += toNum(inv.grandTotal);
+    } else {
+      day.nonTaxableCount += 1;
+      day.nonTaxableSales += toNum(inv.grandTotal);
+    }
+    totalsByDay.set(k, day);
   }
-  const refundsByDay = new Map<string, number>();
   for (const r of returns) {
     const k = businessDayKey(r.date);
-    refundsByDay.set(k, (refundsByDay.get(k) ?? 0) + toNum(r.totalRefund));
+    const day = totalsByDay.get(k) ?? emptyDay();
+    if (r.invoice?.taxCategory === "TAXABLE") day.taxableRefunds += toNum(r.totalRefund);
+    else if (r.invoice?.taxCategory === "NON_TAXABLE") day.nonTaxableRefunds += toNum(r.totalRefund);
+    else day.unclassifiedRefunds += toNum(r.totalRefund);
+    totalsByDay.set(k, day);
   }
 
   const numDays = Math.max(0, Math.round((rowsEnd.getTime() - monthStart.getTime()) / MS_PER_DAY));
   const rows = Array.from({ length: numDays }, (_, i) => {
     const k = businessDayKey(addDays(monthStart, i));
-    const sales = round2(salesByDay.get(k) ?? 0);
-    const refunds = round2(refundsByDay.get(k) ?? 0);
-    return [k, countByDay.get(k) ?? 0, sales, refunds, round2(sales - refunds)];
+    const day = totalsByDay.get(k) ?? emptyDay();
+    const taxableSales = round2(day.taxableSales);
+    const nonTaxableSales = round2(day.nonTaxableSales);
+    const taxableRefunds = round2(day.taxableRefunds);
+    const nonTaxableRefunds = round2(day.nonTaxableRefunds);
+    const unclassifiedRefunds = round2(day.unclassifiedRefunds);
+    const taxableNet = round2(taxableSales - taxableRefunds);
+    const nonTaxableNet = round2(nonTaxableSales - nonTaxableRefunds);
+    return [
+      k,
+      day.taxableCount,
+      taxableSales,
+      taxableRefunds,
+      taxableNet,
+      day.nonTaxableCount,
+      nonTaxableSales,
+      nonTaxableRefunds,
+      nonTaxableNet,
+      unclassifiedRefunds,
+      day.taxableCount + day.nonTaxableCount,
+      round2(taxableSales + nonTaxableSales),
+      round2(taxableNet + nonTaxableNet - unclassifiedRefunds),
+    ];
   });
-  const totalSales = round2(rows.reduce((s, r) => s + Number(r[2]), 0));
-  const totalRefunds = round2(rows.reduce((s, r) => s + Number(r[3]), 0));
-  rows.push(["TOTAL", invoices.length, totalSales, totalRefunds, round2(totalSales - totalRefunds)]);
+  rows.push([
+    "TOTAL",
+    rows.reduce((sum, row) => sum + Number(row[1]), 0),
+    round2(rows.reduce((sum, row) => sum + Number(row[2]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[3]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[4]), 0)),
+    rows.reduce((sum, row) => sum + Number(row[5]), 0),
+    round2(rows.reduce((sum, row) => sum + Number(row[6]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[7]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[8]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[9]), 0)),
+    invoices.length,
+    round2(rows.reduce((sum, row) => sum + Number(row[11]), 0)),
+    round2(rows.reduce((sum, row) => sum + Number(row[12]), 0)),
+  ]);
 
-  const csv = toCsv(["Date", "Invoices", "Sales", "Refunds", "Net sales"], rows);
+  const csv = toCsv([
+    "Date",
+    "Taxable invoices",
+    "Taxable gross sales",
+    "Taxable refunds",
+    "Taxable net sales",
+    "Non-taxable invoices",
+    "Non-taxable gross sales",
+    "Non-taxable refunds",
+    "Non-taxable net sales",
+    "Unclassified legacy refunds",
+    "All invoices",
+    "All gross sales",
+    "All net sales",
+  ], rows);
   return csvResponse(csv, `sales-summary-${key}.csv`);
 }

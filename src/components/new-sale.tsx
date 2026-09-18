@@ -121,12 +121,10 @@ function normalizeCartWarranties(
 export function NewSale({
   employees,
   customers,
-  nonTaxableEnabled = true,
   canPayLater = false,
 }: {
   employees: { id: string; name: string }[];
   customers: SaleCustomer[];
-  nonTaxableEnabled?: boolean;
   canPayLater?: boolean;
 }) {
   const router = useRouter();
@@ -467,10 +465,7 @@ export function NewSale({
 
   const taxableLines = cart.filter((l) => l.product.taxable);
   const nonTaxableLines = cart.filter((l) => !l.product.taxable);
-  const subTaxable = taxableLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  const subNon = nonTaxableLines.reduce((s, l) => s + l.qty * l.unitPrice, 0);
-  // With non-taxable off, the cart can only hold taxable items, so never split.
-  const willSplit = nonTaxableEnabled && taxableLines.length > 0 && nonTaxableLines.length > 0;
+  const willSplit = taxableLines.length > 0 && nonTaxableLines.length > 0;
   const totals = sumLines(
     cart.map((l) => ({
       qty: l.qty,
@@ -641,10 +636,7 @@ export function NewSale({
                 <div key={inv.id} className="motion-receipt-line flex items-center justify-between gap-3 p-3" style={{ animationDelay: `${360 + index * 70}ms` }}>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span
-                        className={`font-mono font-semibold ${nonTaxableEnabled ? (inv.taxCategory === "TAXABLE" ? "text-success" : "text-danger") : ""}`}
-                        title={nonTaxableEnabled ? (inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable") : undefined}
-                      >
+                      <span className="font-mono font-semibold">
                         {inv.invoiceNumber}
                       </span>
                     </div>
@@ -722,10 +714,7 @@ export function NewSale({
                           <span className="font-mono text-xs font-semibold text-primary">
                             <Highlight text={h.code} query={query} />
                           </span>{" "}
-                          <span
-                            className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
-                            title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
-                          >
+                          <span className="font-medium">
                             <Highlight text={h.name} query={query} />
                           </span>
                         </span>
@@ -857,10 +846,7 @@ export function NewSale({
                               )}
                               {l.product.code}
                             </div>
-                            <div
-                              className={`font-medium ${nonTaxableEnabled ? (l.product.taxable ? "text-success" : "text-danger") : ""}`}
-                              title={nonTaxableEnabled ? (l.product.taxable ? "Taxable" : "Non-taxable") : undefined}
-                            >
+                            <div className="font-medium">
                               {l.product.name}
                             </div>
                             {l.product.modelNumber && (
@@ -1143,18 +1129,6 @@ export function NewSale({
             </div>
 
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
-              {willSplit && (
-                <>
-                  <div className="flex justify-between text-muted">
-                    <span>Taxable items</span>
-                    <span>{formatLKR(subTaxable)}</span>
-                  </div>
-                  <div className="flex justify-between text-muted">
-                    <span>Non-taxable items</span>
-                    <span>{formatLKR(subNon)}</span>
-                  </div>
-                </>
-              )}
               <div className="flex justify-between">
                 <span className="text-muted">Items subtotal</span>
                 <span>{formatLKR(totals.subtotal)}</span>
@@ -1265,7 +1239,7 @@ export function NewSale({
 
             {willSplit && (
               <div className="rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
-                This sale has taxable and non-taxable items — it will be saved as two separate bills (TX + NT).
+                This checkout will be stored as two internal bills and shown together on the full-sale receipt.
               </div>
             )}
 

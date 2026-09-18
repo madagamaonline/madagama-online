@@ -19,7 +19,6 @@ export type SettingsInitial = {
   smsEnabled: boolean;
   textlkApiTokenConfigured: boolean;
   reminderDayOfMonth: number;
-  nonTaxableEnabled: boolean;
   defaultTargetMarginPct: number;
   epfEmployeePct: number;
   epfEmployerPct: number;
@@ -111,35 +110,6 @@ export function SettingsForm({ initial, isAdmin = false }: { initial: SettingsIn
           </p>
         </CardContent>
       </Card>
-
-      {/* Once the switch is OFF this card disappears entirely (even for admins) so
-          the feature leaves no trace in Settings. Re-enabling happens on the
-          unlisted, password-confirmed page /settings/tax-mode. */}
-      {isAdmin && initial.nonTaxableEnabled && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Tax mode</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="nonTaxableEnabled"
-                defaultChecked={initial.nonTaxableEnabled}
-                className="h-4 w-4 rounded border-border"
-              />
-              Enable non-taxable products &amp; invoices
-            </label>
-            <p className="text-xs text-muted">
-              When this is <b>off</b>, the entire system hides every non-taxable product, invoice,
-              report figure and filter — it behaves as if only taxable stock exists, and new
-              non-taxable items can&apos;t be created. Nothing is deleted. Turning it off also hides
-              this card: to bring everything back, an admin must open <b>/settings/tax-mode</b>{" "}
-              directly and confirm with their password.
-            </p>
-          </CardContent>
-        </Card>
-      )}
 
       {isAdmin && (
         <Card>

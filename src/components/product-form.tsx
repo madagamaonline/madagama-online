@@ -65,7 +65,6 @@ export function ProductForm({
   initial = empty,
   submitLabel = "Save Product",
   isEdit = false,
-  nonTaxableEnabled = true,
   defaultTargetMarginPct = 20,
   nextShortCode = null,
 }: {
@@ -75,7 +74,6 @@ export function ProductForm({
   initial?: ProductInitial;
   submitLabel?: string;
   isEdit?: boolean;
-  nonTaxableEnabled?: boolean;
   defaultTargetMarginPct?: number;
   /** Sticker code the next product will most likely get — a hint only. */
   nextShortCode?: number | null;
@@ -303,16 +301,15 @@ export function ProductForm({
             <Textarea id="description" name="description" defaultValue={initial.description} />
           </div>
 
-          {nonTaxableEnabled && (
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                name="taxable"
-                defaultChecked={initial.taxable}
-                className="h-4 w-4 rounded border-border"
-              />
-            </label>
-          )}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              name="taxable"
+              defaultChecked={initial.taxable}
+              className="h-4 w-4 rounded border-border"
+            />
+            Taxable product
+          </label>
 
           <div className="flex gap-3 pt-2">
             <Button type="submit" disabled={pending}>

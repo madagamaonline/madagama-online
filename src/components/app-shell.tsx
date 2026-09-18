@@ -48,7 +48,6 @@ type NavItem = {
   href: string;
   label: string;
   icon: React.ElementType;
-  requiresNonTaxableMode?: boolean;
   requiresStaffFinanceAccess?: boolean;
 };
 type NavGroup = { title: string; items: NavItem[] };
@@ -107,7 +106,6 @@ const NAV: NavGroup[] = [
         href: "/lolc-receipt",
         label: "LOLC Receipts",
         icon: HandCoins,
-        requiresNonTaxableMode: true,
       },
     ],
   },
@@ -116,12 +114,10 @@ const NAV: NavGroup[] = [
 export function AppShell({
   user,
   businessName,
-  nonTaxableEnabled,
   children,
 }: {
   user: SessionUser;
   businessName: string;
-  nonTaxableEnabled: boolean;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
@@ -130,9 +126,7 @@ export function AppShell({
   const visibleNav = NAV.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) =>
-        (nonTaxableEnabled || !item.requiresNonTaxableMode) &&
-        (canAccessStaffFinance(user.role) || !item.requiresStaffFinanceAccess),
+      (item) => canAccessStaffFinance(user.role) || !item.requiresStaffFinanceAccess,
     ),
   })).filter((group) => group.items.length > 0);
 
@@ -338,7 +332,7 @@ export function AppShell({
       </div>
 
       <Pwa />
-      <CommandPalette nonTaxableEnabled={nonTaxableEnabled} userRole={user.role} />
+      <CommandPalette userRole={user.role} />
     </div>
     </ConfirmProvider>
   );

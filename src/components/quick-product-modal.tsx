@@ -28,7 +28,6 @@ export function QuickProductModal({
   categories,
   supplierId,
   supplierName,
-  nonTaxableEnabled,
   onClose,
   onSuccess,
 }: {
@@ -36,7 +35,6 @@ export function QuickProductModal({
   categories: QuickProductCategory[];
   supplierId: string;
   supplierName?: string;
-  nonTaxableEnabled: boolean;
   onClose: () => void;
   onSuccess: (product: CreatedProduct) => void;
 }) {
@@ -205,10 +203,9 @@ export function QuickProductModal({
             />
           </div>
 
-          {nonTaxableEnabled && (
-            <fieldset>
-              <legend className="mb-1.5 text-sm font-medium text-foreground">Tax classification</legend>
-              <div className="grid grid-cols-2 gap-2">
+          <fieldset>
+            <legend className="mb-1.5 text-sm font-medium text-foreground">Tax classification</legend>
+            <div className="grid grid-cols-2 gap-2">
                 {[
                   { value: true, label: "Taxable", description: "Include in taxable sales" },
                   { value: false, label: "Non-taxable", description: "Exclude from taxable sales" },
@@ -229,9 +226,8 @@ export function QuickProductModal({
                     <span className="mt-0.5 block text-xs text-muted">{option.description}</span>
                   </button>
                 ))}
-              </div>
-            </fieldset>
-          )}
+            </div>
+          </fieldset>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>

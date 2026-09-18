@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { PurchasePayment } from "@/components/purchase-payment";
 import { formatLKR, formatDate, formatDateTime, toNum } from "@/lib/utils";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { chequeBalance, chequeState, chequeStateLabel, chequeStateTone } from "@/lib/cheques";
 import { formatEnteredQuantity } from "@/lib/units";
 
@@ -19,12 +18,11 @@ const statusTone = { PAID: "green", PARTIAL: "amber", CREDIT: "red" } as const;
 
 export default async function PurchaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const ntEnabled = await nonTaxableEnabled();
   const purchase = await prisma.purchase.findUnique({
     where: { id },
     include: {
       supplier: true,
-      items: { include: { product: { select: { code: true, name: true, taxable: true } } } },
+      items: { include: { product: { select: { code: true, name: true } } } },
       payments: { orderBy: { paidDate: "desc" } },
       returns: { orderBy: { createdAt: "desc" }, include: { _count: { select: { items: true } } } },
       issuedCheques: {
@@ -33,7 +31,7 @@ export default async function PurchaseDetailPage({ params }: { params: Promise<{
       },
     },
   });
-  if (!purchase || (!ntEnabled && purchase.items.some((item) => !item.product.taxable))) notFound();
+  if (!purchase) notFound();
 
   const balance = Math.max(0, toNum(purchase.total) - toNum(purchase.amountPaid));
   const creditedFromReturns = purchase.returns.reduce((s, r) => s + toNum(r.appliedToPayable), 0);

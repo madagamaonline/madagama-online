@@ -1,9 +1,8 @@
 import Link from "next/link";
-import type { Prisma, TaxCategory } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { CircleDollarSign, Clock3, CreditCard, FilePlus2, Files } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { computeCreditState } from "@/lib/credit";
-import { nonTaxableEnabled, invoiceTaxableWhere } from "@/lib/tax-mode";
 import { cn, formatDate, formatLKR, toNum } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { StatCard } from "@/components/stat-card";
@@ -18,12 +17,6 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 export const dynamic = "force-dynamic";
 
 type Lifecycle = "ACTIVE" | "OVERDUE" | "SETTLED" | "VOIDED";
-
-const CATEGORY_FILTERS = [
-  { label: "All categories", value: "" },
-  { label: "Taxable", value: "TAXABLE" },
-  { label: "Non-taxable", value: "NON_TAXABLE" },
-] as const;
 
 const LIFECYCLE_FILTERS: { label: string; value: "" | Lifecycle }[] = [
   { label: "All", value: "" },
@@ -43,20 +36,16 @@ function lifecycleBadge(lifecycle: Lifecycle) {
 export default async function CreditInvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; status?: string }>;
+  searchParams: Promise<{ q?: string; status?: string }>;
 }) {
-  const { q, category, status } = await searchParams;
+  const { q, status } = await searchParams;
   const query = (q ?? "").trim();
-  const ntEnabled = await nonTaxableEnabled();
-  const cat = category === "TAXABLE" || category === "NON_TAXABLE" ? (category as TaxCategory) : undefined;
   const lifecycle = LIFECYCLE_FILTERS.some((filter) => filter.value === status)
     ? (status as Lifecycle | undefined)
     : undefined;
 
   const where: Prisma.InvoiceWhereInput = {
     type: "CREDIT",
-    ...(cat ? { taxCategory: cat } : {}),
-    ...invoiceTaxableWhere(ntEnabled),
     ...(tokenMatchWhere<Prisma.InvoiceWhereInput>(parseSearchQuery(query).tokens, (token) => {
       const digits = token.replace(/\D/g, "");
       const fields: Prisma.InvoiceWhereInput[] = [
@@ -119,12 +108,10 @@ export default async function CreditInvoicesPage({
   const totalCollected = activeRows.reduce((sum, row) => sum + row.collected, 0);
   const totalOutstanding = activeRows.reduce((sum, row) => sum + row.outstanding, 0);
 
-  const buildHref = (next: { category?: string; status?: string }) => {
+  const buildHref = (next: { status?: string }) => {
     const sp = new URLSearchParams();
     if (query) sp.set("q", query);
-    const nextCategory = next.category ?? cat ?? "";
     const nextStatus = next.status ?? lifecycle ?? "";
-    if (nextCategory) sp.set("category", nextCategory);
     if (nextStatus) sp.set("status", nextStatus);
     const suffix = sp.toString();
     return `/credit-invoices${suffix ? `?${suffix}` : ""}`;
@@ -162,24 +149,6 @@ export default async function CreditInvoicesPage({
                 placeholder="Search invoice, customer, phone or NIC…"
                 className="relative w-full max-w-lg flex-1"
               />
-              {ntEnabled && (
-                <div className="flex flex-wrap gap-1" aria-label="Tax category filters">
-                  {CATEGORY_FILTERS.map((filter) => (
-                    <Link
-                      key={filter.label}
-                      href={buildHref({ category: filter.value })}
-                      className={cn(
-                        "rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors",
-                        (cat ?? "") === filter.value
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-border-subtle text-muted hover:bg-border hover:text-foreground",
-                      )}
-                    >
-                      {filter.label}
-                    </Link>
-                  ))}
-                </div>
-              )}
             </div>
             <div className="mt-3 flex flex-wrap gap-1" aria-label="Invoice lifecycle filters">
               {LIFECYCLE_FILTERS.map((filter) => (
@@ -203,10 +172,10 @@ export default async function CreditInvoicesPage({
             <div className="px-5 py-14 text-center">
               <Files className="mx-auto h-8 w-8 text-faint" />
               <p className="mt-3 text-sm font-semibold text-foreground">
-                {query || cat || lifecycle ? "No credit invoices match these filters." : "No credit invoices yet."}
+                {query || lifecycle ? "No credit invoices match these filters." : "No credit invoices yet."}
               </p>
               <p className="mt-1 text-xs text-muted">
-                {query || cat || lifecycle ? "Try a different search or clear a filter." : "New credit sales will appear here automatically."}
+                {query || lifecycle ? "Try a different search or clear a filter." : "New credit sales will appear here automatically."}
               </p>
             </div>
           ) : (

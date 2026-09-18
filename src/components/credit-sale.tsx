@@ -59,13 +59,11 @@ export function CreditSale({
   employees,
   interestRatePct,
   freeMonths,
-  nonTaxableEnabled = true,
 }: {
   customers: SaleCustomer[];
   employees: { id: string; name: string }[];
   interestRatePct: number;
   freeMonths: number;
-  nonTaxableEnabled?: boolean;
 }) {
   const router = useRouter();
   // Debounce, abort-on-keystroke and error handling live in the hook.
@@ -228,7 +226,6 @@ export function CreditSale({
   const hasTaxable = cart.some((l) => l.product.taxable);
   const hasNonTaxable = cart.some((l) => !l.product.taxable);
   const mixed = hasTaxable && hasNonTaxable;
-  const category = hasTaxable ? "TAXABLE" : "NON_TAXABLE";
   const remainingCredit = round2(Math.max(0, totals.grandTotal - downPayment));
 
   // Keep the field independently editable while focused so clearing it does
@@ -241,7 +238,7 @@ export function CreditSale({
   function submit() {
     setError("");
     if (cart.length === 0) return setError("Add at least one item.");
-    if (mixed) return setError("A credit sale must be all taxable or all non-taxable items. Please make two separate credit sales.");
+    if (mixed) return setError("These items belong to different billing series. Please make two separate credit sales.");
     if (!customerId) return setError("Select a customer.");
     if (!collectGuarantorLater && (!g.name.trim() || !g.nic.trim() || !g.phone.trim())) {
       return setError("Enter the guarantor's name, NIC and phone, or choose to collect the details during delivery.");
@@ -325,10 +322,7 @@ export function CreditSale({
                           <span className="font-mono text-xs font-semibold text-primary">
                             <Highlight text={h.code} query={query} />
                           </span>{" "}
-                          <span
-                            className={`font-medium ${nonTaxableEnabled ? (h.taxable ? "text-success" : "text-danger") : ""}`}
-                            title={nonTaxableEnabled ? (h.taxable ? "Taxable" : "Non-taxable") : undefined}
-                          >
+                          <span className="font-medium">
                             <Highlight text={h.name} query={query} />
                           </span>
                         </span>
@@ -600,16 +594,6 @@ export function CreditSale({
               <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} />
             </div>
 
-            {nonTaxableEnabled && cart.length > 0 && !mixed && (
-              <div className="flex items-center justify-between border-t border-border pt-4 text-sm">
-                <span className="text-muted">Bill type</span>
-                <span
-                  className={`inline-block h-3 w-3 rounded-full ${category === "TAXABLE" ? "bg-success" : "bg-danger"}`}
-                  title={category === "TAXABLE" ? "Taxable" : "Non-taxable"}
-                />
-              </div>
-            )}
-
             <div className="space-y-1.5 border-t border-border pt-4 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted">Items subtotal</span>
@@ -705,7 +689,7 @@ export function CreditSale({
 
             {mixed && (
               <div className="rounded-lg bg-danger-soft px-3 py-2 text-xs text-danger-ink">
-                This cart mixes taxable and non-taxable items. A credit sale must be one type — please make two separate credit sales.
+                These items belong to different billing series. Please make two separate credit sales.
               </div>
             )}
 

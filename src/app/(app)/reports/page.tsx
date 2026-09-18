@@ -94,8 +94,8 @@ export default async function ReportsPage({
   // 12-month chart window.
   const trendStart = monthStart < start12mo ? monthStart : start12mo;
 
-  // Non-taxable kill-switch — when off, every figure is taxable-only (cached read,
-  // no extra round-trip).
+  // Compatibility helpers now include both billing series while active invoice
+  // reads continue to exclude voided accounting records.
   const ntEnabled = await nonTaxableEnabled();
   const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled);
@@ -118,13 +118,14 @@ export default async function ReportsPage({
     purchaseAgg,
     supplierReturnAgg,
     refundAgg,
+    categoryReturns,
     returnedItems,
     interestAgreements,
     realizedInvoices,
     vehicleSales,
     supplierSalesReport,
   ] = await Promise.all([
-    prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
+    prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true, taxCategory: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
     prisma.invoiceItem.findMany({
       where: { invoice: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } },
@@ -157,21 +158,33 @@ export default async function ReportsPage({
     }),
     prisma.purchase.aggregate({ _sum: { total: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...purchaseF } }),
     prisma.supplierReturn.aggregate({ _sum: { totalValue: true }, where: { date: { gte: monthStart, lt: monthEnd }, ...supplierReturnF } }),
-    // Refunds and returned goods follow the same tax filter as revenue/COGS, so
-    // gross profit stays consistent when the non-taxable switch is off. The
-    // invoice relation is optional, so the filter is only added when narrowing.
     prisma.salesReturn.aggregate({
       _sum: { totalRefund: true },
-      where: { date: { gte: monthStart, lt: monthEnd }, ...(ntEnabled ? {} : { invoice: taxF }) },
+      where: {
+        date: { gte: monthStart, lt: monthEnd },
+        OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }],
+      },
+    }),
+    prisma.salesReturn.findMany({
+      where: {
+        date: { gte: monthStart, lt: monthEnd },
+        invoice: { voidedAt: null },
+      },
+      select: { totalRefund: true, invoice: { select: { taxCategory: true } } },
     }),
     prisma.salesReturnItem.findMany({
-      where: { return: { date: { gte: monthStart, lt: monthEnd }, ...(ntEnabled ? {} : { invoice: taxF }) } },
+      where: {
+        return: {
+          date: { gte: monthStart, lt: monthEnd },
+          OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }],
+        },
+      },
       select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } },
     }),
     prisma.creditAgreement.findMany({
       where: {
         payments: { some: { paidDate: { gte: monthStart, lt: monthEnd } } },
-        ...(ntEnabled ? {} : { invoice: taxF }),
+        invoice: taxF,
       },
       select: {
         principal: true,
@@ -288,33 +301,55 @@ export default async function ReportsPage({
 
   const taxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "TAXABLE")?._sum.grandTotal ?? 0);
   const nonTaxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "NON_TAXABLE")?._sum.grandTotal ?? 0);
+  const taxableRefunds = round2(categoryReturns.reduce(
+    (sum, salesReturn) => sum + (salesReturn.invoice?.taxCategory === "TAXABLE" ? toNum(salesReturn.totalRefund) : 0),
+    0,
+  ));
+  const nonTaxableRefunds = round2(categoryReturns.reduce(
+    (sum, salesReturn) => sum + (salesReturn.invoice?.taxCategory === "NON_TAXABLE" ? toNum(salesReturn.totalRefund) : 0),
+    0,
+  ));
 
   // Daily chart window: rolling last-30-days while viewing the current month,
   // the whole month when viewing a past one.
   const dayWindowStart = isCurrent ? start30 : monthStart;
   const dayWindowEnd = isCurrent ? addDays(businessStartOfDay(now), 1) : monthEnd;
   const numDays = Math.round((dayWindowEnd.getTime() - dayWindowStart.getTime()) / MS_PER_DAY);
-  const dailyMap = new Map<string, number>();
+  const dailyMap = new Map<string, { taxable: number; nonTaxable: number }>();
   for (const inv of trendInvoices) {
     if (inv.createdAt >= dayWindowStart && inv.createdAt < dayWindowEnd) {
       const k = businessDayKey(inv.createdAt);
-      dailyMap.set(k, (dailyMap.get(k) ?? 0) + toNum(inv.grandTotal));
+      const split = dailyMap.get(k) ?? { taxable: 0, nonTaxable: 0 };
+      if (inv.taxCategory === "TAXABLE") split.taxable += toNum(inv.grandTotal);
+      else split.nonTaxable += toNum(inv.grandTotal);
+      dailyMap.set(k, split);
     }
   }
   const dailyData = Array.from({ length: numDays }, (_, i) => {
     const key = businessDayKey(addDays(dayWindowStart, i));
     const dd = new Date(`${key}T00:00:00Z`);
     const label = `${String(dd.getUTCDate()).padStart(2, "0")} ${dd.toLocaleString("en-US", { month: "short", timeZone: "UTC" })}`;
-    return { label, total: round2(dailyMap.get(key) ?? 0) };
+    const split = dailyMap.get(key) ?? { taxable: 0, nonTaxable: 0 };
+    const taxable = round2(split.taxable);
+    const nonTaxable = round2(split.nonTaxable);
+    return { label, taxable, nonTaxable, total: round2(taxable + nonTaxable) };
   });
 
   // Monthly (last 12 business-months)
-  const monthlyMap = new Map<string, number>();
+  const monthlyMap = new Map<string, { taxable: number; nonTaxable: number }>();
   for (const inv of trendInvoices) {
     const k = businessMonthKey(inv.createdAt);
-    monthlyMap.set(k, (monthlyMap.get(k) ?? 0) + toNum(inv.grandTotal));
+    const split = monthlyMap.get(k) ?? { taxable: 0, nonTaxable: 0 };
+    if (inv.taxCategory === "TAXABLE") split.taxable += toNum(inv.grandTotal);
+    else split.nonTaxable += toNum(inv.grandTotal);
+    monthlyMap.set(k, split);
   }
-  const monthlyData = monthSeq.map(({ key, label }) => ({ label, total: round2(monthlyMap.get(key) ?? 0) }));
+  const monthlyData = monthSeq.map(({ key, label }) => {
+    const split = monthlyMap.get(key) ?? { taxable: 0, nonTaxable: 0 };
+    const taxable = round2(split.taxable);
+    const nonTaxable = round2(split.nonTaxable);
+    return { label, taxable, nonTaxable, total: round2(taxable + nonTaxable) };
+  });
 
   // Profit (selected month, approximate)
   const revenue = toNum(monthRevenueAgg._sum.grandTotal ?? 0);
@@ -332,6 +367,7 @@ export default async function ReportsPage({
   // original sale (costSnapshot) so it matches how COGS above is valued; fall
   // back to current cost for returns created before snapshots existed.
   const refunds = toNum(refundAgg._sum.totalRefund ?? 0);
+  const unclassifiedRefunds = round2(Math.max(0, refunds - taxableRefunds - nonTaxableRefunds));
   const returnedCogs = round2(
     returnedItems.reduce((s, it) => s + toNum(it.qty) * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0), 0),
   );
@@ -596,15 +632,14 @@ export default async function ReportsPage({
         </CardContent>
       </Card>
 
-      <div className={`mb-4 grid grid-cols-2 gap-4 ${ntEnabled ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}>
-        {ntEnabled ? (
-          <>
-            <StatCard label="Taxable sales (month)" value={formatLKR(taxableSales)} tone="blue" />
-            <StatCard label="Non-taxable sales (month)" value={formatLKR(nonTaxableSales)} tone="default" />
-          </>
-        ) : (
-          <StatCard label="Sales (month)" value={formatLKR(taxableSales)} tone="blue" />
-        )}
+      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard label="Taxable gross sales (month)" value={formatLKR(taxableSales)} tone="blue" />
+        <StatCard label="Taxable refunds (month)" value={formatLKR(taxableRefunds)} tone={taxableRefunds ? "red" : "default"} />
+        <StatCard label="Taxable net sales (month)" value={formatLKR(round2(taxableSales - taxableRefunds))} tone="green" />
+        <StatCard label="Non-taxable gross sales (month)" value={formatLKR(nonTaxableSales)} tone="blue" />
+        <StatCard label="Non-taxable refunds (month)" value={formatLKR(nonTaxableRefunds)} tone={nonTaxableRefunds ? "red" : "default"} />
+        <StatCard label="Non-taxable net sales (month)" value={formatLKR(round2(nonTaxableSales - nonTaxableRefunds))} tone="green" />
+        {unclassifiedRefunds > 0 && <StatCard label="Unclassified legacy refunds" value={formatLKR(unclassifiedRefunds)} tone="amber" />}
         <StatCard label="Interest collected (month)" value={formatLKR(interestCollected)} tone="green" />
         <StatCard label="Stock value (at cost, today)" value={formatLKR(stockValue)} tone="amber" />
       </div>

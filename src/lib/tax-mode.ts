@@ -1,61 +1,42 @@
 import type { Prisma } from "@prisma/client";
-import { getSettings } from "@/lib/settings";
 
 /**
- * The non-taxable kill-switch.
+ * Compatibility shim for the retired non-taxable kill-switch.
  *
- * When an admin turns non-taxable OFF (`nonTaxableEnabled = false`), the whole
- * system behaves as if only taxable products and invoices exist: non-taxable
- * records are hidden from every read and can't be created. Nothing is ever
- * deleted — flipping it back ON makes everything reappear. Defaults to ON
- * (`true`) so existing behavior is preserved.
- *
- * Reads through the cached `getSettings()` so it adds no extra DB round-trip
- * within a render.
+ * Tax classification is now permanent and always available. Keep this helper
+ * during the rollback window so older call sites cannot hide historical data,
+ * even when a live Setting row still contains `nonTaxableEnabled = false`.
  */
 export async function nonTaxableEnabled(): Promise<boolean> {
-  const s = await getSettings();
-  return s?.nonTaxableEnabled ?? true;
+  return true;
 }
 
-/**
- * Product `where` filter. When the switch is off, only taxable products are
- * visible; when on, no constraint is added (spread an empty object).
- */
-export function productTaxableWhere(enabled: boolean): Prisma.ProductWhereInput {
-  return enabled ? {} : { taxable: true };
+/** @deprecated Compatibility helper; classification is never a visibility filter. */
+export function productTaxableWhere(_enabled: boolean): Prisma.ProductWhereInput {
+  void _enabled;
+  return {};
 }
 
-/**
- * Purchase `where` filter. A purchase is only visible in taxable-only mode
- * when every line points at a taxable product. Hiding mixed historical
- * purchases as a whole prevents their non-taxable lines and totals leaking
- * through purchase details, supplier balances, reminders, or reports.
- */
-export function purchaseTaxableWhere(enabled: boolean): Prisma.PurchaseWhereInput {
-  return enabled ? {} : { items: { every: { product: { taxable: true } } } };
+/** @deprecated Compatibility helper; purchases are always visible. */
+export function purchaseTaxableWhere(_enabled: boolean): Prisma.PurchaseWhereInput {
+  void _enabled;
+  return {};
 }
 
-/**
- * Supplier returns follow the visibility of their product lines for the same
- * reason as purchases. Current returns always have lines, so `every` is the
- * strict, composable relation filter needed by list and aggregate queries.
- */
-export function supplierReturnTaxableWhere(enabled: boolean): Prisma.SupplierReturnWhereInput {
-  return enabled ? {} : { items: { every: { product: { taxable: true } } } };
+/** @deprecated Compatibility helper; supplier returns are always visible. */
+export function supplierReturnTaxableWhere(_enabled: boolean): Prisma.SupplierReturnWhereInput {
+  void _enabled;
+  return {};
 }
 
-/**
- * Invoice `where` filter. When the switch is off, only taxable invoices are
- * visible; when on, no constraint is added. Also usable on relations, e.g.
- * `invoice: { ...invoiceTaxableWhere(enabled) }`.
- */
-export function invoiceTaxableWhere(enabled: boolean): Prisma.InvoiceWhereInput {
-  return enabled ? {} : { taxCategory: "TAXABLE" };
+/** @deprecated Compatibility helper; invoice category is never a visibility filter. */
+export function invoiceTaxableWhere(_enabled: boolean): Prisma.InvoiceWhereInput {
+  void _enabled;
+  return {};
 }
 
-/** Financial/operational reads must ignore voided invoices. Audit reads should
- * deliberately use invoiceTaxableWhere instead so voids remain discoverable. */
-export function activeInvoiceWhere(enabled: boolean): Prisma.InvoiceWhereInput {
-  return { ...invoiceTaxableWhere(enabled), voidedAt: null };
+/** Financial/operational reads ignore voided invoices; audit reads do not. */
+export function activeInvoiceWhere(_enabled: boolean): Prisma.InvoiceWhereInput {
+  void _enabled;
+  return { voidedAt: null };
 }

@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { PurchaseForm } from "@/components/purchase-form";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +10,7 @@ export default async function NewPurchasePage({
   searchParams: Promise<{ supplier?: string }>;
 }) {
   const { supplier } = await searchParams;
-  const [suppliers, categories, ntEnabled] = await Promise.all([
+  const [suppliers, categories] = await Promise.all([
     prisma.supplier.findMany({
       orderBy: { name: "asc" },
       select: { id: true, name: true },
@@ -28,7 +27,6 @@ export default async function NewPurchasePage({
         },
       },
     }),
-    nonTaxableEnabled(),
   ]);
 
   return (
@@ -37,7 +35,6 @@ export default async function NewPurchasePage({
       <PurchaseForm
         suppliers={suppliers}
         categories={categories}
-        nonTaxableEnabled={ntEnabled}
         defaultSupplierId={supplier ?? ""}
       />
     </div>

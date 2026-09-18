@@ -54,14 +54,12 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
   const d = parsed.data;
 
   const session = await requireActionUser();
-  const ntEnabled = await nonTaxableEnabled();
   const products = await prisma.product.findMany({
     where: { id: { in: d.lines.map((line) => line.productId) } },
-    select: { id: true, trackingType: true, taxable: true },
+    select: { id: true, trackingType: true },
   });
   const byId = new Map(products.map((product) => [product.id, product]));
   if (products.length !== new Set(d.lines.map((line) => line.productId)).size) return { ok: false, error: "One of the products no longer exists." };
-  if (!ntEnabled && products.some((product) => !product.taxable)) return { ok: false, error: "Non-taxable products are currently hidden." };
   const normalizedLines = [] as Array<(typeof d.lines)[number] & { qty: number; enteredQty: number; enteredUnit: import("@prisma/client").UnitOfMeasure; unit: import("@prisma/client").UnitOfMeasure }>;
   for (const line of d.lines) {
     const product = byId.get(line.productId)!;

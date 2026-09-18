@@ -35,6 +35,7 @@ describe("SMS credential privacy", () => {
   it("preserves an existing token on a routine blank submission", async () => {
     expect(await updateSettings({}, form())).toMatchObject({ ok: true });
     expect(mocks.update.mock.calls[0][0].data).not.toHaveProperty("textlkApiToken");
+    expect(mocks.update.mock.calls[0][0].data).not.toHaveProperty("nonTaxableEnabled");
   });
   it("allows explicit admin replacement and removal", async () => {
     const data = form(); data.set("textlkApiToken", "replacement");

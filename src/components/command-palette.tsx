@@ -112,13 +112,7 @@ const SALESPERSON_RESTRICTED_PREFIXES = [
   "/open-accounts",
 ];
 
-export function CommandPalette({
-  nonTaxableEnabled,
-  userRole,
-}: {
-  nonTaxableEnabled: boolean;
-  userRole: Role;
-}) {
+export function CommandPalette({ userRole }: { userRole: Role }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // One round trip covers products, customers, invoices and service jobs. The
@@ -188,7 +182,6 @@ export function CommandPalette({
   const staticMatches = useMemo(() => {
     const q = query.trim().toLowerCase();
     const all = [...ACTIONS, ...PAGES].filter((command) => {
-      if (!nonTaxableEnabled && (command.href === "/lolc-receipt" || command.href.startsWith("/lolc-receipt/"))) return false;
       if (
         !canAccessStaffFinance(userRole) &&
         SALESPERSON_RESTRICTED_PREFIXES.some(
@@ -201,7 +194,7 @@ export function CommandPalette({
     });
     if (!q) return all;
     return all.filter((c) => c.label.toLowerCase().includes(q) || c.sub?.toLowerCase().includes(q));
-  }, [query, nonTaxableEnabled, userRole]);
+  }, [query, userRole]);
 
   const items: Cmd[] = useMemo(
     () => [

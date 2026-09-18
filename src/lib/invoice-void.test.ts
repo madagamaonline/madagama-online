@@ -15,9 +15,9 @@ describe("voidInvoiceSchema", () => {
 });
 
 describe("activeInvoiceWhere", () => {
-  it("always excludes voids and composes tax visibility", () => {
+  it("always excludes voids without hiding a billing series", () => {
     expect(activeInvoiceWhere(true)).toEqual({ voidedAt: null });
-    expect(activeInvoiceWhere(false)).toEqual({ taxCategory: "TAXABLE", voidedAt: null });
+    expect(activeInvoiceWhere(false)).toEqual({ voidedAt: null });
   });
 });
 

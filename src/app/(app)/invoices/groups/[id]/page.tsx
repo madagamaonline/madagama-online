@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Ban } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { computeOpenAccountState } from "@/lib/open-account";
 import { orderSaleGroupInvoices, summarizeSaleGroup } from "@/lib/sale-group";
 import { formatDateTime, formatLKR, round2, toNum } from "@/lib/utils";
@@ -29,7 +28,7 @@ export default async function SaleGroupReceiptPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [group, setting, ntEnabled] = await Promise.all([
+  const [group, setting] = await Promise.all([
     prisma.saleGroup.findUnique({
       where: { id },
       include: {
@@ -51,13 +50,9 @@ export default async function SaleGroupReceiptPage({
       },
     }),
     prisma.setting.findUnique({ where: { id: 1 } }),
-    nonTaxableEnabled(),
   ]);
 
   if (!group || group.invoices.length === 0) notFound();
-  if (!ntEnabled && group.invoices.some((invoice) => invoice.taxCategory === "NON_TAXABLE")) {
-    notFound();
-  }
 
   const invoices = orderSaleGroupInvoices(group.invoices);
   const saleType = invoices[0]?.type;

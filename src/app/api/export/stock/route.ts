@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 import { toNum } from "@/lib/utils";
-import { nonTaxableEnabled, productTaxableWhere } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +10,7 @@ export async function GET() {
   if (!(await getSession())) {
     return new Response("Unauthorized", { status: 401 });
   }
-  // When non-taxable is off, export taxable products only and drop the Taxable
-  // column (every row would say "Yes" anyway).
-  const ntEnabled = await nonTaxableEnabled();
   const products = await prisma.product.findMany({
-    where: { ...productTaxableWhere(ntEnabled) },
     orderBy: { code: "asc" },
     include: { category: true, subcategory: true, primarySupplier: { select: { name: true } } },
     take: 5000,
@@ -38,7 +33,7 @@ export async function GET() {
       "Available to sell",
       "Reorder level",
       "Stock value (cost)",
-      ...(ntEnabled ? ["Taxable"] : []),
+      "Taxable",
       "Active",
       "Supplier",
     ],
@@ -62,7 +57,7 @@ export async function GET() {
         toNum(p.quantityInStock) - toNum(p.quantityReserved),
         toNum(p.reorderLevel),
         Math.round(cost * toNum(p.quantityInStock) * 100) / 100,
-        ...(ntEnabled ? [p.taxable ? "Yes" : "No"] : []),
+        p.taxable ? "Yes" : "No",
         p.active ? "Yes" : "No",
         p.primarySupplier?.name ?? "",
       ];

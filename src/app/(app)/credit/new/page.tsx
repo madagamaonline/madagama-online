@@ -2,17 +2,15 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { CreditSale } from "@/components/credit-sale";
 import { toNum } from "@/lib/utils";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewCreditSalePage() {
-  const [customers, employees, setting, ntEnabled] = await Promise.all([
+  const [customers, employees, setting] = await Promise.all([
     // Recent-customer seed only; the picker searches the server as you type.
     prisma.customer.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, phone: true, nic: true }, take: 8 }),
     prisma.employee.findMany({ where: { active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     prisma.setting.findUnique({ where: { id: 1 } }),
-    nonTaxableEnabled(),
   ]);
 
   return (
@@ -23,7 +21,6 @@ export default async function NewCreditSalePage() {
         employees={employees}
         interestRatePct={Math.round(toNum(setting?.interestRatePerMonth ?? 0.02) * 100)}
         freeMonths={setting?.interestFreeMonths ?? 4}
-        nonTaxableEnabled={ntEnabled}
       />
     </div>
   );

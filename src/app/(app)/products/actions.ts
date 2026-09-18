@@ -8,7 +8,6 @@ import { getSession, requireActionUser } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
 import { logPriceChange } from "@/lib/price-change";
 import { nextProductCode } from "@/lib/product-code";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { toNum } from "@/lib/utils";
 import { validateQuickProduct } from "@/lib/quick-product";
 import { canonicalUnit, isUnitAllowed, roundQuantity, toCanonicalQuantity } from "@/lib/units";
@@ -121,9 +120,7 @@ export async function quickCreateProduct(
       if (!supplier) return { ok: false, error: "The selected supplier is no longer available." };
     }
 
-    // The global switch is authoritative: callers cannot create a hidden
-    // non-taxable product by sending a crafted action request.
-    const taxable = (await nonTaxableEnabled()) ? d.taxable : true;
+    const taxable = d.taxable;
     const product = await prisma.$transaction(
       async (tx) => {
         const code = await nextProductCode(tx, resolved.categoryId, resolved.subcategoryId);
@@ -183,9 +180,7 @@ export async function createProduct(
   if (d.trackingType === "PIECE" && (!Number.isInteger(d.quantityInStock) || !Number.isInteger(d.reorderLevel))) {
     return { error: "Piece products require whole-number stock quantities." };
   }
-  // When the non-taxable switch is off, every new product is taxable — the
-  // checkbox is hidden in the form, so coerce here too as a safety net.
-  const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
+  const taxable = formData.get("taxable") === "on";
 
   const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
   if ("error" in resolved) return { error: resolved.error };
@@ -252,9 +247,7 @@ export async function updateProduct(
       return { error: "This product has fractional length stock. Adjust it to whole units before changing it to piece tracking." };
     }
   }
-  // When the non-taxable switch is off, the checkbox is hidden — keep edits
-  // taxable so an existing product can't be flipped to non-taxable.
-  const taxable = (await nonTaxableEnabled()) ? formData.get("taxable") === "on" : true;
+  const taxable = formData.get("taxable") === "on";
 
   const resolved = await resolveCategory(d.categoryId, d.subcategoryId);
   if ("error" in resolved) return { error: resolved.error };

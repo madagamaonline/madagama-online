@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { Plus, Download } from "lucide-react";
-import type { Prisma, TaxCategory } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,36 +12,24 @@ import { contains, parseSearchQuery, tokenMatchWhere } from "@/lib/search";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { InvoiceCashierFilter } from "@/components/invoice-cashier-filter";
 import { cn, formatLKR, formatDate } from "@/lib/utils";
-import { nonTaxableEnabled, invoiceTaxableWhere } from "@/lib/tax-mode";
 import { invoiceTypeLabel, openAccountStatusLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
 
 const statusTone = { PAID: "green", PARTIAL: "amber", CREDIT: "amber" } as const;
 
-const FILTERS: { label: string; value: string }[] = [
-  { label: "All", value: "" },
-  { label: "Taxable", value: "TAXABLE" },
-  { label: "Non-taxable", value: "NON_TAXABLE" },
-];
-
 export default async function InvoicesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; category?: string; cashier?: string; type?: string }>;
+  searchParams: Promise<{ q?: string; cashier?: string; type?: string }>;
 }) {
-  const { q, category, cashier, type } = await searchParams;
+  const { q, cashier, type } = await searchParams;
   const query = (q ?? "").trim();
-  const ntEnabled = await nonTaxableEnabled();
-  const cat = category === "TAXABLE" || category === "NON_TAXABLE" ? (category as TaxCategory) : undefined;
   const cashierId = (cashier ?? "").trim();
 
   const where: Prisma.InvoiceWhereInput = {
     ...(type === "CASH" || type === "CREDIT" || type === "OPEN_ACCOUNT" || type === "LAYAWAY" ? { type } : {}),
-    ...(cat ? { taxCategory: cat } : {}),
     ...(cashierId ? { createdByUserId: cashierId } : {}),
-    // When non-taxable is off this overrides any category filter to taxable-only.
-    ...invoiceTaxableWhere(ntEnabled),
     ...(tokenMatchWhere<Prisma.InvoiceWhereInput>(parseSearchQuery(query).tokens, (token) => [
       { invoiceNumber: contains(token) },
       { customer: { name: contains(token) } },
@@ -63,11 +51,9 @@ export default async function InvoicesPage({
   ]);
 
   // Build a list href that preserves the current filters, optionally overriding one.
-  const buildHref = (next: { category?: string; type?: string }) => {
+  const buildHref = (next: { type?: string }) => {
     const sp = new URLSearchParams();
     if (query) sp.set("q", query);
-    const c = next.category ?? cat ?? "";
-    if (c) sp.set("category", c);
     if (cashierId) sp.set("cashier", cashierId);
     const t = next.type ?? type ?? "";
     if (t) sp.set("type", t);
@@ -100,32 +86,13 @@ export default async function InvoicesPage({
             <ListSearch placeholder="Search invoice # or customer…" className="relative max-w-md flex-1" />
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex flex-wrap gap-1">{[["All types", ""], ["Cash", "CASH"], ["Pay Later", "OPEN_ACCOUNT"], ["Formal Credit", "CREDIT"], ["Layaway", "LAYAWAY"]].map(([label, value]) => <Link key={label} href={buildHref({ type: value })} className={cn("rounded-lg px-3 py-1.5 text-sm font-medium transition-colors", (type ?? "") === value ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border")}>{label}</Link>)}</div>
-              {ntEnabled && (
-                <div className="flex gap-1">
-                  {FILTERS.map((f) => {
-                    const active = (cat ?? "") === f.value;
-                    return (
-                      <Link
-                        key={f.label}
-                        href={buildHref({ category: f.value })}
-                        className={cn(
-                          "rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                          active ? "bg-primary text-primary-foreground" : "bg-border-subtle text-muted hover:bg-border hover:text-foreground",
-                        )}
-                      >
-                        {f.label}
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
               <InvoiceCashierFilter cashiers={cashiers} current={cashierId} />
             </div>
           </div>
 
           {invoices.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">
-              {query || cat || cashierId ? "No invoices match." : "No invoices yet."}
+              {query || cashierId ? "No invoices match." : "No invoices yet."}
             </div>
           ) : (
             <>
@@ -148,11 +115,6 @@ export default async function InvoicesPage({
                       <span className={cn("shrink-0 font-medium", inv.voidedAt && "line-through")}>{formatLKR(inv.grandTotal)}</span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      {ntEnabled && (
-                        <Badge tone={inv.taxCategory === "TAXABLE" ? "blue" : "gray"}>
-                          {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
-                        </Badge>
-                      )}
                       <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
                       <Badge tone={statusTone[inv.status]}>{inv.type === "OPEN_ACCOUNT" ? openAccountStatusLabel(inv.status) : inv.status}</Badge>
                       {inv.voidedAt && <Badge tone="red">VOIDED · AUDIT ONLY</Badge>}
@@ -170,7 +132,6 @@ export default async function InvoicesPage({
                       <TH>Date</TH>
                       <TH>Customer</TH>
                       <TH>Cashier</TH>
-                      {ntEnabled && <TH>Category</TH>}
                       <TH>Type</TH>
                       <TH>Status</TH>
                       <TH className="text-right">Total</TH>
@@ -187,13 +148,6 @@ export default async function InvoicesPage({
                         <TD className="text-muted">{formatDate(inv.createdAt)}</TD>
                         <TD>{inv.customer?.name ? <Highlight text={inv.customer.name} query={query} /> : "Walk-in"}</TD>
                         <TD className="text-muted">{inv.createdBy?.name ?? "—"}</TD>
-                        {ntEnabled && (
-                          <TD>
-                            <Badge tone={inv.taxCategory === "TAXABLE" ? "blue" : "gray"}>
-                              {inv.taxCategory === "TAXABLE" ? "Taxable" : "Non-taxable"}
-                            </Badge>
-                          </TD>
-                        )}
                         <TD>
                           <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
                         </TD>

@@ -20,7 +20,6 @@ import { sendSms } from "@/lib/sms";
 import { logStockMovement } from "@/lib/stock";
 import { validateLkPhone, normalizeLkPhone } from "@/lib/phone";
 import { toNum, formatLKR } from "@/lib/utils";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
 import { isValidWarrantyMonths } from "@/lib/warranty";
 import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
@@ -140,15 +139,11 @@ export async function createCreditSale(
   // A credit agreement is one invoice, so all items must be the same tax category.
   const anyTaxable = data.lines.some((l) => byId.get(l.productId)!.taxable);
   const anyNonTaxable = data.lines.some((l) => !byId.get(l.productId)!.taxable);
-  // Safety net for when the non-taxable switch is off (search already hides NT).
-  if (anyNonTaxable && !(await nonTaxableEnabled())) {
-    return { ok: false, error: "Non-taxable products are turned off." };
-  }
   if (anyTaxable && anyNonTaxable) {
     return {
       ok: false,
       error:
-        "A credit sale must be all taxable or all non-taxable items — please make two separate credit sales.",
+        "These items belong to different billing series. Please make two separate credit sales.",
     };
   }
   const taxCategory = anyTaxable ? "TAXABLE" : "NON_TAXABLE";

@@ -13,7 +13,6 @@ import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { round2, toNum } from "@/lib/utils";
 import { allocateOpenAccountPayment, OPEN_ACCOUNT_USER_PAYMENT_METHODS, openAccountInvoiceStatus, type OpenAccountPaymentMethod } from "@/lib/open-account";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/invoice-void";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
 import { isValidWarrantyMonths } from "@/lib/warranty";
@@ -150,12 +149,6 @@ async function createSale(
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
-
-  // Safety net: the product search hides non-taxable items when the switch is
-  // off, so a normal cart can't contain them — but a crafted request still could.
-  if (!(await nonTaxableEnabled()) && products.some((p) => !p.taxable)) {
-    return { ok: false, error: "Non-taxable products are turned off." };
-  }
 
   // Validate existence and stock.
   const shortages: string[] = [];

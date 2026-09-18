@@ -35,12 +35,10 @@ type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit:
 export function PurchaseForm({
   suppliers,
   categories,
-  nonTaxableEnabled = true,
   defaultSupplierId = "",
 }: {
   suppliers: { id: string; name: string }[];
   categories: QuickProductCategory[];
-  nonTaxableEnabled?: boolean;
   defaultSupplierId?: string;
 }) {
   const router = useRouter();
@@ -384,7 +382,6 @@ export function PurchaseForm({
           categories={categories}
           supplierId={supplierId}
           supplierName={suppliers.find((supplier) => supplier.id === supplierId)?.name}
-          nonTaxableEnabled={nonTaxableEnabled}
           onClose={() => {
             setQuickProductOpen(false);
             setTimeout(() => searchRef.current?.focus(), 0);

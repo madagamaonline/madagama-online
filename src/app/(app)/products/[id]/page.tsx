@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
 import { canonicalUnit, formatQuantity } from "@/lib/units";
 
@@ -37,7 +36,7 @@ const reasonMeta = {
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, movements, ntEnabled, settings, priceChanges] = await Promise.all([
+  const [product, movements, settings, priceChanges] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { category: true, subcategory: true, primarySupplier: { select: { name: true } } },
@@ -48,7 +47,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       include: { createdBy: { select: { name: true } } },
       take: 100,
     }),
-    nonTaxableEnabled(),
     getSettings(),
     prisma.priceChange.findMany({
       where: { productId: id },
@@ -57,9 +55,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       take: 50,
     }),
   ]);
-  // When non-taxable is off, a non-taxable product effectively doesn't exist —
-  // no direct-URL traces.
-  if (!product || (!ntEnabled && !product.taxable)) notFound();
+  if (!product) notFound();
 
   const cost = toNum(product.costPrice);
   const price = toNum(product.sellingPrice);
@@ -125,7 +121,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <Row label="Model no.">{product.modelNumber ?? "—"}</Row>
             <Row label="Serial no.">{product.serialNumber ?? "—"}</Row>
             <Row label="Supplier">{product.primarySupplier?.name ?? "—"}</Row>
-            {ntEnabled && <Row label="Tax">{product.taxable ? "Taxable" : "Non-taxable"}</Row>}
           </CardContent>
         </Card>
 

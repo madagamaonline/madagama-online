@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { ProductForm } from "@/components/product-form";
 import { toNum } from "@/lib/utils";
-import { nonTaxableEnabled } from "@/lib/tax-mode";
 import { getSettings } from "@/lib/settings";
 import { updateProduct } from "../../actions";
 
@@ -15,19 +14,17 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [product, categories, suppliers, ntEnabled, settings] = await Promise.all([
+  const [product, categories, suppliers, settings] = await Promise.all([
     prisma.product.findUnique({ where: { id } }),
     prisma.category.findMany({
       orderBy: { name: "asc" },
       include: { subcategories: { orderBy: { name: "asc" } } },
     }),
     prisma.supplier.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    nonTaxableEnabled(),
     getSettings(),
   ]);
 
-  // When non-taxable is off, a non-taxable product effectively doesn't exist.
-  if (!product || (!ntEnabled && !product.taxable)) notFound();
+  if (!product) notFound();
   const defaultTargetMarginPct = toNum(settings?.defaultTargetMarginPct ?? 20);
 
   const updateAction = updateProduct.bind(null, id);
@@ -41,7 +38,6 @@ export default async function EditProductPage({
         action={updateAction}
         submitLabel="Save Changes"
         isEdit
-        nonTaxableEnabled={ntEnabled}
         defaultTargetMarginPct={defaultTargetMarginPct}
         initial={{
           code: product.code,

@@ -89,10 +89,8 @@ model Setting {
   smsEnabled             Boolean  @default(false)
   textlkApiToken         String?
   reminderDayOfMonth     Int      @default(1)
-  // Non-taxable kill-switch. When false, the whole system hides every
-  // non-taxable product/invoice/report and refuses to create new ones — it
-  // behaves as if only taxable stock exists. Nothing is deleted; flipping it
-  // back to true restores everything. Default true preserves existing behavior.
+  // Retained temporarily for rollback compatibility. The application no longer
+  // reads this value or hides either product/invoice classification.
   nonTaxableEnabled      Boolean  @default(true)
   // Default target gross margin (%) used by the pricing helper / bulk re-pricer
   // when a product has no per-item targetMarginPct of its own.

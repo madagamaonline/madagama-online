@@ -45,9 +45,8 @@ export default async function DashboardPage() {
   const startLastMonth = businessStartOfMonth(addDays(startMonth, -1));
   const start7 = addDays(startToday, -6);
 
-  // Non-taxable kill-switch. Reads through the cached settings (already loaded by
-  // the layout) so this awaits with no extra DB round-trip. When off, every sales
-  // figure below is filtered to taxable-only.
+  // Compatibility helpers now include both billing series. Financial totals
+  // continue to exclude voided invoices through activeInvoiceWhere.
   const ntEnabled = await nonTaxableEnabled();
   const taxF = activeInvoiceWhere(ntEnabled);
   const prodF = productTaxableWhere(ntEnabled); // {} or { taxable: true }
@@ -98,7 +97,7 @@ export default async function DashboardPage() {
       where: { active: true, reorderLevel: { gt: 0 }, ...prodF },
       select: { id: true, code: true, name: true, quantityInStock: true, reorderLevel: true, trackingType: true },
     }),
-    prisma.invoice.findMany({ where: { createdAt: { gte: start7 }, ...taxF }, select: { grandTotal: true, createdAt: true } }),
+    prisma.invoice.findMany({ where: { createdAt: { gte: start7 }, ...taxF }, select: { grandTotal: true, createdAt: true, taxCategory: true } }),
     prisma.invoice.groupBy({ by: ["type"], _sum: { grandTotal: true }, where: { createdAt: { gte: startToday }, ...taxF } }),
     prisma.payment.aggregate({ _sum: { amount: true }, _count: true, where: { paidDate: { gte: startToday }, agreement: { invoice: { ...taxF } } } }),
     prisma.invoiceItem.findMany({
@@ -120,15 +119,12 @@ export default async function DashboardPage() {
       where: { status: { in: ["CREDIT", "PARTIAL"] }, creditDueDate: { not: null }, ...purchaseF },
       include: { supplier: { select: { name: true } } },
     }),
-    // Refunds follow the same tax filter as today's sales so the profit figure
-    // stays consistent when the non-taxable switch is off. The invoice relation
-    // is optional, so the filter is only added when narrowing.
     prisma.salesReturn.aggregate({
       _sum: { totalRefund: true },
-      where: { date: { gte: startToday }, ...(ntEnabled ? {} : { invoice: taxF }) },
+      where: { date: { gte: startToday }, OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }] },
     }),
     prisma.salesReturnItem.findMany({
-      where: { return: { date: { gte: startToday }, ...(ntEnabled ? {} : { invoice: taxF }) } },
+      where: { return: { date: { gte: startToday }, OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }] } },
       select: { qty: true, product: { select: { costPrice: true } } },
     }),
   ]);
@@ -193,10 +189,14 @@ export default async function DashboardPage() {
   const chartData = Array.from({ length: 7 }).map((_, i) => {
     const d = addDays(startToday, -(6 - i));
     const key = businessDayKey(d);
-    const total = dailyInvoicesRaw
-      .filter((inv) => businessDayKey(inv.createdAt) === key)
-      .reduce((sum, inv) => sum + toNum(inv.grandTotal), 0);
-    return { dayName: weekdays[businessWeekday(d)], total, isToday: key === todayKey };
+    const invoices = dailyInvoicesRaw.filter((inv) => businessDayKey(inv.createdAt) === key);
+    const taxable = invoices
+      .filter((invoice) => invoice.taxCategory === "TAXABLE")
+      .reduce((sum, invoice) => sum + toNum(invoice.grandTotal), 0);
+    const nonTaxable = invoices
+      .filter((invoice) => invoice.taxCategory === "NON_TAXABLE")
+      .reduce((sum, invoice) => sum + toNum(invoice.grandTotal), 0);
+    return { dayName: weekdays[businessWeekday(d)], taxable, nonTaxable, total: taxable + nonTaxable, isToday: key === todayKey };
   });
 
   // Cash vs credit split of today's sales.
@@ -333,10 +333,10 @@ export default async function DashboardPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="rounded-2xl border border-border bg-surface p-5 shadow-[0_1px_2px_rgba(30,41,74,0.05)] lg:col-span-2">
           <h3 className="text-[15px] font-bold text-foreground">Sales — last 7 days</h3>
-          <p className="mt-0.5 text-[11px] text-faint">Daily total across all invoices</p>
+          <p className="mt-0.5 text-[11px] text-faint">Taxable and non-taxable daily totals</p>
           <div className="mt-4">
             <SalesChart
-              data={chartData.map((d) => ({ label: d.dayName, total: d.total, highlight: d.isToday }))}
+              data={chartData.map((d) => ({ label: d.dayName, taxable: d.taxable, nonTaxable: d.nonTaxable, total: d.total, highlight: d.isToday }))}
             />
           </div>
         </div>
@@ -530,7 +530,6 @@ export default async function DashboardPage() {
                 <tr>
                   <th className="px-5 py-3 font-bold">Invoice</th>
                   <th className="px-4 py-3 font-bold">Customer</th>
-                  {ntEnabled && <th className="px-4 py-3 font-bold">Book</th>}
                   <th className="px-4 py-3 font-bold">Type</th>
                   <th className="px-4 py-3 text-right font-bold">Total</th>
                   <th className="px-5 py-3 font-bold">Date</th>
@@ -545,13 +544,6 @@ export default async function DashboardPage() {
                       </Link>
                     </td>
                     <td className="px-4 py-3 font-medium text-foreground">{inv.customer?.name ?? "Walk-in"}</td>
-                    {ntEnabled && (
-                      <td className="px-4 py-3">
-                        <Badge tone={inv.taxCategory === "TAXABLE" ? "green" : "amber"}>
-                          {inv.taxCategory === "TAXABLE" ? "TX" : "NT"}
-                        </Badge>
-                      </td>
-                    )}
                     <td className="px-4 py-3">
                       <Badge tone={inv.type === "CASH" ? "green" : inv.type === "OPEN_ACCOUNT" ? "amber" : "blue"}>{invoiceTypeLabel(inv.type)}</Badge>
                     </td>

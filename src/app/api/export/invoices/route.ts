@@ -2,7 +2,6 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { toCsv, csvResponse, csvDate } from "@/lib/csv";
 import { toNum } from "@/lib/utils";
-import { nonTaxableEnabled, activeInvoiceWhere } from "@/lib/tax-mode";
 import { invoiceTypeLabel, openAccountStatusLabel } from "@/lib/open-account";
 
 export const dynamic = "force-dynamic";
@@ -12,11 +11,8 @@ export async function GET() {
   if (!(await getSession())) {
     return new Response("Unauthorized", { status: 401 });
   }
-  // When non-taxable is off, the export contains taxable invoices only and drops
-  // the Category column entirely — no NT traces in the file.
-  const ntEnabled = await nonTaxableEnabled();
   const invoices = await prisma.invoice.findMany({
-    where: { ...activeInvoiceWhere(ntEnabled) },
+    where: { voidedAt: null },
     orderBy: { createdAt: "desc" },
     include: {
       customer: { select: { name: true } },
@@ -31,7 +27,7 @@ export async function GET() {
       "Invoice #",
       "Date",
       "Type",
-      ...(ntEnabled ? ["Category"] : []),
+      "Category",
       "Customer",
       "Cashier",
       "Salesperson",
@@ -46,7 +42,7 @@ export async function GET() {
       i.invoiceNumber,
       csvDate(i.createdAt),
       invoiceTypeLabel(i.type),
-      ...(ntEnabled ? [i.taxCategory] : []),
+      i.taxCategory,
       i.customer?.name ?? "Walk-in",
       i.createdBy?.name ?? "",
       i.soldBy?.name ?? "",

@@ -238,8 +238,7 @@ export default async function ProductsPage({
                         <TD className="font-medium">
                           <Link
                             href={`/products/${p.id}`}
-                            className={`hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
-                            title={ntEnabled ? (p.taxable ? "Taxable" : "Non-taxable") : undefined}
+                            className="hover:underline"
                           >
                             <Highlight text={p.name} query={query} />
                           </Link>
@@ -317,8 +316,7 @@ export default async function ProductsPage({
                         </div>
                         <Link
                           href={`/products/${p.id}`}
-                          className={`mt-0.5 block font-medium hover:underline ${ntEnabled ? (p.taxable ? "text-success" : "text-danger") : ""}`}
-                          title={ntEnabled ? (p.taxable ? "Taxable" : "Non-taxable") : undefined}
+                          className="mt-0.5 block font-medium hover:underline"
                         >
                           <Highlight text={p.name} query={query} />
                         </Link>

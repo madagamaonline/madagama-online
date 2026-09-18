@@ -60,7 +60,7 @@ export async function createLayaway(input: CreateLayawayInput): Promise<LayawayA
       const result = await prisma.$transaction(async (tx) => {
         const products = await tx.product.findMany({ where: { id: { in: lines.map((line) => line.productId) }, active: true }, select: { id: true, code: true, name: true, costPrice: true, quantityInStock: true, quantityReserved: true, taxable: true } });
         if (products.length !== lines.length) throw new Error("One of the products is no longer available.");
-        if (new Set(products.map((product) => product.taxable)).size > 1) throw new Error("Create separate layaways for taxable and non-taxable products.");
+        if (new Set(products.map((product) => product.taxable)).size > 1) throw new Error("Create separate layaways for products in different billing series.");
         const byId = new Map(products.map((product) => [product.id, product]));
         const order = await tx.layawayOrder.create({
           data: { customerId: data.customerId, subtotal: totals.subtotal, discount: totals.discount, total: totals.total, collectedAmount: data.initialPayment, status: statusAfterCollection(totals.total, data.initialPayment), promisedPickupDate: promised, notes: data.notes?.trim() || null, createdByUserId: user.id,
@@ -157,7 +157,7 @@ export async function handoverLayaway(_previous: LayawayActionState, formData: F
         const collected = round2(order.payments.reduce((sum, payment) => sum + toNum(payment.amount), 0));
         if (!canHandover(order.status, toNum(order.total), collected)) throw new Error("Handover is allowed only after full payment.");
         const taxable = order.items[0]?.product.taxable ?? true;
-        if (order.items.some((item) => item.product.taxable !== taxable)) throw new Error("Mixed tax categories cannot be handed over on one invoice.");
+        if (order.items.some((item) => item.product.taxable !== taxable)) throw new Error("Mixed billing series cannot be handed over on one invoice.");
         const invoiceNumber = await generateInvoiceNumber(tx, taxable ? "TAXABLE" : "NON_TAXABLE");
         const invoice = await tx.invoice.create({ data: { invoiceNumber, type: "LAYAWAY", taxCategory: taxable ? "TAXABLE" : "NON_TAXABLE", customerId: order.customerId, subtotal: order.subtotal, discount: order.discount, grandTotal: order.total, amountPaid: order.total, status: "PAID", notes: `Handover for layaway LAY-${String(order.orderNumber).padStart(6, "0")}`, createdByUserId: user.id,
           items: { create: order.items.map((item) => ({ productId: item.productId, nameSnapshot: item.nameSnapshot, codeSnapshot: item.codeSnapshot, qty: item.qty, unit: item.unit, enteredQty: item.enteredQty, enteredUnit: item.enteredUnit, unitPrice: item.unitPrice, lineTotal: item.lineTotal, costSnapshot: item.costSnapshot, supplierAtSaleId: item.product.primarySupplierId, supplierNameSnapshot: item.product.primarySupplier?.name ?? null, supplierAttribution: "CAPTURED" })) } } });

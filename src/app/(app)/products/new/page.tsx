@@ -10,7 +10,13 @@ import { createProduct } from "../actions";
 
 export const dynamic = "force-dynamic";
 
-export default async function NewProductPage() {
+export default async function NewProductPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; name?: string; supplier?: string }>;
+}) {
+  const params = await searchParams;
+  const returnToPurchase = params.from === "purchase";
   const [categories, suppliers, settings, nextShortCode] = await Promise.all([
     prisma.category.findMany({
       orderBy: { name: "asc" },
@@ -21,10 +27,16 @@ export default async function NewProductPage() {
     peekNextShortCode(),
   ]);
   const defaultTargetMarginPct = toNum(settings?.defaultTargetMarginPct ?? 20);
+  const initialSupplierId = returnToPurchase && suppliers.some((supplier) => supplier.id === params.supplier) ? params.supplier : "";
 
   return (
     <div className="mx-auto max-w-2xl">
       <PageHeader title="New Product" subtitle="A code is generated automatically from the category" />
+      {returnToPurchase && (
+        <div className="mb-4 rounded-xl border border-border bg-primary-soft px-4 py-3 text-sm text-primary-ink">
+          Your purchase draft is saved. After creating this product, you’ll return to the purchase with it selected. Leave opening stock at 0 if these items will be received through the purchase.
+        </div>
+      )}
       {categories.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-6 text-center">
           <p className="mb-3 text-sm text-muted">
@@ -33,6 +45,7 @@ export default async function NewProductPage() {
           <Link href="/products/categories">
             <Button>Set up categories</Button>
           </Link>
+          {returnToPurchase && <Link href="/purchases/new?resume=1" className="ml-3 text-sm font-semibold text-primary hover:underline">Return to purchase</Link>}
         </div>
       ) : (
         <ProductForm
@@ -42,6 +55,9 @@ export default async function NewProductPage() {
           submitLabel="Create Product"
           defaultTargetMarginPct={defaultTargetMarginPct}
           nextShortCode={nextShortCode}
+          initialName={returnToPurchase ? (params.name ?? "").slice(0, 200) : ""}
+          initialSupplierId={initialSupplierId}
+          returnToPurchase={returnToPurchase}
         />
       )}
     </div>

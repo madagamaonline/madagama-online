@@ -13,7 +13,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatLKR, round2 } from "@/lib/utils";
 import { createPurchase } from "@/app/(app)/purchases/actions";
-import { QuickProductModal, type QuickProductCategory } from "@/components/quick-product-modal";
 import { QuickSupplierModal } from "@/components/quick-supplier-modal";
 import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { ActionButtonContent, ActionFeedback, waitForSuccessFrame } from "@/components/ui/action-feedback";
@@ -31,15 +30,29 @@ type ProductHit = {
   defaultUnit?: UnitOfMeasure;
 };
 type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit: UnitOfMeasure; packageCount: number; costPrice: number };
+type PurchaseDraft = {
+  lines: Line[];
+  supplierId: string;
+  addedSuppliers: { id: string; name: string }[];
+  supplierInvoiceNo: string;
+  date: string;
+  type: "CASH" | "CREDIT";
+  creditDueDate: string;
+  amountPaid: number;
+  notes: string;
+};
+const DRAFT_KEY = "madagama:new-purchase:product-draft";
 
 export function PurchaseForm({
   suppliers,
-  categories,
   defaultSupplierId = "",
+  resumeDraft = false,
+  createdProduct = null,
 }: {
   suppliers: { id: string; name: string }[];
-  categories: QuickProductCategory[];
   defaultSupplierId?: string;
+  resumeDraft?: boolean;
+  createdProduct?: ProductHit | null;
 }) {
   const router = useRouter();
   const productSearch = useRemoteSearch<ProductHit>({
@@ -56,7 +69,6 @@ export function PurchaseForm({
     reset: resetSearch,
   } = productSearch;
   const [open, setOpen] = useState(false);
-  const [quickProductOpen, setQuickProductOpen] = useState(false);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
   const [addedSuppliers, setAddedSuppliers] = useState<{ id: string; name: string }[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
@@ -72,6 +84,48 @@ export function PurchaseForm({
   const [saved, setSaved] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
   const costRefs = useRef(new Map<string, HTMLInputElement>());
+  const restored = useRef(false);
+
+  useEffect(() => {
+    if (!resumeDraft || restored.current) return;
+    restored.current = true;
+    let draft: PurchaseDraft | null = null;
+    try {
+      const raw = sessionStorage.getItem(DRAFT_KEY);
+      if (raw) draft = JSON.parse(raw) as PurchaseDraft;
+      sessionStorage.removeItem(DRAFT_KEY);
+    } catch { /* Browser storage may be unavailable; the new product still loads. */ }
+    if (draft) {
+      setSupplierId(draft.supplierId || defaultSupplierId);
+      setAddedSuppliers(Array.isArray(draft.addedSuppliers) ? draft.addedSuppliers : []);
+      setSupplierInvoiceNo(draft.supplierInvoiceNo || "");
+      setDate(draft.date || new Date().toISOString().slice(0, 10));
+      setType(draft.type === "CREDIT" ? "CREDIT" : "CASH");
+      setCreditDueDate(draft.creditDueDate || "");
+      setAmountPaid(Number(draft.amountPaid) || 0);
+      setNotes(draft.notes || "");
+    }
+    const previous = Array.isArray(draft?.lines) ? draft.lines : [];
+    if (createdProduct) {
+      setLines(previous.some((line) => line.product.id === createdProduct.id) ? previous : [...previous, { product: createdProduct, qty: 1, enteredQty: 1, enteredUnit: createdProduct.defaultUnit ?? (createdProduct.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: createdProduct.costPrice }]);
+      setTimeout(() => costRefs.current.get(createdProduct.id)?.focus(), 0);
+    } else if (draft) setLines(previous);
+  }, [resumeDraft, createdProduct, defaultSupplierId]);
+
+  function openFullProductForm() {
+    const draft: PurchaseDraft = { lines, supplierId, addedSuppliers, supplierInvoiceNo, date, type, creditDueDate, amountPaid, notes };
+    try {
+      sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+    } catch {
+      setError("Could not preserve this purchase draft. Please try again.");
+      return;
+    }
+    setOpen(false);
+    const params = new URLSearchParams({ from: "purchase" });
+    if (query.trim()) params.set("name", query.trim());
+    if (supplierId) params.set("supplier", supplierId);
+    router.push(`/products/new?${params}`);
+  }
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -120,6 +174,7 @@ export function PurchaseForm({
         lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, enteredQty: l.enteredQty, enteredUnit: l.enteredUnit, packageCount: l.packageCount, costPrice: l.costPrice })),
       });
       if (!res.ok) return setError(res.error);
+      try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* Saved purchase is authoritative. */ }
       setSaved(true);
       await waitForSuccessFrame();
       router.push(`/purchases/${res.id}`);
@@ -190,16 +245,13 @@ export function PurchaseForm({
                   ) : noMatches ? (
                     <div className="p-3">
                       <p className="text-sm font-medium text-foreground">No products found</p>
-                      <p className="mt-0.5 text-xs text-muted">Create “{query.trim()}” without leaving this purchase.</p>
+                      <p className="mt-0.5 text-xs text-muted">Open the full New Product page, then return to this purchase.</p>
                       <Button
                         type="button"
                         variant="secondary"
                         size="sm"
                         className="mt-3 w-full"
-                        onClick={() => {
-                          setOpen(false);
-                          setQuickProductOpen(true);
-                        }}
+                        onClick={openFullProductForm}
                       >
                         <PackagePlus className="h-4 w-4" />
                         Create “{query.trim()}”
@@ -213,14 +265,11 @@ export function PurchaseForm({
                 type="button"
                 variant="outline"
                 size="lg"
-                onClick={() => {
-                  setOpen(false);
-                  setQuickProductOpen(true);
-                }}
+                onClick={openFullProductForm}
                 className="shrink-0"
               >
                 <PackagePlus className="h-4 w-4" />
-                Quick Add Product
+                New Product
               </Button>
             </div>
 
@@ -376,22 +425,6 @@ export function PurchaseForm({
         </Card>
       </div>
 
-      {quickProductOpen && (
-        <QuickProductModal
-          initialName={query.trim()}
-          categories={categories}
-          supplierId={supplierId}
-          supplierName={suppliers.find((supplier) => supplier.id === supplierId)?.name}
-          onClose={() => {
-            setQuickProductOpen(false);
-            setTimeout(() => searchRef.current?.focus(), 0);
-          }}
-          onSuccess={(product) => {
-            setQuickProductOpen(false);
-            addProduct(product, true);
-          }}
-        />
-      )}
       {quickSupplierOpen && (
         <QuickSupplierModal
           onClose={() => setQuickSupplierOpen(false)}

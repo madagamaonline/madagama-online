@@ -186,7 +186,7 @@ export async function createProduct(
   if ("error" in resolved) return { error: resolved.error };
   const session = await getSession();
 
-  await prisma.$transaction(
+  const product = await prisma.$transaction(
     async (tx) => {
       const code = await nextProductCode(tx, resolved.categoryId, resolved.subcategoryId);
       const product = await tx.product.create({
@@ -221,11 +221,15 @@ export async function createProduct(
           unit: canonicalUnit(d.trackingType),
         });
       }
+      return product;
     },
     { timeout: 15000 },
   );
 
   revalidatePath("/products");
+  if (formData.get("returnToPurchase") === "1") {
+    redirect(`/purchases/new?resume=1&product=${encodeURIComponent(product.id)}`);
+  }
   redirect("/products");
 }
 

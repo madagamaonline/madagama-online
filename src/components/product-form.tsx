@@ -67,6 +67,9 @@ export function ProductForm({
   isEdit = false,
   defaultTargetMarginPct = 20,
   nextShortCode = null,
+  initialName = "",
+  initialSupplierId = "",
+  returnToPurchase = false,
 }: {
   categories: Category[];
   suppliers: Supplier[];
@@ -77,6 +80,9 @@ export function ProductForm({
   defaultTargetMarginPct?: number;
   /** Sticker code the next product will most likely get — a hint only. */
   nextShortCode?: number | null;
+  initialName?: string;
+  initialSupplierId?: string;
+  returnToPurchase?: boolean;
 }) {
   const router = useRouter();
   const [state, formAction, pending] = useActionState(action, {});
@@ -85,7 +91,7 @@ export function ProductForm({
   // a now-invalid subcategory. Submitted via a hidden input (SearchSelect is a
   // button, not a native form field).
   const [subcategoryId, setSubcategoryId] = useState(initial.subcategoryId);
-  const [supplierId, setSupplierId] = useState(initial.primarySupplierId);
+  const [supplierId, setSupplierId] = useState(initial.primarySupplierId || initialSupplierId);
   const [trackingType, setTrackingType] = useState<InventoryTracking>(initial.trackingType);
   const [defaultUnit, setDefaultUnit] = useState<UnitOfMeasure>(initial.defaultUnit);
 
@@ -101,6 +107,7 @@ export function ProductForm({
 
   return (
     <form action={formAction}>
+      {returnToPurchase && <input type="hidden" name="returnToPurchase" value="1" />}
       <Card>
         <CardContent className="space-y-5">
           {state.error && (
@@ -125,7 +132,7 @@ export function ProductForm({
 
           <div>
             <Label htmlFor="name">Product name</Label>
-            <Input id="name" name="name" defaultValue={initial.name} required />
+            <Input id="name" name="name" defaultValue={initial.name || initialName} required />
           </div>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -315,7 +322,7 @@ export function ProductForm({
             <Button type="submit" disabled={pending}>
               {pending ? "Saving…" : submitLabel}
             </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button type="button" variant="outline" onClick={() => returnToPurchase ? router.push("/purchases/new?resume=1") : router.back()}>
               Cancel
             </Button>
           </div>

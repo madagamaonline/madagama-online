@@ -9,6 +9,7 @@ import { reportBounds } from "@/lib/supplier-sales-analytics";
 
 export type SupplierSalesDetailRow = {
   kind: "SALE" | "RETURN";
+  taxCategory: "TAXABLE" | "NON_TAXABLE" | null;
   date: Date;
   invoiceNumber: string;
   invoiceId: string | null;
@@ -108,6 +109,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
         createdAt: true,
         grandTotal: true,
         type: true,
+        taxCategory: true,
         customer: { select: { name: true } },
         createdBy: { select: { name: true } },
         soldBy: { select: { name: true } },
@@ -142,6 +144,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
             id: true,
             invoiceNumber: true,
             type: true,
+            taxCategory: true,
             customer: { select: { name: true } },
             createdBy: { select: { name: true } },
             soldBy: { select: { name: true } },
@@ -192,6 +195,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
       const supplier = supplierIdentity(item);
       details.push({
         kind: "SALE",
+        taxCategory: invoice.taxCategory,
         date: invoice.createdAt,
         invoiceNumber: invoice.invoiceNumber,
         invoiceId: invoice.id,
@@ -225,6 +229,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
       });
       details.push({
         kind: "RETURN",
+        taxCategory: customerReturn.invoice?.taxCategory ?? null,
         date: customerReturn.date,
         invoiceNumber: customerReturn.invoice?.invoiceNumber ?? "Unlinked return",
         invoiceId: customerReturn.invoice?.id ?? null,

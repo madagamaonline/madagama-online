@@ -4,7 +4,7 @@ import type { SupplierSalesDetailRow } from "./supplier-sales";
 import { addDays, businessDayKey } from "./dates";
 
 const base: SupplierSalesDetailRow = {
-  kind: "SALE", date: new Date("2026-08-10T06:00:00Z"), invoiceNumber: "INV-1", invoiceId: "i1",
+  kind: "SALE", taxCategory: "TAXABLE", date: new Date("2026-08-10T06:00:00Z"), invoiceNumber: "INV-1", invoiceId: "i1",
   supplierId: "s1", supplierName: "Supplier One", attribution: "CAPTURED", productId: "p1",
   productCode: "P-1", productName: "Pump", quantity: 2, unit: "EACH", sales: 1000, returns: 0,
   cogs: 600, returnedCogs: 0, customerName: "Customer", cashierName: "Cashier", salespersonName: "Seller", saleType: "CASH",

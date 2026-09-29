@@ -1,4 +1,5 @@
 import { cashRefundAmount } from "@/lib/returns";
+import { requireStaffFinanceAccess } from "@/lib/auth";
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import {
@@ -35,6 +36,7 @@ import { getSupplierSalesReport } from "@/lib/supplier-sales";
 export const dynamic = "force-dynamic";
 
 const MS_PER_DAY = 86_400_000;
+const compactMetricValue = "text-xl sm:text-2xl [overflow-wrap:anywhere]";
 
 /** First instant of the business month named by a `YYYY-MM` key. */
 function monthStartFromKey(key: string): Date {
@@ -53,6 +55,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<{ month?: string }>;
 }) {
+  await requireStaffFinanceAccess();
   const { month: monthParam } = await searchParams;
   const now = new Date();
   const nowKey = businessMonthKey(now);
@@ -109,7 +112,6 @@ export default async function ReportsPage({
     monthItems,
     expenseAgg,
     payrollLines,
-    categoryAgg,
     cashierAgg,
     salesAgg,
     users,
@@ -118,14 +120,13 @@ export default async function ReportsPage({
     purchaseAgg,
     supplierReturnAgg,
     refundAgg,
-    categoryReturns,
     returnedItems,
     interestAgreements,
     realizedInvoices,
     vehicleSales,
     supplierSalesReport,
   ] = await Promise.all([
-    prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true, taxCategory: true } }),
+    prisma.invoice.findMany({ where: { createdAt: { gte: trendStart }, ...taxF }, select: { createdAt: true, grandTotal: true } }),
     prisma.invoice.aggregate({ _sum: { grandTotal: true }, where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } }),
     prisma.invoiceItem.findMany({
       where: { invoice: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF } },
@@ -133,11 +134,6 @@ export default async function ReportsPage({
     }),
     prisma.expense.aggregate({ _sum: { amount: true }, where: { date: { gte: monthStart, lt: monthEnd } } }),
     computePayroll(selKey),
-    prisma.invoice.groupBy({
-      by: ["taxCategory"],
-      _sum: { grandTotal: true },
-      where: { createdAt: { gte: monthStart, lt: monthEnd }, ...taxF },
-    }),
     prisma.invoice.groupBy({
       by: ["createdByUserId"],
       _sum: { grandTotal: true },
@@ -164,13 +160,6 @@ export default async function ReportsPage({
         date: { gte: monthStart, lt: monthEnd },
         OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }],
       },
-    }),
-    prisma.salesReturn.findMany({
-      where: {
-        date: { gte: monthStart, lt: monthEnd },
-        invoice: { voidedAt: null },
-      },
-      select: { totalRefund: true, invoice: { select: { taxCategory: true } } },
     }),
     prisma.salesReturnItem.findMany({
       where: {
@@ -299,57 +288,32 @@ export default async function ReportsPage({
     .filter((p) => toNum(p.reorderLevel) > 0 && toNum(p.quantityInStock) <= toNum(p.reorderLevel))
     .sort((a, b) => toNum(a.quantityInStock) - toNum(b.quantityInStock));
 
-  const taxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "TAXABLE")?._sum.grandTotal ?? 0);
-  const nonTaxableSales = toNum(categoryAgg.find((c) => c.taxCategory === "NON_TAXABLE")?._sum.grandTotal ?? 0);
-  const taxableRefunds = round2(categoryReturns.reduce(
-    (sum, salesReturn) => sum + (salesReturn.invoice?.taxCategory === "TAXABLE" ? toNum(salesReturn.totalRefund) : 0),
-    0,
-  ));
-  const nonTaxableRefunds = round2(categoryReturns.reduce(
-    (sum, salesReturn) => sum + (salesReturn.invoice?.taxCategory === "NON_TAXABLE" ? toNum(salesReturn.totalRefund) : 0),
-    0,
-  ));
-
   // Daily chart window: rolling last-30-days while viewing the current month,
   // the whole month when viewing a past one.
   const dayWindowStart = isCurrent ? start30 : monthStart;
   const dayWindowEnd = isCurrent ? addDays(businessStartOfDay(now), 1) : monthEnd;
   const numDays = Math.round((dayWindowEnd.getTime() - dayWindowStart.getTime()) / MS_PER_DAY);
-  const dailyMap = new Map<string, { taxable: number; nonTaxable: number }>();
+  const dailyMap = new Map<string, number>();
   for (const inv of trendInvoices) {
     if (inv.createdAt >= dayWindowStart && inv.createdAt < dayWindowEnd) {
       const k = businessDayKey(inv.createdAt);
-      const split = dailyMap.get(k) ?? { taxable: 0, nonTaxable: 0 };
-      if (inv.taxCategory === "TAXABLE") split.taxable += toNum(inv.grandTotal);
-      else split.nonTaxable += toNum(inv.grandTotal);
-      dailyMap.set(k, split);
+      dailyMap.set(k, (dailyMap.get(k) ?? 0) + toNum(inv.grandTotal));
     }
   }
   const dailyData = Array.from({ length: numDays }, (_, i) => {
     const key = businessDayKey(addDays(dayWindowStart, i));
     const dd = new Date(`${key}T00:00:00Z`);
     const label = `${String(dd.getUTCDate()).padStart(2, "0")} ${dd.toLocaleString("en-US", { month: "short", timeZone: "UTC" })}`;
-    const split = dailyMap.get(key) ?? { taxable: 0, nonTaxable: 0 };
-    const taxable = round2(split.taxable);
-    const nonTaxable = round2(split.nonTaxable);
-    return { label, taxable, nonTaxable, total: round2(taxable + nonTaxable) };
+    return { label, total: round2(dailyMap.get(key) ?? 0) };
   });
 
   // Monthly (last 12 business-months)
-  const monthlyMap = new Map<string, { taxable: number; nonTaxable: number }>();
+  const monthlyMap = new Map<string, number>();
   for (const inv of trendInvoices) {
     const k = businessMonthKey(inv.createdAt);
-    const split = monthlyMap.get(k) ?? { taxable: 0, nonTaxable: 0 };
-    if (inv.taxCategory === "TAXABLE") split.taxable += toNum(inv.grandTotal);
-    else split.nonTaxable += toNum(inv.grandTotal);
-    monthlyMap.set(k, split);
+    monthlyMap.set(k, (monthlyMap.get(k) ?? 0) + toNum(inv.grandTotal));
   }
-  const monthlyData = monthSeq.map(({ key, label }) => {
-    const split = monthlyMap.get(key) ?? { taxable: 0, nonTaxable: 0 };
-    const taxable = round2(split.taxable);
-    const nonTaxable = round2(split.nonTaxable);
-    return { label, taxable, nonTaxable, total: round2(taxable + nonTaxable) };
-  });
+  const monthlyData = monthSeq.map(({ key, label }) => ({ label, total: round2(monthlyMap.get(key) ?? 0) }));
 
   // Profit (selected month, approximate)
   const revenue = toNum(monthRevenueAgg._sum.grandTotal ?? 0);
@@ -367,7 +331,7 @@ export default async function ReportsPage({
   // original sale (costSnapshot) so it matches how COGS above is valued; fall
   // back to current cost for returns created before snapshots existed.
   const refunds = toNum(refundAgg._sum.totalRefund ?? 0);
-  const unclassifiedRefunds = round2(Math.max(0, refunds - taxableRefunds - nonTaxableRefunds));
+  const netSales = round2(revenue - refunds);
   const returnedCogs = round2(
     returnedItems.reduce((s, it) => s + toNum(it.qty) * toNum(it.costSnapshot ?? it.product?.costPrice ?? 0), 0),
   );
@@ -553,105 +517,163 @@ export default async function ReportsPage({
           title="Reports"
           subtitle={`Sales trends & profit — ${monthLabel}`}
           action={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href={`/reports?month=${prevKey}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-                aria-label="Previous month"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </Link>
-              <form className="flex items-center gap-2">
-                <Input key={selKey} type="month" name="month" defaultValue={selKey} max={nowKey} className="h-9 w-40" />
-                <Button type="submit" variant="outline" size="sm">
-                  View
-                </Button>
-              </form>
-              {!isCurrent && (
+            <div className="flex w-full flex-col gap-2 xl:w-auto xl:items-end">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-surface p-1.5" aria-label="Report month">
                 <Link
-                  href={`/reports?month=${nextKey}`}
+                  href={`/reports?month=${prevKey}`}
                   className={buttonVariants({ variant: "outline", size: "sm" })}
-                  aria-label="Next month"
+                  aria-label="Previous month"
                 >
-                  <ChevronRight className="h-4 w-4" />
+                  <ChevronLeft className="h-4 w-4" />
                 </Link>
-              )}
-              <a
-                href={`/api/export/sales-summary?month=${selKey}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <Download className="h-4 w-4" /> Daily CSV
-              </a>
-              <a
-                href={`/api/export/supplier-sales/xlsx?month=${selKey}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <Download className="h-4 w-4" /> Supplier Excel
-              </a>
-              <a
-                href={`/api/export/supplier-sales/pdf?month=${selKey}`}
-                className={buttonVariants({ variant: "outline", size: "sm" })}
-              >
-                <Download className="h-4 w-4" /> Supplier PDF
-              </a>
-              <PrintButton label="Print / Save PDF" />
+                <form className="flex items-center gap-2">
+                  <Input key={selKey} type="month" name="month" defaultValue={selKey} max={nowKey} className="h-9 w-40" />
+                  <Button type="submit" variant="outline" size="sm">
+                    View
+                  </Button>
+                </form>
+                {!isCurrent && (
+                  <Link
+                    href={`/reports?month=${nextKey}`}
+                    className={buttonVariants({ variant: "outline", size: "sm" })}
+                    aria-label="Next month"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Link>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2" aria-label="Report exports">
+                <a
+                  href={`/api/export/sales-summary?month=${selKey}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Download className="h-4 w-4" /> Daily CSV
+                </a>
+                <a
+                  href={`/api/export/supplier-sales/xlsx?month=${selKey}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Download className="h-4 w-4" /> Supplier Excel
+                </a>
+                <a
+                  href={`/api/export/supplier-sales/pdf?month=${selKey}`}
+                  className={buttonVariants({ variant: "outline", size: "sm" })}
+                >
+                  <Download className="h-4 w-4" /> Supplier PDF
+                </a>
+                <PrintButton label="Print / Save PDF" />
+              </div>
             </div>
           }
         />
       </div>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatCard label="Revenue (month)" value={formatLKR(revenue)} tone="green" />
-        <StatCard label="Less: customer refunds" value={formatLKR(refunds)} tone={refunds > 0 ? "red" : "default"} />
-        <StatCard label="Cost of goods (net of returns)" value={formatLKR(round2(cogs - returnedCogs))} tone="amber" />
-        <StatCard label="Gross profit" value={formatLKR(grossProfit)} tone="blue" />
-        <StatCard
-          label="Realized gross profit"
-          value={formatLKR(realizedGrossProfit)}
-          tone={realizedGrossProfit >= 0 ? "green" : "red"}
-        />
-        <StatCard label="Expenses" value={formatLKR(expenses)} tone="amber" />
-        <StatCard label="Payroll (company cost)" value={formatLKR(payroll)} tone="amber" />
-        <StatCard label="Net profit (approx.)" value={formatLKR(netProfit)} tone={netProfit >= 0 ? "green" : "red"} />
-      </div>
+      <section className="mb-6 rounded-2xl border border-border bg-surface p-4 shadow-[0_1px_2px_rgba(30,41,74,0.05)] sm:p-6" aria-labelledby="report-summary-heading">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-2 border-b border-border pb-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Financial overview</p>
+            <h2 id="report-summary-heading" className="mt-1 text-2xl font-bold tracking-tight text-foreground">{monthLabel}</h2>
+          </div>
+          <p className="text-xs text-muted">Amounts in Sri Lankan rupees</p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,2fr)]">
+          <div className={`flex min-h-48 flex-col justify-between rounded-2xl border-l-4 p-5 ${netProfit >= 0 ? "border-l-primary bg-primary-soft" : "border-l-danger bg-danger-soft"}`}>
+            <p className="text-sm font-semibold text-muted">Net profit <span className="font-normal">(approx.)</span></p>
+            <div>
+              <p className={`tabular break-words text-3xl font-extrabold tracking-tight sm:text-4xl ${netProfit >= 0 ? "text-primary-ink" : "text-danger-ink"}`}>{formatLKR(netProfit)}</p>
+              <p className="mt-2 text-xs text-muted">After refunds, cost of goods, expenses and payroll</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <StatCard label="Gross sales" value={formatLKR(revenue)} tone="green" />
+            <StatCard label="Customer refunds" value={formatLKR(refunds)} tone={refunds > 0 ? "red" : "default"} />
+            <StatCard label="Net sales" value={formatLKR(netSales)} tone="blue" />
+            <StatCard label="Gross profit" value={formatLKR(grossProfit)} tone={grossProfit >= 0 ? "green" : "red"} />
+          </div>
+        </div>
+        <div className="mt-4 grid grid-cols-1 gap-3 border-t border-border pt-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Cost of goods (net of returns)" value={formatLKR(round2(cogs - returnedCogs))} tone="amber" />
+          <StatCard label="Realized gross profit" value={formatLKR(realizedGrossProfit)} tone={realizedGrossProfit >= 0 ? "green" : "red"} />
+          <StatCard label="Expenses" value={formatLKR(expenses)} tone="amber" />
+          <StatCard label="Payroll (company cost)" value={formatLKR(payroll)} tone="amber" />
+        </div>
+      </section>
 
-      <Card className="mb-4">
+      <section className="mb-8 border-t border-border pt-6" aria-labelledby="vehicle-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">01 / Sales channels</p>
+          <h2 id="vehicle-heading" className="mt-1 text-xl font-bold tracking-tight text-foreground">Vehicle commissions</h2>
+          <p className="mt-1 text-sm text-muted">Commission income and settlement obligations from consignment sales.</p>
+        </div>
+      <Card>
         <CardHeader>
           <CardTitle>Consignment vehicle sales</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-            <StatCard label="Vehicles sold" value={String(vehicleSales.length)} tone="blue" />
-            <StatCard label="Gross dealer commission" value={formatLKR(vehicleGrossCommission)} tone="green" />
-            <StatCard label="Customer discounts" value={formatLKR(vehicleDiscounts)} tone={vehicleDiscounts > 0 ? "amber" : "default"} />
-            <StatCard label="Net dealer commission" value={formatLKR(vehicleNetCommission)} tone={vehicleNetCommission >= 0 ? "green" : "red"} />
-            <StatCard label="Customer collections" value={formatLKR(vehicleCollections)} tone="blue" />
-            <StatCard label="Supplier liability created" value={formatLKR(vehicleSupplierDue)} tone="amber" />
-            <StatCard label="Supplier still payable" value={formatLKR(vehicleSupplierOutstanding)} tone={vehicleSupplierOutstanding > 0 ? "amber" : "green"} />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <StatCard label="Vehicles sold" value={String(vehicleSales.length)} tone="blue" compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Gross dealer commission" value={formatLKR(vehicleGrossCommission)} tone="green" compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Customer discounts" value={formatLKR(vehicleDiscounts)} tone={vehicleDiscounts > 0 ? "amber" : "default"} compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Net dealer commission" value={formatLKR(vehicleNetCommission)} tone={vehicleNetCommission >= 0 ? "green" : "red"} compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Customer collections" value={formatLKR(vehicleCollections)} tone="blue" compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Supplier liability created" value={formatLKR(vehicleSupplierDue)} tone="amber" compactOnMobile valueClassName={compactMetricValue} />
+            <StatCard label="Supplier still payable" value={formatLKR(vehicleSupplierOutstanding)} tone={vehicleSupplierOutstanding > 0 ? "amber" : "green"} compactOnMobile valueClassName={compactMetricValue} />
           </div>
         </CardContent>
       </Card>
+      </section>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Taxable gross sales (month)" value={formatLKR(taxableSales)} tone="blue" />
-        <StatCard label="Taxable refunds (month)" value={formatLKR(taxableRefunds)} tone={taxableRefunds ? "red" : "default"} />
-        <StatCard label="Taxable net sales (month)" value={formatLKR(round2(taxableSales - taxableRefunds))} tone="green" />
-        <StatCard label="Non-taxable gross sales (month)" value={formatLKR(nonTaxableSales)} tone="blue" />
-        <StatCard label="Non-taxable refunds (month)" value={formatLKR(nonTaxableRefunds)} tone={nonTaxableRefunds ? "red" : "default"} />
-        <StatCard label="Non-taxable net sales (month)" value={formatLKR(round2(nonTaxableSales - nonTaxableRefunds))} tone="green" />
-        {unclassifiedRefunds > 0 && <StatCard label="Unclassified legacy refunds" value={formatLKR(unclassifiedRefunds)} tone="amber" />}
-        <StatCard label="Interest collected (month)" value={formatLKR(interestCollected)} tone="green" />
-        <StatCard label="Stock value (at cost, today)" value={formatLKR(stockValue)} tone="amber" />
-      </div>
+      <section className="mb-8 border-t border-border pt-6" aria-labelledby="receivables-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">02 / Cash flow</p>
+          <h2 id="receivables-heading" className="mt-1 text-xl font-bold tracking-tight text-foreground">Receivables and collections</h2>
+        </div>
+        <div className="mb-4 max-w-md">
+          <StatCard label="Interest collected (month)" value={formatLKR(interestCollected)} tone="green" compactOnMobile valueClassName={compactMetricValue} />
+        </div>
 
-      <Card className="mb-4"><CardHeader><CardTitle>Pay Later receivables</CardTitle></CardHeader><CardContent><div className="grid grid-cols-2 gap-4 lg:grid-cols-3"><StatCard label={`Issued (${payLaterIssuedAgg._count})`} value={formatLKR(payLaterIssued)} tone="amber" /><StatCard label={`Collected (${payLaterCollectedAgg._count})`} value={formatLKR(payLaterCollected)} tone="green" /><StatCard label="Outstanding today" value={formatLKR(payLaterOutstanding)} tone={payLaterOutstanding ? "amber" : "default"} /></div></CardContent></Card>
-      <Card className="mb-4"><CardHeader><CardTitle>Layaways · reserve and pay</CardTitle></CardHeader><CardContent><p className="mb-3 text-sm text-muted">Installments are cash-flow collections; sales revenue is recognized only when fully paid goods are handed over.</p><div className="grid grid-cols-2 gap-4 lg:grid-cols-3"><StatCard label={`Installments (${layawayCollectionsAgg._count})`} value={formatLKR(layawayCollected)} tone="green" /><StatCard label={`Handovers (${layawayHandoversAgg._count})`} value={formatLKR(layawayRecognized)} tone="blue" /><StatCard label="Unpaid on open orders" value={formatLKR(layawayOutstanding)} tone={layawayOutstanding ? "amber" : "default"} /></div></CardContent></Card>
+        <Card className="mb-4">
+          <CardHeader><CardTitle>Pay Later receivables</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatCard label={`Issued (${payLaterIssuedAgg._count})`} value={formatLKR(payLaterIssued)} tone="amber" compactOnMobile valueClassName={compactMetricValue} />
+              <StatCard label={`Collected (${payLaterCollectedAgg._count})`} value={formatLKR(payLaterCollected)} tone="green" compactOnMobile valueClassName={compactMetricValue} />
+              <StatCard label="Outstanding today" value={formatLKR(payLaterOutstanding)} tone={payLaterOutstanding ? "amber" : "default"} compactOnMobile valueClassName={compactMetricValue} />
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Layaways · reserve and pay</CardTitle></CardHeader>
+          <CardContent>
+            <p className="mb-3 text-sm text-muted">Installments are cash-flow collections; sales revenue is recognized only when fully paid goods are handed over.</p>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <StatCard label={`Installments (${layawayCollectionsAgg._count})`} value={formatLKR(layawayCollected)} tone="green" compactOnMobile valueClassName={compactMetricValue} />
+              <StatCard label={`Handovers (${layawayHandoversAgg._count})`} value={formatLKR(layawayRecognized)} tone="blue" compactOnMobile valueClassName={compactMetricValue} />
+              <StatCard label="Unpaid on open orders" value={formatLKR(layawayOutstanding)} tone={layawayOutstanding ? "amber" : "default"} compactOnMobile valueClassName={compactMetricValue} />
+            </div>
+          </CardContent>
+        </Card>
+      </section>
 
-      <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
-        <StatCard label="Purchases (month)" value={formatLKR(purchasesMonth)} tone="amber" />
-        <StatCard label="Supplier returns (month)" value={formatLKR(supplierReturnsMonth)} tone="default" />
-        <StatCard label="Net purchases (month)" value={formatLKR(netPurchases)} tone="blue" />
-      </div>
+      <section className="mb-8 border-t border-border pt-6" aria-labelledby="purchasing-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">03 / Inventory</p>
+          <h2 id="purchasing-heading" className="mt-1 text-xl font-bold tracking-tight text-foreground">Purchasing and stock</h2>
+        </div>
+        <div className="mb-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Purchases (month)" value={formatLKR(purchasesMonth)} tone="amber" compactOnMobile valueClassName={compactMetricValue} />
+          <StatCard label="Supplier returns (month)" value={formatLKR(supplierReturnsMonth)} tone="default" compactOnMobile valueClassName={compactMetricValue} />
+          <StatCard label="Net purchases (month)" value={formatLKR(netPurchases)} tone="blue" compactOnMobile valueClassName={compactMetricValue} />
+          <StatCard label="Stock value (at cost, today)" value={formatLKR(stockValue)} tone="amber" compactOnMobile valueClassName={compactMetricValue} />
+        </div>
+      </section>
+
+      <section className="mb-8 border-t border-border pt-6" aria-labelledby="performance-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">04 / Trading</p>
+          <h2 id="performance-heading" className="mt-1 text-xl font-bold tracking-tight text-foreground">Sales performance</h2>
+          <p className="mt-1 text-sm text-muted">People, suppliers, products and sales trends for the selected period.</p>
+        </div>
 
       <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
@@ -724,7 +746,7 @@ export default async function ReportsPage({
           {supplierSalesReport.suppliers.length === 0 ? (
             <div className="px-5 py-8 text-center text-sm text-muted">No supplier-attributed sales or returns this month.</div>
           ) : (
-            <Table>
+            <Table scrollHint>
               <THead>
                 <TR>
                   <TH>Supplier</TH>
@@ -842,7 +864,13 @@ export default async function ReportsPage({
           )}
         </CardContent>
       </Card>
+      </section>
 
+      <section className="mb-8 border-t border-border pt-6" aria-labelledby="stock-watch-heading">
+        <div className="mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.14em] text-primary">05 / Stock watch</p>
+          <h2 id="stock-watch-heading" className="mt-1 text-xl font-bold tracking-tight text-foreground">Reorder priorities</h2>
+        </div>
       <Card className="mt-4">
         <CardHeader>
           <CardTitle>Low stock — reorder list</CardTitle>
@@ -874,6 +902,7 @@ export default async function ReportsPage({
           )}
         </CardContent>
       </Card>
+      </section>
 
       <p className="mt-4 text-xs text-muted">
         Gross profit recognizes invoices when sold. Realized gross profit is the amount unlocked by principal cash

@@ -42,10 +42,15 @@ export function dueLabel(days: number): string {
   return `Due in ${days}d`;
 }
 
+// Always render in the business timezone. Without this, the server (UTC) shows
+// a Sri Lanka midnight such as 2026-10-03T00:00+05:30 as the previous day.
+const BUSINESS_TIME_ZONE = "Asia/Colombo";
+
 export function formatDate(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIME_ZONE,
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -56,6 +61,7 @@ export function formatDateTime(d: Date | string | null | undefined): string {
   if (!d) return "—";
   const date = typeof d === "string" ? new Date(d) : d;
   return new Intl.DateTimeFormat("en-GB", {
+    timeZone: BUSINESS_TIME_ZONE,
     day: "2-digit",
     month: "short",
     year: "numeric",

@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -1263,7 +1264,7 @@ export function NewSale({
                   <div><Label htmlFor="advance-method" className="dark:text-amber-100">Payment method</Label><Select id="advance-method" value={advancePaymentMethod} onChange={(event) => setAdvancePaymentMethod(event.target.value as typeof advancePaymentMethod)} disabled={advancePayment <= 0}><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="CARD">Card</option></Select></div>
                 </div>
                 <p id="advance-payment-help" className="text-xs text-amber-800 dark:text-amber-300">Leave at zero if nothing is paid today.</p>
-                <div><Label htmlFor="promised-date" className="dark:text-amber-100">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={new Date().toISOString().slice(0, 10)} onChange={(event) => setPromisedDate(event.target.value)} /></div>
+                <div><Label htmlFor="promised-date" className="dark:text-amber-100">Promised payment date (optional)</Label><Input id="promised-date" type="date" value={promisedDate} min={businessToday()} onChange={(event) => setPromisedDate(event.target.value)} /></div>
                 <div className="space-y-1 border-t border-amber-300 pt-2 text-sm dark:border-amber-800"><div className="flex justify-between"><span>Received now</span><strong>{formatLKR(advancePayment)}</strong></div><div className="flex justify-between text-base"><span>Balance due</span><AnimatedMoney value={round2(Math.max(0, totals.grandTotal - advancePayment))} className="font-bold tabular-nums" /></div></div>
                 <Button onClick={completePayLater} disabled={pending || !customerId} className={`w-full overflow-hidden text-white dark:disabled:opacity-70 ${completionState === "success" ? "motion-success-sweep bg-success hover:bg-success dark:text-slate-950" : "bg-amber-700 hover:bg-amber-800"}`} aria-live="polite">{completionState === "success" ? <DrawnSuccessIcon className="h-4 w-4" /> : pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock3 className="h-4 w-4" />} {completionState === "success" ? "Invoice created" : "Create Pay Later Invoice"}</Button>
               </div>

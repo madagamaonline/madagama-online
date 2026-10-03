@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { buttonVariants } from "@/components/ui/button";
 import { formatLKR, formatDateTime, formatDate } from "@/lib/utils";
+import { businessMonthKey } from "@/lib/dates";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export default async function PayrollPage({
   searchParams: Promise<{ month?: string }>;
 }) {
   const { month: monthParam } = await searchParams;
-  const month = monthParam ?? new Date().toISOString().slice(0, 7);
+  const month = monthParam ?? businessMonthKey(new Date());
 
   const [lines, runs] = await Promise.all([
     computePayroll(month),

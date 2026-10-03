@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Search, Trash2, Loader2, PackagePlus } from "lucide-react";
@@ -74,7 +75,7 @@ export function PurchaseForm({
   const [lines, setLines] = useState<Line[]>([]);
   const [supplierId, setSupplierId] = useState(defaultSupplierId);
   const [supplierInvoiceNo, setSupplierInvoiceNo] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(businessToday());
   const [type, setType] = useState<"CASH" | "CREDIT">("CASH");
   const [creditDueDate, setCreditDueDate] = useState("");
   const [amountPaid, setAmountPaid] = useState(0);
@@ -99,7 +100,7 @@ export function PurchaseForm({
       setSupplierId(draft.supplierId || defaultSupplierId);
       setAddedSuppliers(Array.isArray(draft.addedSuppliers) ? draft.addedSuppliers : []);
       setSupplierInvoiceNo(draft.supplierInvoiceNo || "");
-      setDate(draft.date || new Date().toISOString().slice(0, 10));
+      setDate(draft.date || businessToday());
       setType(draft.type === "CREDIT" ? "CREDIT" : "CASH");
       setCreditDueDate(draft.creditDueDate || "");
       setAmountPaid(Number(draft.amountPaid) || 0);

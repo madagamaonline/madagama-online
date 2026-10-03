@@ -60,3 +60,18 @@ export function businessMonthKey(d: Date): string {
 export function businessWeekday(d: Date): number {
   return toBusiness(d).getUTCDay();
 }
+
+/** Today's business date as `YYYY-MM-DD`, for date-input defaults. */
+export function businessToday(now: Date = new Date()): string {
+  return businessDayKey(now);
+}
+
+/**
+ * Parse a submitted `YYYY-MM-DD` payment date. Today's business date maps to
+ * the current instant so it is never "in the future" just after midnight
+ * (UTC midnight of today is 05:30 in Sri Lanka); other days keep the existing
+ * UTC-midnight convention.
+ */
+export function parsePaymentDateInput(value: string, now: Date = new Date()): Date {
+  return value === businessDayKey(now) ? now : new Date(value);
+}

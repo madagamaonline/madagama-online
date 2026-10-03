@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronsRight, Loader2 } from "lucide-react";
@@ -41,7 +42,7 @@ export function IssueChequeForm({
   const [supplierId, setSupplierId] = useState(defaultPurchase?.supplierId || defaultSupplierId);
   const [purchaseId, setPurchaseId] = useState(defaultPurchaseId);
   const [state, action, pending] = useActionState(issueCheque, initial);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
   const supplierPurchases = useMemo(() => purchases.filter((purchase) => purchase.supplierId === supplierId), [purchases, supplierId]);
 
   useEffect(() => {

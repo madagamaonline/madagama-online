@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 import { createAdvance, type AdvanceState } from "@/app/(app)/advances/actions";
@@ -15,7 +16,7 @@ const initial: AdvanceState = {};
 export function AddAdvance({ employees }: { employees: { id: string; name: string }[] }) {
   const [state, action, pending] = useActionState(createAdvance, initial);
   const ref = useRef<HTMLFormElement>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   useEffect(() => {
     if (state.ok) ref.current?.reset();

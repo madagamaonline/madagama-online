@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,7 @@ export function VehiclePaymentForm({ action, outstanding }: { action: (previous:
   return <form ref={formRef} action={formAction} className="space-y-3">
     <ActionFeedback error={state.error} success={state.ok ? "Customer payment recorded." : undefined} />
     <div><Label htmlFor="customer-payment-amount">Amount (LKR)</Label><NumberInput id="customer-payment-amount" name="amount" min={0.01} max={outstanding} required /></div>
-    <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="customer-payment-date">Date</Label><Input id="customer-payment-date" name="paidDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></div><div><Label htmlFor="customer-payment-method">Method</Label><Select id="customer-payment-method" name="method" defaultValue="CASH"><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="CARD">Card</option></Select></div></div>
+    <div className="grid grid-cols-2 gap-3"><div><Label htmlFor="customer-payment-date">Date</Label><Input id="customer-payment-date" name="paidDate" type="date" defaultValue={businessToday()} required /></div><div><Label htmlFor="customer-payment-method">Method</Label><Select id="customer-payment-method" name="method" defaultValue="CASH"><option value="CASH">Cash</option><option value="BANK">Bank transfer</option><option value="CHEQUE">Cheque</option><option value="CARD">Card</option></Select></div></div>
     <div><Label htmlFor="customer-payment-reference">Reference</Label><Input id="customer-payment-reference" name="reference" className="font-mono" placeholder="Optional" /></div>
     <div><Label htmlFor="customer-payment-note">Note</Label><Input id="customer-payment-note" name="note" placeholder="Optional" /></div>
     <Button type="submit" className="w-full" disabled={pending || outstanding <= 0}><ActionButtonContent pending={pending} success={state.ok} idleLabel={outstanding <= 0 ? "Account fully collected" : "Record customer payment"} pendingLabel="Recording…" successLabel="Payment recorded" /></Button>

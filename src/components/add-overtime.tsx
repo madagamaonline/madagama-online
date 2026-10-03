@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { createOvertime, type OvertimeState } from "@/app/(app)/overtime/actions";
@@ -18,7 +19,7 @@ export function AddOvertime({ employees }: { employees: { id: string; name: stri
   const ref = useRef<HTMLFormElement>(null);
   const [hours, setHours] = useState(0);
   const [rate, setRate] = useState(0);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   useEffect(() => {
     if (state.ok) {

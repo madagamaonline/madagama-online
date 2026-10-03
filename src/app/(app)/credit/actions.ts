@@ -1,6 +1,7 @@
 "use server";
 
 import { validateCreditPaymentTimeline } from "@/lib/credit-payment-validation";
+import { parsePaymentDateInput } from "@/lib/dates";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { Prisma } from "@prisma/client";
@@ -387,7 +388,7 @@ export async function recordPayment(
 
   const session = await requireActionUser();
 
-  const paidDate = parsed.data.paidDate ? new Date(parsed.data.paidDate) : new Date();
+  const paidDate = parsed.data.paidDate ? parsePaymentDateInput(parsed.data.paidDate) : new Date();
 
   // Record the payment and recompute the invoice/agreement state atomically.
   // A serializable transaction (with retry) prevents the lost-update race where

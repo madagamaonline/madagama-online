@@ -1,3 +1,5 @@
+import { businessDayKey } from "./dates";
+
 type Cell = string | number | null | undefined;
 
 function escape(v: Cell): string {
@@ -21,4 +23,5 @@ export function csvResponse(csv: string, filename: string): Response {
   });
 }
 
-export const csvDate = (d: Date): string => d.toISOString().slice(0, 10);
+/** Calendar date in the business timezone, so late-night sales keep their day. */
+export const csvDate = (d: Date): string => businessDayKey(d);

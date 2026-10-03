@@ -31,7 +31,7 @@ import {
   denominationTotal,
   type DenominationCounts,
 } from "@/lib/cash-drawer";
-import { formatLKR } from "@/lib/utils";
+import { formatDateTime, formatLKR } from "@/lib/utils";
 
 function DenominationCounter({
   idPrefix,
@@ -192,7 +192,7 @@ export function ShiftReportForm({ summary, cashierName }: { summary: ShiftSummar
           <h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><User className="h-4 w-4 text-primary-ink" />Active shift</h3>
           <div className="space-y-2 text-sm">
             <div className="flex justify-between gap-4"><span className="text-muted">Opened by</span><span className="font-semibold">{summary.openedByName}</span></div>
-            <div className="flex justify-between gap-4"><span className="text-muted">Opened at</span><span className="font-semibold">{new Date(summary.startTime).toLocaleString()}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-muted">Opened at</span><span className="font-semibold">{formatDateTime(summary.startTime)}</span></div>
             <div className="flex justify-between gap-4"><span className="text-muted">Closing cashier</span><span className="font-semibold">{cashierName}</span></div>
           </div>
         </div>
@@ -221,7 +221,7 @@ export function ShiftReportForm({ summary, cashierName }: { summary: ShiftSummar
               {summary.movements.map((movement) => (
                 <div key={movement.id} className="border-b border-border-subtle pb-3 text-xs last:border-0 last:pb-0">
                   <div className="flex justify-between gap-3"><span className="font-semibold">{movement.reason}</span><span className={movement.type === "ADDITION" ? "text-emerald-700" : "text-danger-ink"}>{movement.type === "ADDITION" ? "+" : "−"}{formatLKR(movement.amount)}</span></div>
-                  <p className="mt-1 text-faint">{movement.operatorName} · {new Date(movement.createdAt).toLocaleString()}</p>
+                  <p className="mt-1 text-faint">{movement.operatorName} · {formatDateTime(movement.createdAt)}</p>
                 </div>
               ))}
             </div>

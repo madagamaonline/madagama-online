@@ -63,12 +63,12 @@ export default async function ShiftReportPage() {
                       <TR key={r.id}>
                         <TD className="text-xs">
                           <span className="font-semibold block text-foreground">
-                            {new Date(r.endTime).toLocaleDateString()}
+                            {new Date(r.endTime).toLocaleDateString("en-GB", { timeZone: "Asia/Colombo" })}
                           </span>
                           <span className="text-faint text-[10px]">
-                            {new Date(r.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(r.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Colombo' })}
                             {" → "}
-                            {new Date(r.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {new Date(r.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Colombo' })}
                           </span>
                         </TD>
                         <TD className="font-semibold text-xs text-foreground">

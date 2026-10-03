@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Tractor, BadgeDollarSign, ClipboardList } from "lucide-react";
@@ -43,7 +44,7 @@ const empty: VehicleFormInitial = {
   chassisNumber: "",
   supplierId: "",
   supplierReference: "",
-  receivedDate: new Date().toISOString().slice(0, 10),
+  receivedDate: businessToday(),
   listPrice: 0,
   supplierPayable: 0,
   specifications: "",

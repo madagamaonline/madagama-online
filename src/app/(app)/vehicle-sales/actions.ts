@@ -15,6 +15,7 @@ import {
   requireActionUser,
 } from "@/lib/auth";
 import { validateCreditPaymentTimeline } from "@/lib/credit-payment-validation";
+import { parsePaymentDateInput } from "@/lib/dates";
 import { computeCreditState } from "@/lib/credit";
 import { prisma } from "@/lib/prisma";
 import { round2, toNum } from "@/lib/utils";
@@ -278,7 +279,7 @@ export async function recordVehicleCustomerPayment(
   const parsed = parsePayment(formData);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid payment." };
   const data = parsed.data;
-  const paidDate = data.paidDate ? new Date(data.paidDate) : new Date();
+  const paidDate = data.paidDate ? parsePaymentDateInput(data.paidDate) : new Date();
 
   for (let attempt = 0; attempt < 3; attempt++) {
     try {

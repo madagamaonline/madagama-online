@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2, OctagonX } from "lucide-react";
@@ -27,7 +28,7 @@ export function ChequeLifecyclePanel({
   const [mode, setMode] = useState<"idle" | "clear" | "void">("idle");
   const [clearState, clearAction, clearing] = useActionState(clearCheque.bind(null, chequeId), initial);
   const [voidState, voidAction, voiding] = useActionState(voidCheque.bind(null, chequeId), initial);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   // On success the server re-renders this card into its cleared/voided form, so the
   // panel unmounts — only the refresh is needed here (project lint forbids setState

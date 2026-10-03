@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useRef } from "react";
 import { recordPurchasePayment, type PurchasePaymentState } from "@/app/(app)/purchases/actions";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ export function PurchasePayment({ purchaseId }: { purchaseId: string }) {
   const action = recordPurchasePayment.bind(null, purchaseId);
   const [state, formAction, pending] = useActionState(action, initial);
   const ref = useRef<HTMLFormElement>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   useEffect(() => {
     if (state.ok) ref.current?.reset();

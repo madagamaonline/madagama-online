@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { Fragment, useActionState, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Banknote, Building2, CalendarClock, Check, Equal, Minus, Tractor } from "lucide-react";
@@ -93,7 +94,7 @@ export function VehicleSaleForm({
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div><VehicleCombobox id="customerId-combobox" label="Customer" options={localCustomers.map((c) => ({ value: c.id, label: c.name, hint: c.phone }))} value={customerId} onChange={setCustomerId} placeholder="Search customer…" /><button type="button" onClick={() => setShowQuickCustomer(true)} className="mt-1 inline-block text-xs text-primary hover:underline">+ Quick add customer</button></div>
               <div><VehicleCombobox id="soldBy-combobox" label="Salesperson" options={employees.map((e) => ({ value: e.id, label: e.name }))} value={employeeId} onChange={setEmployeeId} placeholder="Select salesperson…" /></div>
-              <div><Label htmlFor="saleDate">Sale date</Label><Input id="saleDate" name="saleDate" type="date" defaultValue={new Date().toISOString().slice(0, 10)} required /></div>
+              <div><Label htmlFor="saleDate">Sale date</Label><Input id="saleDate" name="saleDate" type="date" defaultValue={businessToday()} required /></div>
               <div><Label htmlFor="customerDiscount">Customer discount (LKR)</Label><NumberInput id="customerDiscount" name="customerDiscount" min={0} max={economics.gross} value={discount} onValueChange={(v) => { const next = Number(v) || 0; setDiscount(next); if (type === "CASH") setDownPayment(round2(vehicle.listPrice - next)); }} /></div>
             </div>
 

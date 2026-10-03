@@ -1,5 +1,6 @@
 "use client";
 
+import { businessToday } from "@/lib/dates";
 import { useActionState, useEffect, useRef } from "react";
 import { Plus } from "lucide-react";
 import { createExpense, type ExpenseState } from "@/app/(app)/expenses/actions";
@@ -16,7 +17,7 @@ const CATEGORIES = ["Rent", "Utilities", "Bills", "Transport", "Supplies", "Main
 export function AddExpense() {
   const [state, action, pending] = useActionState(createExpense, initial);
   const ref = useRef<HTMLFormElement>(null);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = businessToday();
 
   useEffect(() => {
     if (state.ok) ref.current?.reset();

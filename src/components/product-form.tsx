@@ -315,7 +315,6 @@ export function ProductForm({
               defaultChecked={initial.taxable}
               className="h-4 w-4 rounded border-border"
             />
-            Taxable product
           </label>
 
           <div className="flex gap-3 pt-2">

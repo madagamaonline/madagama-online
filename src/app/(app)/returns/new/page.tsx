@@ -10,30 +10,23 @@ import { computeCreditState } from "@/lib/credit";
 import { customerReturnAllowances } from "@/lib/return-values";
 import { computeOpenAccountState } from "@/lib/open-account";
 import { toNum } from "@/lib/utils";
+import { businessDaysBetween } from "@/lib/dates";
+import { BillFinder } from "./bill-finder";
 
 export const dynamic = "force-dynamic";
 
 export default async function NewReturnPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invoice?: string }>;
+  searchParams: Promise<{ invoice?: string; product?: string; q?: string; from?: string; to?: string }>;
 }) {
-  const { invoice: invoiceId } = await searchParams;
+  const { invoice: invoiceId, product: prefillProductId, q, from, to } = await searchParams;
 
   if (!invoiceId) {
     return (
-      <div className="mx-auto max-w-3xl">
-        <PageHeader title="New Return" subtitle="Restock returned items and record a refund" />
-        <Card>
-          <CardContent className="py-10 text-center text-sm text-muted">
-            Open an invoice and click <b>Return items</b> to start a return.
-            <div className="mt-4">
-              <Link href="/invoices">
-                <Button variant="outline">Go to invoices</Button>
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+      <div className="mx-auto max-w-4xl">
+        <PageHeader title="Return / Exchange" subtitle="Find the customer's bill, then choose the items coming back" />
+        <BillFinder q={q} from={from} to={to} />
       </div>
     );
   }
@@ -43,7 +36,7 @@ export default async function NewReturnPage({
     include: {
       items: true,
       returns: { include: { items: { select: { productId: true, qty: true, lineTotal: true } } } },
-      customer: { select: { name: true } },
+      customer: { select: { id: true, name: true, phone: true, nic: true } },
       creditAgreement: { include: { payments: true } },
       openAccount: { include: { payments: true } },
     },
@@ -90,6 +83,9 @@ export default async function NewReturnPage({
       refundableValue: allowance.value, unit: item.unit, unitPrice: allowance.value / allowance.qty };
   });
 
+  const daysAgo = businessDaysBetween(invoice.createdAt);
+  const soldAgo = daysAgo === 0 ? "today" : daysAgo === 1 ? "yesterday" : `${daysAgo} days ago`;
+
   return (
     <div className="mx-auto max-w-3xl">
       <div className="mb-4">
@@ -100,8 +96,8 @@ export default async function NewReturnPage({
         </Link>
       </div>
       <PageHeader
-        title={`Return — ${invoice.invoiceNumber}`}
-        subtitle={`${invoice.customer?.name ?? "Walk-in"} · choose quantities to return`}
+        title={`Return / Exchange — ${invoice.invoiceNumber}`}
+        subtitle={`${invoice.customer?.name ?? "Walk-in"} · sold ${soldAgo} · choose the items coming back`}
       />
       {lines.length === 0 ? (
         <Card>
@@ -110,7 +106,14 @@ export default async function NewReturnPage({
           </CardContent>
         </Card>
       ) : (
-        <ReturnForm invoiceId={invoice.id} lines={lines} creditOutstanding={creditOutstanding} />
+        <ReturnForm
+          invoiceId={invoice.id}
+          invoiceNumber={invoice.invoiceNumber}
+          customer={invoice.customer}
+          lines={lines}
+          creditOutstanding={creditOutstanding}
+          prefillProductId={prefillProductId}
+        />
       )}
     </div>
   );

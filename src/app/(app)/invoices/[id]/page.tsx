@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Ban, CheckCircle2, MoveHorizontal, ReceiptText, Undo2 } from "lucide-react";
+import { ArrowLeft, ArrowLeftRight, Ban, CheckCircle2, MoveHorizontal, ReceiptText, Undo2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +42,13 @@ export default async function InvoiceViewPage({
         items: { include: { product: { select: { modelNumber: true } } } },
         customer: true,
         soldBy: { select: { name: true } },
-        saleGroup: { select: { id: true, _count: { select: { invoices: true } } } },
+        saleGroup: {
+          select: {
+            id: true,
+            _count: { select: { invoices: true } },
+            exchangeReturns: { select: { cashRefund: true, invoice: { select: { id: true, invoiceNumber: true } } } },
+          },
+        },
         voidedBy: { select: { name: true } },
         creditAgreement: {
           include: {
@@ -73,6 +79,12 @@ export default async function InvoiceViewPage({
   const soldQty = invoice.items.reduce((s, it) => s + toNum(it.qty), 0);
   const returnedQty = invoice.returns.reduce((s, r) => s + r.items.reduce((a, it) => a + toNum(it.qty), 0), 0);
   const totalRefunded = invoice.returns.reduce((s, r) => s + toNum(r.totalRefund), 0);
+  const returnedByProduct = new Map<string, number>();
+  for (const r of invoice.returns) {
+    for (const it of r.items) returnedByProduct.set(it.productId, (returnedByProduct.get(it.productId) ?? 0) + toNum(it.qty));
+  }
+  const canReturn = !invoice.voidedAt;
+  const exchangeReturns = invoice.saleGroup?.exchangeReturns ?? [];
   const statementAsOf = new Date();
   const creditAgreement = invoice.type === "CREDIT" ? invoice.creditAgreement : null;
   const creditTerms = creditAgreement
@@ -155,7 +167,7 @@ export default async function InvoiceViewPage({
           )}
           {!invoice.voidedAt && (
             <>
-              <Link href={`/returns/new?invoice=${invoice.id}`}><Button variant="outline"><Undo2 className="h-4 w-4" /> Return items</Button></Link>
+              <Link href={`/returns/new?invoice=${invoice.id}`}><Button variant="outline"><Undo2 className="h-4 w-4" /> Return / exchange</Button></Link>
               {session?.role === "ADMIN" && <VoidInvoiceButton invoiceId={invoice.id} invoiceNumber={invoice.invoiceNumber} />}
             </>
           )}
@@ -166,6 +178,23 @@ export default async function InvoiceViewPage({
       {isNew && !invoice.voidedAt && (
         <div className="no-print mb-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
           <CheckCircle2 className="h-5 w-5" /> Sale completed successfully.
+        </div>
+      )}
+
+      {exchangeReturns.length > 0 && (
+        <div className="no-print mb-4 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-primary-soft px-4 py-3 text-sm text-primary-ink">
+          <ArrowLeftRight className="h-4 w-4" />
+          <span>
+            Exchange sale — {formatLKR(exchangeReturns.reduce((s, r) => s + toNum(r.cashRefund), 0))} credit from items returned on{" "}
+            {exchangeReturns.map((r, i) => r.invoice && (
+              <span key={r.invoice.id}>
+                {i > 0 && ", "}
+                <Link href={`/invoices/${r.invoice.id}`} className="font-mono font-semibold underline">{r.invoice.invoiceNumber}</Link>
+              </span>
+            ))}
+            .
+          </span>
+          <Link href={`/invoices/groups/${invoice.saleGroup!.id}`} className="font-semibold underline">View full exchange receipt</Link>
         </div>
       )}
 
@@ -254,6 +283,19 @@ export default async function InvoiceViewPage({
                     {warrantyMonths !== null && (
                       <div className="mt-0.5 text-[14px] font-medium">
                         Warranty: {formatWarrantyMonths(warrantyMonths)}
+                      </div>
+                    )}
+                    {canReturn && it.productId && (returnedByProduct.get(it.productId) ?? 0) < toNum(it.qty) && (
+                      <Link
+                        href={`/returns/new?invoice=${invoice.id}&product=${it.productId}`}
+                        className="no-print mt-1 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[12px] font-semibold text-primary hover:bg-primary-soft"
+                      >
+                        <Undo2 className="h-3 w-3" /> Return / exchange
+                      </Link>
+                    )}
+                    {it.productId && (returnedByProduct.get(it.productId) ?? 0) > 0 && (
+                      <div className="no-print mt-0.5 text-[12px] font-semibold text-danger">
+                        {formatQuantity(returnedByProduct.get(it.productId) ?? 0, it.unit)} returned
                       </div>
                     )}
                   </td>
@@ -546,10 +588,16 @@ export default async function InvoiceViewPage({
                     <li key={it.id} className="text-muted">
                       {formatQuantity(toNum(it.qty), it.unit)} × {it.product.name}{" "}
                       <span className="font-mono text-xs">({it.product.code})</span> @ {formatLKR(it.unitPrice)}
+                      {!it.restocked && <Badge tone="red" className="ml-2">Damaged — not restocked</Badge>}
                     </li>
                   ))}
                 </ul>
                 {r.reason && <p className="mt-1 text-xs text-muted">Reason: {r.reason}</p>}
+                {r.exchangeSaleGroupId && (
+                  <Link href={`/invoices/groups/${r.exchangeSaleGroupId}`} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                    <ArrowLeftRight className="h-3 w-3" /> Exchanged — view the new sale
+                  </Link>
+                )}
               </div>
             ))}
           </div>

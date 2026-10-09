@@ -17,6 +17,7 @@ import { applyInvoiceVoid, VoidInvoiceError, voidInvoiceSchema } from "@/lib/inv
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
 import { isValidWarrantyMonths } from "@/lib/warranty";
 import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
+import { applyCustomerReturn, ReturnValidationError } from "@/lib/customer-return";
 
 const lineSchema = z.object({
   productId: z.string().min(1),
@@ -34,12 +35,25 @@ const lineSchema = z.object({
   path: ["unitDiscount"],
 });
 
+// Items brought back from an earlier bill whose value pays towards this sale.
+// Values are derived on the server from what the customer originally paid.
+const exchangeSchema = z.object({
+  invoiceId: z.string().min(1),
+  reason: z.string().optional().nullable(),
+  lines: z.array(z.object({
+    productId: z.string().min(1),
+    qty: z.coerce.number().positive(),
+    restock: z.boolean().default(true),
+  })).min(1, "Select at least one item being exchanged"),
+});
+
 const inputSchema = z.object({
   lines: z.array(lineSchema).min(1, "Add at least one item"),
   discount: z.coerce.number().min(0).default(0),
   customerId: z.string().optional().nullable(),
   soldByEmployeeId: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
+  exchange: exchangeSchema.optional().nullable(),
 });
 
 const openAccountSaleSchema = inputSchema.extend({
@@ -55,8 +69,14 @@ export type CreatedInvoice = {
   taxCategory: TaxCategory;
   grandTotal: number;
 };
+export type ExchangeOutcome = {
+  returnId: string;
+  /** Returned value applied to this sale (after any credit-account balance). */
+  credit: number;
+  creditedToBalance: number;
+};
 export type CreateInvoiceResult =
-  | { ok: true; saleGroupId: string; invoices: CreatedInvoice[] }
+  | { ok: true; saleGroupId: string; invoices: CreatedInvoice[]; exchange?: ExchangeOutcome }
   | { ok: false; error: string };
 
 type Computed = {
@@ -89,6 +109,7 @@ export async function createOpenAccountSale(
   const parsed = openAccountSaleSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid Pay Later sale." };
   if (!parsed.data.customerId) return { ok: false, error: "Select a customer for Pay Later." };
+  if (parsed.data.exchange) return { ok: false, error: "Exchanges must be completed as a cash sale." };
   const dueDate = parsed.data.dueDate ? new Date(`${parsed.data.dueDate}T00:00:00+05:30`) : null;
   if (dueDate && Number.isNaN(dueDate.getTime())) return { ok: false, error: "Enter a valid promised date." };
   return createSale(parsed.data, "OPEN_ACCOUNT", {
@@ -118,6 +139,14 @@ async function createSale(
     assertUniqueProductLines(data.lines);
   } catch {
     return { ok: false, error: "Each product may appear only once in a sale." };
+  }
+  if (data.exchange) {
+    if (type !== "CASH") return { ok: false, error: "Exchanges must be completed as a cash sale." };
+    try {
+      assertUniqueProductLines(data.exchange.lines);
+    } catch {
+      return { ok: false, error: "Each product may appear only once in an exchange." };
+    }
   }
   let session;
   try {
@@ -150,6 +179,13 @@ async function createSale(
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
+  // Undamaged exchanged items are restocked before this sale takes stock, so a
+  // like-for-like swap works even when the shelf is empty.
+  const restockedByExchange = new Map<string, number>();
+  for (const line of data.exchange?.lines ?? []) {
+    if (line.restock) restockedByExchange.set(line.productId, line.qty);
+  }
+
   // Validate existence and stock.
   const shortages: string[] = [];
   for (const line of data.lines) {
@@ -160,7 +196,7 @@ async function createSale(
     if (!isUnitAllowed(p.trackingType, enteredUnit)) return { ok: false, error: `Invalid unit for ${p.code}.` };
     if (p.trackingType === "PIECE" && !Number.isInteger(enteredQty)) return { ok: false, error: `${p.code} must be sold in whole pieces.` };
     const qty = toCanonicalQuantity(enteredQty, enteredUnit, p.trackingType);
-    const available = toNum(p.quantityInStock) - toNum(p.quantityReserved);
+    const available = toNum(p.quantityInStock) - toNum(p.quantityReserved) + (restockedByExchange.get(p.id) ?? 0);
     if (qty > available) {
       shortages.push(`${p.code} (available ${available}, ${toNum(p.quantityReserved)} reserved, need ${qty})`);
     }
@@ -237,6 +273,17 @@ async function createSale(
       const created = await prisma.$transaction(
         async (tx) => {
           const saleGroup = await tx.saleGroup.create({ data: {} });
+          let exchange: ExchangeOutcome | undefined;
+          if (data.exchange) {
+            const applied = await applyCustomerReturn(tx, {
+              invoiceId: data.exchange.invoiceId,
+              reason: data.exchange.reason,
+              lines: data.exchange.lines,
+              userId: session.id,
+              exchangeSaleGroupId: saleGroup.id,
+            });
+            exchange = { returnId: applied.id, credit: applied.cashRefund, creditedToBalance: applied.creditedToBalance };
+          }
           const out: CreatedInvoice[] = [];
           for (const [groupIndex, g] of groups.entries()) {
             const totals = groupTotals[groupIndex]!;
@@ -316,7 +363,7 @@ async function createSale(
             }
             out.push({ id: inv.id, invoiceNumber, taxCategory: g.category, grandTotal: totals.grandTotal });
           }
-          return { saleGroupId: saleGroup.id, invoices: out };
+          return { saleGroupId: saleGroup.id, invoices: out, exchange };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20000 },
       );
@@ -330,8 +377,14 @@ async function createSale(
       revalidatePath("/reminders");
       revalidatePath("/customers");
       if (data.customerId) revalidatePath(`/customers/${data.customerId}`);
+      if (data.exchange) {
+        revalidatePath("/returns");
+        revalidatePath("/credit");
+        revalidatePath(`/invoices/${data.exchange.invoiceId}`);
+      }
       return { ok: true, ...created };
     } catch (e) {
+      if (e instanceof ReturnValidationError) return { ok: false, error: e.message };
       if (e instanceof StockConflictError) {
         return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };
       }

@@ -1,8 +1,11 @@
 import Link from "next/link";
+import { ArrowLeftRight, Undo2 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { formatLKR, formatDateTime } from "@/lib/utils";
 import { returnSettlementLabel } from "@/lib/returns";
 
@@ -15,18 +18,27 @@ export default async function ReturnsPage() {
       invoice: { select: { invoiceNumber: true, id: true } },
       createdBy: { select: { name: true } },
       _count: { select: { items: true } },
+      items: { where: { restocked: false }, select: { id: true } },
     },
     take: 100,
   });
 
   return (
     <div>
-      <PageHeader title="Returns" subtitle="Returned items and refunds" />
+      <PageHeader
+        title="Returns"
+        subtitle="Returned items, refunds and exchanges"
+        action={
+          <Link href="/returns/new">
+            <Button><Undo2 className="h-4 w-4" /> New return / exchange</Button>
+          </Link>
+        }
+      />
       <Card>
         <CardContent className="p-0">
           {returns.length === 0 ? (
             <div className="px-5 py-12 text-center text-sm text-muted">
-              No returns yet. Open an invoice and click “Return items”.
+              No returns yet. Click “New return / exchange” to find the customer&apos;s bill.
             </div>
           ) : (
             <>
@@ -53,6 +65,7 @@ export default async function ReturnsPage() {
                       {r._count.items} item{r._count.items === 1 ? "" : "s"} · {returnSettlementLabel(r)}
                       {r.reason ? ` · ${r.reason}` : ""}
                     </div>
+                    <ReturnExtras exchangeSaleGroupId={r.exchangeSaleGroupId} damaged={r.items.length} />
                   </div>
                 ))}
               </div>
@@ -84,7 +97,10 @@ export default async function ReturnsPage() {
                           )}
                         </TD>
                         <TD className="text-right">{r._count.items}</TD>
-                        <TD>{returnSettlementLabel(r)}</TD>
+                        <TD>
+                          {returnSettlementLabel(r)}
+                          <ReturnExtras exchangeSaleGroupId={r.exchangeSaleGroupId} damaged={r.items.length} />
+                        </TD>
                         <TD className="text-muted">{r.reason ?? "—"}</TD>
                         <TD className="text-muted">{r.createdBy?.name ?? "—"}</TD>
                         <TD className="text-right font-medium">{formatLKR(r.totalRefund)}</TD>
@@ -97,6 +113,20 @@ export default async function ReturnsPage() {
           )}
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+function ReturnExtras({ exchangeSaleGroupId, damaged }: { exchangeSaleGroupId: string | null; damaged: number }) {
+  if (!exchangeSaleGroupId && !damaged) return null;
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+      {exchangeSaleGroupId && (
+        <Link href={`/invoices/groups/${exchangeSaleGroupId}`} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+          <ArrowLeftRight className="h-3 w-3" /> New sale
+        </Link>
+      )}
+      {damaged > 0 && <Badge tone="red">{damaged} damaged</Badge>}
     </div>
   );
 }

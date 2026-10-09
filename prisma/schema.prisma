@@ -908,6 +908,8 @@ model SaleGroup {
   id        String    @id @default(cuid())
   createdAt DateTime  @default(now())
   invoices  Invoice[]
+  // Returns whose value was used as credit towards this checkout (exchanges).
+  exchangeReturns SalesReturn[]
 
   @@index([createdAt])
 }
@@ -1571,10 +1573,16 @@ model SalesReturn {
   createdBy       User?    @relation(fields: [createdByUserId], references: [id])
   createdByUserId String?
   createdAt       DateTime @default(now())
+  // Set when the return was an exchange: its cashRefund was applied as credit to
+  // this new checkout instead of being handed over, so the drawer only moves by
+  // the difference between the new sale and the returned value.
+  exchangeSaleGroup   SaleGroup? @relation(fields: [exchangeSaleGroupId], references: [id], onDelete: Restrict)
+  exchangeSaleGroupId String?
 
   items SalesReturnItem[]
 
   @@index([invoiceId])
+  @@index([exchangeSaleGroupId])
   @@index([createdAt])
 }
 
@@ -1600,6 +1608,9 @@ model SalesReturnItem {
   // charged out at. Null on rows created before this field existed — reports fall
   // back to the product's current cost, matching InvoiceItem.costSnapshot.
   costSnapshot Decimal?      @db.Decimal(12, 2)
+  // False when the item came back damaged: it was not added to sellable stock,
+  // so its cost is not credited back to COGS.
+  restocked    Boolean       @default(true)
 
   @@index([returnId])
 }

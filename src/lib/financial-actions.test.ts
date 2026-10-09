@@ -12,6 +12,7 @@ vi.mock("./prisma", () => ({ prisma: { $transaction: mocks.transaction, product:
 vi.mock("./auth", () => ({ requireActionUser: async () => mocks.user, requireActionStaffFinanceAccess: async () => mocks.user, requireActionAdmin: async () => mocks.user }));
 vi.mock("./tax-mode", () => ({ nonTaxableEnabled: async () => true, purchaseTaxableWhere: () => ({}) }));
 import { createReturn } from "@/app/(app)/returns/actions";
+import { createCashInvoice, createOpenAccountSale } from "@/app/(app)/invoices/actions";
 import { createSupplierReturn } from "@/app/(app)/supplier-returns/actions";
 import { createPurchase } from "@/app/(app)/purchases/actions";
 import { recordVehicleCustomerPayment } from "@/app/(app)/vehicle-sales/actions";
@@ -63,6 +64,58 @@ describe("customer return actions with an isolated database mock", () => {
     expect(await createReturn({ ...returnInput, lines: [{ ...returnInput.lines[0], qty: 0.5 }] })).toMatchObject({ ok: false });
     expect(tx.salesReturn.create).not.toHaveBeenCalled();
     expect(tx.product.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("damaged returns and exchanges", () => {
+  it("records a damaged item without putting it back into stock", async () => {
+    const { tx } = fixture(); mocks.transaction.mockImplementation(async (work) => work(tx));
+    expect(await createReturn({ ...returnInput, lines: [{ ...returnInput.lines[0], restock: false }] })).toMatchObject({ ok: true });
+    expect(tx.salesReturn.create.mock.calls[0][0].data.items.create[0].restocked).toBe(false);
+    expect(tx.product.update).not.toHaveBeenCalled();
+    expect(tx.stockMovement.create).not.toHaveBeenCalled();
+  });
+
+  function exchangeTx(stock: number) {
+    const { invoice, tx } = fixture();
+    const saleTx = {
+      ...tx,
+      $queryRaw: vi.fn().mockResolvedValue([{ value: BigInt(1) }]),
+      saleGroup: { create: vi.fn().mockResolvedValue({ id: "group" }) },
+      invoice: {
+        ...tx.invoice,
+        // The invoice-number collision check looks up by number; the return looks up by id.
+        findUnique: vi.fn().mockImplementation(async (args: { where: { invoiceNumber?: string } }) => (args.where.invoiceNumber ? null : invoice)),
+        create: vi.fn().mockResolvedValue({ id: "new-invoice" }),
+      },
+      product: { ...tx.product, findUnique: vi.fn().mockResolvedValue({ quantityInStock: stock + 1, quantityReserved: 0 }) },
+    };
+    mocks.productFindMany.mockResolvedValue([{ id: "p", code: "P", name: "Grinder", taxable: false, quantityInStock: stock, quantityReserved: 0, costPrice: 600, trackingType: "PIECE", primarySupplierId: null, primarySupplier: null }]);
+    mocks.transaction.mockImplementation(async (work) => work(saleTx));
+    return saleTx;
+  }
+
+  it("saves the return and the new sale together, linking the credit to the checkout", async () => {
+    const tx = exchangeTx(0);
+    const result = await createCashInvoice({
+      lines: [{ productId: "p", qty: 1, unitPrice: 1000 }],
+      exchange: { invoiceId: "invoice", lines: [{ productId: "p", qty: 1, restock: true }] },
+    });
+    // Like-for-like swap works with an empty shelf because the returned unit is restocked first.
+    expect(result).toMatchObject({ ok: true, saleGroupId: "group", exchange: { returnId: "return", credit: 800 } });
+    const ret = tx.salesReturn.create.mock.calls[0][0].data;
+    expect(ret).toMatchObject({ method: "EXCHANGE", cashRefund: 800, exchangeSaleGroupId: "group" });
+    expect(tx.product.update.mock.invocationCallOrder[0]).toBeLessThan(tx.product.updateMany.mock.invocationCallOrder[0]);
+  });
+
+  it("refuses an exchange on a Pay Later sale", async () => {
+    exchangeTx(5);
+    expect(await createOpenAccountSale({
+      customerId: "c",
+      lines: [{ productId: "p", qty: 1, unitPrice: 1000 }],
+      exchange: { invoiceId: "invoice", lines: [{ productId: "p", qty: 1, restock: true }] },
+    })).toMatchObject({ ok: false });
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });
 

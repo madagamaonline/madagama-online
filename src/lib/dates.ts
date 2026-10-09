@@ -75,3 +75,15 @@ export function businessToday(now: Date = new Date()): string {
 export function parsePaymentDateInput(value: string, now: Date = new Date()): Date {
   return value === businessDayKey(now) ? now : new Date(value);
 }
+
+/** Whole business days from `from` to `to` (0 = same day), e.g. "sold 12 days ago". */
+export function businessDaysBetween(from: Date, to: Date = new Date()): number {
+  return Math.round((businessStartOfDay(to).getTime() - businessStartOfDay(from).getTime()) / MS_PER_DAY);
+}
+
+/** Parse a `YYYY-MM-DD` filter value as business midnight; null when invalid. */
+export function parseBusinessDateInput(value: string | null | undefined): Date | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00+05:30`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}

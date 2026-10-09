@@ -167,6 +167,8 @@ export default async function ReportsPage({
           date: { gte: monthStart, lt: monthEnd },
           OR: [{ invoiceId: null }, { invoice: { voidedAt: null } }],
         },
+        // Damaged returns never went back on the shelf, so their cost stays in COGS.
+        restocked: true,
       },
       select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } },
     }),
@@ -209,7 +211,7 @@ export default async function ReportsPage({
             totalRefund: true,
             cashRefund: true,
             method: true,
-            items: { select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } } },
+            items: { where: { restocked: true }, select: { qty: true, costSnapshot: true, product: { select: { costPrice: true } } } },
           },
         },
         creditAgreement: {

@@ -47,6 +47,7 @@ export default async function SaleGroupReceiptPage({
             _count: { select: { returns: true } },
           },
         },
+        exchangeReturns: { select: { cashRefund: true, invoice: { select: { invoiceNumber: true } } } },
       },
     }),
     prisma.setting.findUnique({ where: { id: 1 } }),
@@ -55,6 +56,9 @@ export default async function SaleGroupReceiptPage({
   if (!group || group.invoices.length === 0) notFound();
 
   const invoices = orderSaleGroupInvoices(group.invoices);
+  // Value of goods returned in exchange, applied against this checkout.
+  const exchangeCredit = round2(group.exchangeReturns.reduce((sum, r) => sum + toNum(r.cashRefund), 0));
+  const exchangeFrom = group.exchangeReturns.map((r) => r.invoice?.invoiceNumber).filter(Boolean).join(", ");
   const saleType = invoices[0]?.type;
   if (
     (saleType !== "CASH" && saleType !== "OPEN_ACCOUNT") ||
@@ -192,7 +196,16 @@ export default async function SaleGroupReceiptPage({
             {summary.voidStatus !== "ACTIVE" && (
               <div className="flex justify-between font-bold text-danger"><span>Still active</span><span>{formatLKR(summary.activeGrandTotal)}</span></div>
             )}
-            {saleType === "CASH" && summary.voidStatus === "ACTIVE" && (
+            {saleType === "CASH" && summary.voidStatus === "ACTIVE" && exchangeCredit > 0 && (
+              <>
+                <div className="flex justify-between"><span className="text-muted">Exchange credit{exchangeFrom ? ` (${exchangeFrom})` : ""}</span><span>− {formatLKR(exchangeCredit)}</span></div>
+                <div className="flex justify-between font-semibold">
+                  <span>{summary.amountPaid >= exchangeCredit ? "Paid by customer" : "Refunded to customer"}</span>
+                  <span>{formatLKR(Math.abs(round2(summary.amountPaid - exchangeCredit)))}</span>
+                </div>
+              </>
+            )}
+            {saleType === "CASH" && summary.voidStatus === "ACTIVE" && exchangeCredit <= 0 && (
               <div className="flex justify-between font-semibold"><span>Paid</span><span>{formatLKR(summary.amountPaid)}</span></div>
             )}
           </div>
@@ -260,7 +273,14 @@ export default async function SaleGroupReceiptPage({
         {summary.billDiscount > 0 && <div className="flex justify-between"><span>Bill discount</span><span>− {formatLKR(summary.billDiscount)}</span></div>}
         <div className="mt-1 flex justify-between border-t-2 border-black pt-1 text-[16px] font-black"><span>TOTAL</span><span>{formatLKR(summary.grandTotal)}</span></div>
         {summary.voidStatus !== "ACTIVE" && <div className="flex justify-between font-black"><span>STILL ACTIVE</span><span>{formatLKR(summary.activeGrandTotal)}</span></div>}
-        {saleType === "CASH" && summary.voidStatus === "ACTIVE" && <div className="flex justify-between font-semibold"><span>PAID</span><span>{formatLKR(summary.amountPaid)}</span></div>}
+        {saleType === "CASH" && summary.voidStatus === "ACTIVE" && exchangeCredit > 0 && (
+          <>
+            <div className="flex justify-between"><span>EXCHANGE CREDIT</span><span>− {formatLKR(exchangeCredit)}</span></div>
+            {exchangeFrom && <div className="text-[11.5px]">Returned from {exchangeFrom}</div>}
+            <div className="flex justify-between font-semibold"><span>{summary.amountPaid >= exchangeCredit ? "PAID" : "REFUNDED"}</span><span>{formatLKR(Math.abs(round2(summary.amountPaid - exchangeCredit)))}</span></div>
+          </>
+        )}
+        {saleType === "CASH" && summary.voidStatus === "ACTIVE" && exchangeCredit <= 0 && <div className="flex justify-between font-semibold"><span>PAID</span><span>{formatLKR(summary.amountPaid)}</span></div>}
 
         {saleType === "OPEN_ACCOUNT" && (
           <section className="mt-2 border-y-2 border-black py-2">

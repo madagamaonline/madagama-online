@@ -168,6 +168,7 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
             unit: true,
             lineTotal: true,
             costSnapshot: true,
+            restocked: true,
             product: { select: { code: true, name: true, costPrice: true } },
           },
         },
@@ -244,7 +245,8 @@ export async function getSupplierSalesReport(rawMonth?: string | null, options: 
         sales: 0,
         returns: toNum(item.lineTotal),
         cogs: 0,
-        returnedCogs: round2(toNum(item.qty) * toNum(item.costSnapshot ?? item.product.costPrice)),
+        // Damaged returns were not restocked, so no cost comes back.
+        returnedCogs: item.restocked ? round2(toNum(item.qty) * toNum(item.costSnapshot ?? item.product.costPrice)) : 0,
         customerName: customerReturn.invoice?.customer?.name ?? "Walk-in customer",
         cashierName: customerReturn.invoice?.createdBy?.name ?? "Not recorded",
         salespersonName: customerReturn.invoice?.soldBy?.name ?? "Not recorded",

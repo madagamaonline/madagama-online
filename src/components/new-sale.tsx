@@ -16,6 +16,7 @@ import {
   History,
   Pause,
   X,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import { formatLKR, round2 } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { sumLines } from "@/lib/totals";
 import { createCashInvoice, createOpenAccountSale, type CreatedInvoice } from "@/app/(app)/invoices/actions";
+import { clearExchangeDraft, readExchangeDraft, type ExchangeDraft } from "@/lib/exchange-draft";
 import { QuickCustomerModal } from "@/components/quick-customer-modal";
 import { useRemoteSearch } from "@/hooks/use-remote-search";
 import { Highlight } from "@/components/highlight";
@@ -90,6 +92,7 @@ type CompletedSale = {
   invoices: CreatedInvoice[];
   initialPayment?: number;
   initialPaymentMethod?: "CASH" | "BANK" | "CHEQUE" | "CARD";
+  exchange?: { invoiceNumber: string; credit: number };
 };
 type ParkedSale = {
   id: string;
@@ -162,6 +165,8 @@ export function NewSale({
   const [pending, startTransition] = useTransition();
   const [completionState, setCompletionState] = useState<"idle" | "success">("idle");
   const [showPayLater, setShowPayLater] = useState(false);
+  // Items coming back from an earlier bill; their value pays towards this sale.
+  const [exchange, setExchange] = useState<ExchangeDraft | null>(null);
   const [promisedDate, setPromisedDate] = useState("");
   const [advancePayment, setAdvancePayment] = useState(0);
   const [advancePaymentMethod, setAdvancePaymentMethod] = useState<"CASH" | "BANK" | "CHEQUE" | "CARD">("CASH");
@@ -229,6 +234,7 @@ export function NewSale({
     let recentList: RecentInvoice[] | null = null;
     let parkedList: ParkedSale[] | null = null;
     let recentProductList: ProductHit[] | null = null;
+    const exchangeDraft = readExchangeDraft();
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) draft = JSON.parse(raw);
@@ -253,6 +259,13 @@ export function NewSale({
       if (recentList) setRecent(recentList);
       if (parkedList) setParked(parkedList);
       if (recentProductList) setRecentProducts(recentProductList);
+      if (exchangeDraft) {
+        setExchange(exchangeDraft);
+        if (exchangeDraft.customer && !draft?.customerId) {
+          setCustomerId(exchangeDraft.customer.id);
+          setSelectedCustomer(exchangeDraft.customer);
+        }
+      }
       hydrated.current = true;
     }, 0);
     return () => clearTimeout(t);
@@ -475,7 +488,15 @@ export function NewSale({
     })),
     discount || 0,
   );
-  const change = tendered > 0 ? tendered - totals.grandTotal : 0;
+  const exchangeCredit = exchange ? round2(exchange.credit) : 0;
+  // What the customer owes now; negative means cash goes back to them.
+  const amountDue = round2(totals.grandTotal - exchangeCredit);
+  const change = tendered > 0 ? tendered - amountDue : 0;
+
+  function cancelExchange() {
+    clearExchangeDraft();
+    setExchange(null);
+  }
 
   function rememberSale(sale: CompletedSale) {
     const first = sale.invoices[0];
@@ -526,13 +547,25 @@ export function NewSale({
         customerId: customerId || null,
         soldByEmployeeId: soldBy || null,
         notes: notes.trim() || null,
+        exchange: exchange
+          ? {
+              invoiceId: exchange.invoiceId,
+              reason: exchange.reason || null,
+              lines: exchange.lines.map((l) => ({ productId: l.productId, qty: l.qty, restock: l.restock })),
+            }
+          : null,
       });
       if (!res.ok) {
         setError(res.error);
         submissionLock.current = false;
         return;
       }
-      const completed: CompletedSale = { saleGroupId: res.saleGroupId, invoices: res.invoices };
+      const completed: CompletedSale = {
+        saleGroupId: res.saleGroupId,
+        invoices: res.invoices,
+        exchange: res.exchange && exchange ? { invoiceNumber: exchange.invoiceNumber, credit: res.exchange.credit } : undefined,
+      };
+      if (exchange) cancelExchange();
       setCompletionState("success");
       if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
         await new Promise((resolve) => window.setTimeout(resolve, 500));
@@ -620,6 +653,20 @@ export function NewSale({
               <DrawnSuccessIcon className="h-7 w-7" />
               <h2 className="text-lg font-semibold">{resultMode === "pay-later" ? "Pay Later invoice created" : "Sale completed"}</h2>
             </div>
+            {result.exchange && (() => {
+              const saleTotal = round2(result.invoices.reduce((sum, invoice) => sum + invoice.grandTotal, 0));
+              const net = round2(saleTotal - result.exchange.credit);
+              return (
+                <div className="motion-receipt-item space-y-1 rounded-lg bg-primary-soft px-3 py-2 text-sm text-primary-ink">
+                  <div className="flex justify-between"><span>New items</span><span className="tabular">{formatLKR(saleTotal)}</span></div>
+                  <div className="flex justify-between"><span>Exchange credit ({result.exchange.invoiceNumber})</span><span className="tabular">− {formatLKR(result.exchange.credit)}</span></div>
+                  <div className="flex justify-between border-t border-primary/20 pt-1 text-base font-bold">
+                    <span>{net >= 0 ? "Customer paid" : "Give customer back"}</span>
+                    <span className="tabular">{formatLKR(Math.abs(net))}</span>
+                  </div>
+                </div>
+              );
+            })()}
             {resultMode === "pay-later" && (
               <p className="motion-receipt-item rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950">
                 {(result.initialPayment ?? 0) > 0
@@ -666,6 +713,27 @@ export function NewSale({
       <div className="lg:col-span-2">
         <Card>
           <CardContent>
+            {exchange && (
+              <div className="mb-3 rounded-lg border border-primary/25 bg-primary-soft px-3 py-2 text-sm text-primary-ink">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-center gap-2 font-semibold">
+                    <ArrowLeftRight className="h-4 w-4 shrink-0" />
+                    Exchange for {exchange.invoiceNumber} — credit {formatLKR(exchangeCredit)}
+                  </div>
+                  <button onClick={cancelExchange} className="shrink-0 text-xs font-semibold underline hover:opacity-80">
+                    Cancel exchange
+                  </button>
+                </div>
+                <ul className="mt-1 text-xs">
+                  {exchange.lines.map((l) => (
+                    <li key={l.productId}>
+                      Returning {l.qty} × {l.name}{l.restock ? "" : " (damaged)"} · {formatLKR(l.value)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-xs">Add the new items below. The return is saved together with this sale.</p>
+              </div>
+            )}
             {resumed && cart.length > 0 && (
               <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-clay-soft px-3 py-2 text-xs text-clay-ink">
                 <span>Resumed a held sale ({cart.length} item{cart.length > 1 ? "s" : ""}).</span>
@@ -1183,27 +1251,35 @@ export function NewSale({
               </p>
             </div>
 
-            <div className="motion-total-stage flex items-end justify-between overflow-hidden rounded-xl border border-primary/20 bg-primary-soft px-4 py-3">
-              <div>
-                <div className="text-[10px] font-extrabold uppercase tracking-[0.14em] text-primary-ink">Payable now</div>
-                <div className="mt-0.5 text-xs text-muted">Grand total</div>
+            {exchange && (
+              <div className="flex justify-between text-sm text-primary-ink">
+                <span>Exchange credit ({exchange.invoiceNumber})</span>
+                <span className="tabular">− {formatLKR(exchangeCredit)}</span>
               </div>
-              <AnimatedMoney value={totals.grandTotal} className="text-xl font-extrabold tabular-nums text-primary-ink sm:text-2xl" />
+            )}
+            <div className={`motion-total-stage flex items-end justify-between overflow-hidden rounded-xl border px-4 py-3 ${amountDue < 0 ? "border-clay/30 bg-clay-soft" : "border-primary/20 bg-primary-soft"}`}>
+              <div>
+                <div className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${amountDue < 0 ? "text-clay-ink" : "text-primary-ink"}`}>
+                  {amountDue < 0 ? "Give customer back" : exchange ? "Customer pays" : "Payable now"}
+                </div>
+                <div className="mt-0.5 text-xs text-muted">{exchange ? "After exchange credit" : "Grand total"}</div>
+              </div>
+              <AnimatedMoney value={Math.abs(amountDue)} className={`text-xl font-extrabold tabular-nums sm:text-2xl ${amountDue < 0 ? "text-clay-ink" : "text-primary-ink"}`} />
             </div>
 
-            <div>
+            {!exchange && <div>
               <Label>Payment method</Label>
               <div className="relative mt-1 grid grid-cols-2 rounded-xl border border-input-border bg-input/60 p-1" role="radiogroup" aria-label="Payment method">
                 {canPayLater && <span aria-hidden="true" className={`motion-selection-indicator absolute bottom-1 left-1 top-1 w-[calc(50%_-_0.375rem)] rounded-lg border shadow-sm ${showPayLater ? "border-amber-300 bg-amber-50" : "border-border bg-surface"}`} style={{ transform: showPayLater ? "translateX(calc(100% + 0.25rem))" : "translateX(0)" }} />}
                 <button type="button" role="radio" aria-checked={!showPayLater} onClick={() => { setShowPayLater(false); setError(""); }} className={`motion-interactive relative z-10 flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold ${!showPayLater ? "text-foreground" : "text-muted hover:text-foreground"}`}><Banknote className="h-4 w-4" /> Cash</button>
                 {canPayLater ? <button type="button" role="radio" aria-checked={showPayLater} onClick={() => { setShowPayLater(true); setTendered(0); setError(""); }} disabled={cart.length === 0} className={`motion-interactive relative z-10 flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-semibold disabled:opacity-50 ${showPayLater ? "text-amber-900" : "text-muted hover:text-amber-900"}`}><Clock3 className="h-4 w-4" /> Pay Later</button> : <span className="flex min-h-11 items-center justify-center text-xs text-muted">Pay Later unavailable</span>}
               </div>
-            </div>
+            </div>}
 
             {/* Cash tendered + change */}
             <div className="motion-collapse" data-closed={showPayLater} inert={showPayLater ? true : undefined} aria-hidden={showPayLater}>
             <div className="motion-collapse-inner">
-            <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
+            {amountDue > 0 && <div className="space-y-1.5 rounded-xl bg-input/60 p-3 text-sm">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-muted">Cash received</span>
                 <NumberInput
@@ -1214,7 +1290,7 @@ export function NewSale({
                 />
               </div>
               <div className="flex flex-wrap justify-end gap-1.5">
-                {quickTenders(totals.grandTotal).map((amt) => (
+                {quickTenders(amountDue).map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setTendered(amt)}
@@ -1234,7 +1310,7 @@ export function NewSale({
                   <AnimatedMoney value={Math.abs(change)} className="motion-value-change tabular-nums" />
                 </div>
               )}
-            </div>
+            </div>}
             </div>
             </div>
 
@@ -1250,7 +1326,7 @@ export function NewSale({
             <div className="motion-collapse-inner pt-0.5">
             <Button onClick={completeSale} size="lg" className={completionState === "success" ? "motion-success-sweep w-full overflow-hidden bg-success hover:bg-success" : "w-full"} disabled={pending || cart.length === 0} aria-live="polite">
               {completionState === "success" ? <DrawnSuccessIcon className="h-5 w-5" /> : pending ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShoppingCart className="h-5 w-5" />}
-              {completionState === "success" ? "Sale saved" : pending ? "Saving…" : "Complete Cash Sale"}
+              {completionState === "success" ? "Sale saved" : pending ? "Saving…" : exchange ? "Complete Exchange" : "Complete Cash Sale"}
             </Button>
             </div>
             </div>
@@ -1270,13 +1346,13 @@ export function NewSale({
               </div>
               </div>
             </div>
-            <button
+            {!exchange && <button
               onClick={switchToCredit}
               disabled={cart.length === 0}
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-input-border bg-surface px-4 py-2.5 text-[13px] font-semibold text-foreground transition-colors hover:bg-input disabled:cursor-not-allowed disabled:opacity-50"
             >
               <CreditCard className="h-4 w-4" /> Formal Credit (interest terms)
-            </button>
+            </button>}
           </CardContent>
         </Card>
       </div>

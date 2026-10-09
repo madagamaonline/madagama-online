@@ -18,6 +18,9 @@ export function cashRefundAmount(ret: { method: string; totalRefund: unknown; ca
 }
 
 export function returnSettlementLabel(ret: { method: string; totalRefund: unknown; cashRefund?: unknown; balanceCredit?: unknown }): string {
+  if (ret.method === "EXCHANGE" && ret.balanceCredit != null && Number(ret.balanceCredit) > 0) {
+    return `Exchange · ${formatLKR(Number(ret.balanceCredit))} balance credit`;
+  }
   if (ret.cashRefund != null && ret.balanceCredit != null && Number(ret.cashRefund) > 0 && Number(ret.balanceCredit) > 0) {
     return `${formatLKR(Number(ret.cashRefund))} cash · ${formatLKR(Number(ret.balanceCredit))} balance credit`;
   }

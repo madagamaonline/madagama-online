@@ -8,6 +8,8 @@ export const voidInvoiceSchema = z.object({
 
 export type VoidEligibility = {
   returns: number;
+  /** Returns whose value paid towards this checkout (it is an exchange sale). */
+  exchangeReturns?: number;
   serviceJobs: number;
   missingProducts: number;
   payments: number;
@@ -17,6 +19,7 @@ export type VoidEligibility = {
 
 export function voidEligibilityError(e: VoidEligibility): string | null {
   if (e.returns) return "This invoice has a sales return and cannot be voided.";
+  if (e.exchangeReturns) return "This is an exchange sale; its returned items were credited towards it, so it cannot be voided. Return the new items instead.";
   if (e.serviceJobs) return "This invoice is linked to a service or warranty job and cannot be voided.";
   if (e.missingProducts) return "One or more invoice items no longer link to a product, so stock cannot be restored safely.";
   if (e.payments || e.interestCharges) return "This credit sale has payment or interest activity and cannot be voided.";
@@ -39,6 +42,7 @@ export async function applyInvoiceVoid(
       voidedAt: true,
       items: { select: { productId: true, qty: true, unit: true } },
       _count: { select: { returns: true, serviceJobs: true } },
+      saleGroup: { select: { _count: { select: { exchangeReturns: true } } } },
       creditAgreement: {
         select: { id: true, _count: { select: { payments: true, interestCharges: true } } },
       },
@@ -56,6 +60,7 @@ export async function applyInvoiceVoid(
   });
   const blocker = voidEligibilityError({
     returns: invoice._count.returns,
+    exchangeReturns: invoice.saleGroup?._count.exchangeReturns ?? 0,
     serviceJobs: invoice._count.serviceJobs,
     missingProducts: invoice.items.filter((item) => !item.productId).length,
     payments: (invoice.creditAgreement?._count.payments ?? 0) + (invoice.openAccount?._count.payments ?? 0),

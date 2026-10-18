@@ -56,7 +56,7 @@ function ChartTooltip({
   );
 }
 
-export function SalesChart({ data, height = 220 }: { data: Datum[]; height?: number }) {
+export function SalesChart({ data, height = 220, color }: { data: Datum[]; height?: number; color?: string }) {
   // Recharts uses the X-axis category to resolve tooltip payloads. Display
   // labels such as "T" and "S" can repeat, so give every point a unique key
   // and format that key back to the human-readable label on the axis.
@@ -99,7 +99,7 @@ export function SalesChart({ data, height = 220 }: { data: Datum[]; height?: num
         ) : (
           <Bar dataKey="total" radius={[6, 6, 0, 0]} maxBarSize={48} animationDuration={700}>
             {chartData.map((d) => (
-              <Cell key={d.categoryKey} fill={d.highlight ? "var(--color-clay)" : "url(#salesBarFill)"} />
+              <Cell key={d.categoryKey} fill={color ?? (d.highlight ? "var(--color-clay)" : "url(#salesBarFill)")} />
             ))}
           </Bar>
         )}

@@ -23,6 +23,13 @@ export function toTextLkPhone(raw: string): string | null {
   return local.startsWith("0") ? "94" + local.slice(1) : local;
 }
 
+/** Group a local number for reading at a glance: `0771234567` → `077 123 4567`. */
+export function formatLkPhone(raw: string): string {
+  const local = normalizeLkPhone(raw);
+  if (!local || !LOCAL_RE.test(local)) return raw;
+  return `${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`;
+}
+
 export type PhoneValidation =
   | { ok: true; normalized: string }
   | { ok: false; error: string };

@@ -13,6 +13,7 @@ import { LolcWorkflowRail, lolcNextAction } from "@/components/lolc-workflow-rai
 import { PageHeader } from "@/components/page-header";
 import { requireUser } from "@/lib/auth";
 import { lolcReceiptNumber, lolcStatusLabel, lolcStatusTone } from "@/lib/lolc-receipts";
+import { formatLkPhone } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatDateTime, formatLKR } from "@/lib/utils";
 import { markLolcReceiptSent, reportLolcReceiptIssue, voidLolcReceipt } from "../actions";
@@ -54,7 +55,7 @@ export default async function LolcReceiptDetailPage({ params }: { params: Promis
 
     <section className={`mb-5 overflow-hidden rounded-2xl border bg-surface shadow-sm ${attention ? "border-danger/35" : "border-primary/20"}`}>
       <div className="grid gap-5 p-5 sm:grid-cols-[1.35fr_1fr_auto] sm:items-end lg:p-6">
-        <div><div className="flex flex-wrap items-center gap-2"><p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-primary">{number}</p><Badge tone={lolcStatusTone(receipt.status)}>{lolcStatusLabel(receipt.status)}</Badge></div><h1 className="mt-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">{receipt.customerName}</h1><p className="mt-1 text-sm text-muted">{receipt.customerPhone} · LOLC code <span className="font-mono text-xs">{receipt.lolcCode}</span></p></div>
+        <div><div className="flex flex-wrap items-center gap-2"><p className="font-mono text-xs font-bold uppercase tracking-[0.16em] text-primary">{number}</p><Badge tone={lolcStatusTone(receipt.status)}>{lolcStatusLabel(receipt.status)}</Badge></div><h1 className="mt-2 text-xl font-bold tracking-tight text-foreground sm:text-2xl">{receipt.customerName}</h1><div className="mt-2 flex flex-wrap items-center gap-2"><a href={`tel:${receipt.customerPhone}`} className="flex items-center gap-1.5 text-base font-bold tabular text-foreground hover:text-primary"><Phone className="h-4 w-4 text-muted" />{formatLkPhone(receipt.customerPhone)}</a><span className="rounded-md border border-border bg-input px-2 py-1 font-mono text-sm font-bold tracking-wide text-foreground"><span className="mr-1.5 font-sans text-xs font-semibold text-muted">LOLC</span>{receipt.lolcCode}</span></div></div>
         <div><p className="text-[10px] font-bold uppercase tracking-[0.14em] text-faint">Collected amount</p><p className="mt-1 text-2xl font-extrabold tabular text-foreground sm:text-3xl">{formatLKR(receipt.amount)}</p><p className="mt-1 text-xs text-muted">{formatDate(receipt.collectedAt)}</p></div>
         <div className="hidden h-16 w-px bg-border sm:block" />
       </div>
@@ -86,7 +87,7 @@ export default async function LolcReceiptDetailPage({ params }: { params: Promis
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,1fr)]">
       <Card><CardHeader><CardTitle>Issued receipt</CardTitle></CardHeader><CardContent><dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
         <Field label="Customer" value={receipt.customerName} />
-        <Field label="Phone" value={<a href={`tel:${receipt.customerPhone}`} className="text-primary hover:underline"><Phone className="mr-1 inline h-3.5 w-3.5" />{receipt.customerPhone}</a>} />
+        <Field label="Phone" value={<a href={`tel:${receipt.customerPhone}`} className="text-primary hover:underline"><Phone className="mr-1 inline h-3.5 w-3.5" />{formatLkPhone(receipt.customerPhone)}</a>} />
         <Field label="LOLC agreement / payment code" value={receipt.lolcCode} mono />
         <Field label="Collection date" value={formatDate(receipt.collectedAt)} />
         <Field label="Amount collected" value={<span className="text-base font-bold tabular">{formatLKR(receipt.amount)}</span>} />

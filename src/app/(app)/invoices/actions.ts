@@ -9,6 +9,7 @@ import { canCreatePayLaterSale } from "@/lib/authorization";
 import { assertUniqueProductLines } from "@/lib/financial-guards";
 import { decrementStockForSale, StockConflictError } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
+import { allocateInvoiceToBatches, BatchConflictError } from "@/lib/stock-batches";
 import { sumLines } from "@/lib/totals";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { round2, toNum } from "@/lib/utils";
@@ -26,6 +27,8 @@ const lineSchema = z.object({
   enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
+  // Stock batch the cashier picked; overflow is taken oldest-first.
+  batchId: z.string().min(1).optional().nullable(),
   warrantyMonths: z.number().int().nullable().optional().refine(
     (value) => value === undefined || isValidWarrantyMonths(value),
     { message: "Select a valid warranty period." },
@@ -90,6 +93,7 @@ type Computed = {
   unitPrice: number;
   unitDiscount: number;
   warrantyMonths: number | null;
+  batchId: string | null;
   costSnapshot: number;
   supplierAtSaleId: string | null;
   supplierNameSnapshot: string | null;
@@ -222,6 +226,7 @@ async function createSale(
       unitPrice: line.unitPrice,
       unitDiscount: line.unitDiscount,
       warrantyMonths: line.warrantyMonths ?? null,
+      batchId: line.batchId ?? null,
       costSnapshot: toNum(p.costPrice),
       supplierAtSaleId: p.primarySupplierId,
       supplierNameSnapshot: p.primarySupplier?.name ?? null,
@@ -361,6 +366,7 @@ async function createSale(
                 unit: it.unit,
               });
             }
+            await allocateInvoiceToBatches(tx, inv.id, g.items);
             out.push({ id: inv.id, invoiceNumber, taxCategory: g.category, grandTotal: totals.grandTotal });
           }
           return { saleGroupId: saleGroup.id, invoices: out, exchange };
@@ -388,6 +394,7 @@ async function createSale(
       if (e instanceof StockConflictError) {
         return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };
       }
+      if (e instanceof BatchConflictError && attempt < 2) continue;
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         (e.code === "P2002" || e.code === "P2034") &&

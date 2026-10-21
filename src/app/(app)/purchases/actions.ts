@@ -8,6 +8,7 @@ import { requireActionUser } from "@/lib/auth";
 import { validatePaymentAmount } from "@/lib/financial-guards";
 import { logStockMovement } from "@/lib/stock";
 import { logPriceChange } from "@/lib/price-change";
+import { createBatch } from "@/lib/stock-batches";
 import { weightedAvgCost } from "@/lib/pricing";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
@@ -21,6 +22,8 @@ const lineSchema = z.object({
   enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   packageCount: z.coerce.number().int().positive().default(1),
   costPrice: z.coerce.number().min(0),
+  // Selling price for this batch; defaults to the product's current price.
+  sellingPrice: z.coerce.number().min(0).optional(),
 });
 
 const inputSchema = z
@@ -101,7 +104,13 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
               })),
             },
           },
+          include: { items: { select: { id: true, productId: true } } },
         });
+        // Each purchase line becomes its own stock batch.
+        const itemIdsByProduct = new Map<string, string[]>();
+        for (const item of created.items) {
+          itemIdsByProduct.set(item.productId, [...(itemIdsByProduct.get(item.productId) ?? []), item.id]);
+        }
         // Increase stock and re-derive each product's cost as the weighted
         // average of existing stock and the newly-purchased units.
         for (const l of [...normalizedLines].sort((a, b) => a.productId.localeCompare(b.productId))) {
@@ -112,10 +121,21 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
           if (!before) throw new Error("Product not found");
           const oldCost = toNum(before.costPrice);
           const newCost = weightedAvgCost(toNum(before.quantityInStock), oldCost, l.qty, l.costPrice);
+          const oldPrice = toNum(before.sellingPrice);
+          const batchPrice = l.sellingPrice ?? oldPrice;
 
           const updated = await tx.product.update({
             where: { id: l.productId },
-            data: { quantityInStock: { increment: l.qty }, costPrice: newCost },
+            // The latest GRN's selling price becomes the product's list price.
+            data: { quantityInStock: { increment: l.qty }, costPrice: newCost, sellingPrice: batchPrice },
+          });
+          await createBatch(tx, {
+            productId: l.productId,
+            purchaseItemId: itemIdsByProduct.get(l.productId)?.shift() ?? null,
+            qty: l.qty,
+            costPrice: l.costPrice,
+            sellingPrice: batchPrice,
+            receivedAt: created.date,
           });
           await logStockMovement(tx, {
             productId: l.productId,
@@ -126,16 +146,14 @@ export async function createPurchase(input: CreatePurchaseInput): Promise<Create
             userId: session?.id ?? null,
             unit: l.unit,
           });
-          if (newCost !== oldCost) {
+          if (newCost !== oldCost || batchPrice !== oldPrice) {
             await logPriceChange(tx, {
               productId: l.productId,
               reason: "PURCHASE_WAC",
               oldCostPrice: oldCost,
               newCostPrice: newCost,
-              // Selling price is left untouched — the system suggests a re-price
-              // (below-target badge) rather than silently changing it.
-              oldSellingPrice: toNum(before.sellingPrice),
-              newSellingPrice: toNum(before.sellingPrice),
+              oldSellingPrice: oldPrice,
+              newSellingPrice: batchPrice,
               note: `Purchase at ${l.costPrice} × ${l.qty}`,
               userId: session?.id ?? null,
             });

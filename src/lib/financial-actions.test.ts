@@ -29,9 +29,12 @@ function fixture() {
     payment: { create: vi.fn() },
     salesReturn: { create: vi.fn().mockResolvedValue({ id: "return" }) },
     supplierReturn: { create: vi.fn().mockResolvedValue({ id: "supplier-return" }) },
-    purchase: { findFirst: vi.fn().mockResolvedValue(purchase), update: vi.fn(), create: vi.fn().mockResolvedValue({ id: "new-purchase" }) },
+    purchase: { findFirst: vi.fn().mockResolvedValue(purchase), update: vi.fn(), create: vi.fn().mockResolvedValue({ id: "new-purchase", date: new Date("2026-10-01"), items: [{ id: "new-item", productId: "p" }] }) },
     product: { findMany: vi.fn().mockResolvedValue([{ id: "p", costPrice: 600, trackingType: "PIECE" }]), findUnique: vi.fn().mockResolvedValue({ quantityInStock: 10, quantityReserved: 0, costPrice: 100, sellingPrice: 200 }), findUniqueOrThrow: vi.fn().mockResolvedValue({ quantityInStock: 9 }), updateMany: vi.fn().mockResolvedValue({ count: 1 }), update: vi.fn().mockResolvedValue({ quantityInStock: 11 }) },
     stockMovement: { create: vi.fn() }, priceChange: { create: vi.fn() },
+    stockBatch: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn().mockResolvedValue(null), create: vi.fn(), update: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+    invoiceItemBatch: { findMany: vi.fn().mockResolvedValue([]), createMany: vi.fn(), update: vi.fn() },
+    invoiceItem: { findMany: vi.fn().mockResolvedValue([]), update: vi.fn() },
   };
   return { invoice, purchase, tx };
 }
@@ -144,7 +147,9 @@ describe("supplier return and purchase transactions", () => {
     mocks.productFindMany.mockResolvedValue([{ id: "p", trackingType: "PIECE", taxable: true }]);
     mocks.transaction.mockImplementationOnce(async (work) => { await work(first); throw new Prisma.PrismaClientKnownRequestError("conflict", { code: "P2034", clientVersion: "test" }); }).mockImplementationOnce(async (work) => work(second));
     expect(await createPurchase({ supplierId: "supplier", type: "CASH", lines: [{ productId: "p", qty: 10, costPrice: 300 }] })).toMatchObject({ ok: true });
-    expect(second.product.update).toHaveBeenCalledWith(expect.objectContaining({ data: { quantityInStock: { increment: 10 }, costPrice: 125 } }));
+    expect(second.product.update).toHaveBeenCalledWith(expect.objectContaining({ data: { quantityInStock: { increment: 10 }, costPrice: 125, sellingPrice: 500 } }));
+    // The purchase line becomes its own batch at the price actually paid.
+    expect(second.stockBatch.create).toHaveBeenCalledWith({ data: expect.objectContaining({ productId: "p", purchaseItemId: "new-item", qtyRemaining: 10, costPrice: 300, sellingPrice: 500 }) });
     expect(mocks.transaction).toHaveBeenCalledTimes(2);
   });
 });

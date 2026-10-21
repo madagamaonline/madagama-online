@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { canHandover, layawayTotals, statusAfterCollection, validateLayawayPayment } from "@/lib/layaway";
 import { logStockMovement } from "@/lib/stock";
+import { allocateInvoiceToBatches } from "@/lib/stock-batches";
 import { round2, toNum } from "@/lib/utils";
 import { canonicalUnit, isUnitAllowed, toCanonicalQuantity } from "@/lib/units";
 
@@ -167,6 +168,7 @@ export async function handoverLayaway(_previous: LayawayActionState, formData: F
           const product = await tx.product.findUniqueOrThrow({ where: { id: item.productId }, select: { quantityInStock: true } });
           await logStockMovement(tx, { productId: item.productId, type: "LAYAWAY_HANDOVER", qty: -toNum(item.qty), balanceAfter: toNum(product.quantityInStock), unit: item.unit, reason: `Layaway handed over`, refId: order.id, userId: user.id });
         }
+        await allocateInvoiceToBatches(tx, invoice.id, order.items.map((item) => ({ productId: item.productId, qty: toNum(item.qty) })));
         await tx.layawayOrder.update({ where: { id: order.id }, data: { status: "RELEASED", releasedAt: new Date(), releasedByUserId: user.id, invoiceId: invoice.id, collectedAmount: collected } });
         return { invoiceId: invoice.id, customerId: order.customerId };
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 20_000 });

@@ -26,11 +26,12 @@ type ProductHit = {
   name: string;
   modelNumber?: string | null;
   costPrice: number;
+  sellingPrice?: number;
   stock: number;
   trackingType?: InventoryTracking;
   defaultUnit?: UnitOfMeasure;
 };
-type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit: UnitOfMeasure; packageCount: number; costPrice: number };
+type Line = { product: ProductHit; qty: number; enteredQty: number; enteredUnit: UnitOfMeasure; packageCount: number; costPrice: number; sellingPrice?: number };
 type PurchaseDraft = {
   lines: Line[];
   supplierId: string;
@@ -108,7 +109,7 @@ export function PurchaseForm({
     }
     const previous = Array.isArray(draft?.lines) ? draft.lines : [];
     if (createdProduct) {
-      setLines(previous.some((line) => line.product.id === createdProduct.id) ? previous : [...previous, { product: createdProduct, qty: 1, enteredQty: 1, enteredUnit: createdProduct.defaultUnit ?? (createdProduct.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: createdProduct.costPrice }]);
+      setLines(previous.some((line) => line.product.id === createdProduct.id) ? previous : [...previous, { product: createdProduct, qty: 1, enteredQty: 1, enteredUnit: createdProduct.defaultUnit ?? (createdProduct.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: createdProduct.costPrice, sellingPrice: createdProduct.sellingPrice }]);
       setTimeout(() => costRefs.current.get(createdProduct.id)?.focus(), 0);
     } else if (draft) setLines(previous);
   }, [resumeDraft, createdProduct, defaultSupplierId]);
@@ -145,7 +146,7 @@ export function PurchaseForm({
         c[i] = { ...line, enteredQty, qty: toCanonicalQuantity(enteredQty * line.packageCount, line.enteredUnit, line.product.trackingType ?? "PIECE") };
         return c;
       }
-      return [...prev, { product: p, qty: 1, enteredQty: 1, enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: p.costPrice }];
+      return [...prev, { product: p, qty: 1, enteredQty: 1, enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"), packageCount: 1, costPrice: p.costPrice, sellingPrice: p.sellingPrice }];
     });
     resetSearch();
     setOpen(false);
@@ -172,7 +173,7 @@ export function PurchaseForm({
         creditDueDate: type === "CREDIT" ? creditDueDate : null,
         amountPaid: type === "CREDIT" ? amountPaid || 0 : total,
         notes: notes || null,
-        lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, enteredQty: l.enteredQty, enteredUnit: l.enteredUnit, packageCount: l.packageCount, costPrice: l.costPrice })),
+        lines: lines.map((l) => ({ productId: l.product.id, qty: l.qty, enteredQty: l.enteredQty, enteredUnit: l.enteredUnit, packageCount: l.packageCount, costPrice: l.costPrice, sellingPrice: l.sellingPrice })),
       });
       if (!res.ok) return setError(res.error);
       try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* Saved purchase is authoritative. */ }
@@ -275,13 +276,15 @@ export function PurchaseForm({
             </div>
 
             {lines.length > 0 && (
-              <table className="mt-4 w-full text-sm">
+              <div className="mt-4 overflow-x-auto">
+              <table className="w-full text-sm">
                 <thead className="text-left text-muted">
                   <tr className="border-b border-border">
                     <th className="py-2 font-medium">Item</th>
                     <th className="px-2 font-medium">Packages</th>
                     <th className="px-2 font-medium">Qty / package</th>
                     <th className="px-2 font-medium">Cost / piece or metre</th>
+                    <th className="px-2 font-medium">Selling price</th>
                     <th className="px-2 text-right font-medium">Total</th>
                     <th></th>
                   </tr>
@@ -338,6 +341,21 @@ export function PurchaseForm({
                           className="h-9 w-28"
                         />
                       </td>
+                      <td className="px-2">
+                        <NumberInput
+                          value={l.sellingPrice ?? ""}
+                          placeholder="Current"
+                          title="Selling price for this batch. Old stock keeps its own price."
+                          onValueChange={(c) =>
+                            setLines((prev) =>
+                              prev.map((x) =>
+                                x.product.id === l.product.id ? { ...x, sellingPrice: c === "" ? undefined : Math.max(0, Number(c)) } : x,
+                              ),
+                            )
+                          }
+                          className="h-9 w-28"
+                        />
+                      </td>
                       <td className="px-2 text-right font-medium">{formatLKR(l.qty * l.costPrice)}</td>
                       <td className="pl-2 text-right">
                         <button
@@ -352,6 +370,7 @@ export function PurchaseForm({
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </CardContent>
         </Card>

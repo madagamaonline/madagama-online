@@ -2,6 +2,7 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 import { customerReturnAllowances, returnLineValue } from "@/lib/return-values";
 import { logStockMovement } from "@/lib/stock";
+import { restoreInvoiceItemToBatches } from "@/lib/stock-batches";
 import { computeCreditState } from "@/lib/credit";
 import { round2, toNum } from "@/lib/utils";
 import { computeOpenAccountState, openAccountInvoiceStatus } from "@/lib/open-account";
@@ -52,6 +53,7 @@ export async function applyCustomerReturn(
       grandTotal: true,
       items: {
         select: {
+          id: true,
           productId: true,
           qty: true,
           unitPrice: true,
@@ -226,6 +228,16 @@ export async function applyCustomerReturn(
       where: { id: l.productId },
       data: { quantityInStock: { increment: l.qty } },
     });
+    const soldItem = invoice.items.find((item) => item.productId === l.productId);
+    if (soldItem) {
+      await restoreInvoiceItemToBatches(tx, {
+        invoiceItemId: soldItem.id,
+        productId: l.productId,
+        qty: l.qty,
+        costPrice: saleCostByProduct.get(l.productId) ?? productCosts.get(l.productId) ?? toNum(updated.costPrice),
+        label: "Customer return",
+      });
+    }
     await logStockMovement(tx, {
       productId: l.productId,
       type: "RETURN",

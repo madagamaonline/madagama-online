@@ -18,7 +18,7 @@ export default async function NewPurchasePage({
     }),
     resume === "1" && productId ? prisma.product.findUnique({
       where: { id: productId, active: true },
-      select: { id: true, code: true, name: true, modelNumber: true, costPrice: true, quantityInStock: true, trackingType: true, defaultUnit: true },
+      select: { id: true, code: true, name: true, modelNumber: true, costPrice: true, sellingPrice: true, quantityInStock: true, trackingType: true, defaultUnit: true },
     }) : Promise.resolve(null),
   ]);
 
@@ -35,6 +35,7 @@ export default async function NewPurchasePage({
           name: product.name,
           modelNumber: product.modelNumber,
           costPrice: toNum(product.costPrice),
+          sellingPrice: toNum(product.sellingPrice),
           stock: toNum(product.quantityInStock),
           trackingType: product.trackingType,
           defaultUnit: product.defaultUnit,

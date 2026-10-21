@@ -53,6 +53,21 @@ export async function GET(req: Request) {
       quantityReserved: true,
       trackingType: true,
       defaultUnit: true,
+      // Batches still holding stock, oldest first — the POS batch picker.
+      stockBatches: {
+        where: { qtyRemaining: { gt: 0 } },
+        orderBy: [{ receivedAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        take: 20,
+        select: {
+          id: true,
+          label: true,
+          receivedAt: true,
+          qtyRemaining: true,
+          costPrice: true,
+          sellingPrice: true,
+          purchaseItem: { select: { purchase: { select: { supplierInvoiceNo: true, supplier: { select: { name: true } } } } } },
+        },
+      },
     },
   });
 
@@ -82,6 +97,17 @@ export async function GET(req: Request) {
       reservedStock: toNum(p.quantityReserved),
       trackingType: p.trackingType,
       defaultUnit: p.defaultUnit,
+      batches: p.stockBatches.map((b) => ({
+        id: b.id,
+        label:
+          b.label ??
+          [b.purchaseItem?.purchase.supplier.name, b.purchaseItem?.purchase.supplierInvoiceNo].filter(Boolean).join(" · ") ??
+          null,
+        receivedAt: b.receivedAt.toISOString(),
+        qty: toNum(b.qtyRemaining),
+        costPrice: toNum(b.costPrice),
+        sellingPrice: toNum(b.sellingPrice),
+      })),
     })),
   });
 }

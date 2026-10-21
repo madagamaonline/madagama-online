@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
+import { restoreInvoiceItemToBatches } from "@/lib/stock-batches";
+import { toNum } from "@/lib/utils";
 
 export const voidInvoiceSchema = z.object({
   invoiceId: z.string().min(1, "Invoice is required."),
@@ -40,7 +42,7 @@ export async function applyInvoiceVoid(
       type: true,
       createdAt: true,
       voidedAt: true,
-      items: { select: { productId: true, qty: true, unit: true } },
+      items: { select: { id: true, productId: true, qty: true, unit: true, costSnapshot: true } },
       _count: { select: { returns: true, serviceJobs: true } },
       saleGroup: { select: { _count: { select: { exchangeReturns: true } } } },
       creditAgreement: {
@@ -96,7 +98,14 @@ export async function applyInvoiceVoid(
     const product = await tx.product.update({
       where: { id: productId },
       data: { quantityInStock: { increment: item.qty } },
-      select: { quantityInStock: true },
+      select: { quantityInStock: true, costPrice: true },
+    });
+    await restoreInvoiceItemToBatches(tx, {
+      invoiceItemId: item.id,
+      productId,
+      qty: toNum(item.qty),
+      costPrice: toNum(item.costSnapshot ?? product.costPrice),
+      label: "Voided sale",
     });
     await tx.stockMovement.create({
       data: {

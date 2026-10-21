@@ -29,6 +29,8 @@ import {
 } from "@/lib/warranty";
 import type { InventoryTracking, UnitOfMeasure } from "@prisma/client";
 import { UNIT_LABELS, formatQuantity, fromCanonicalQuantity, toCanonicalQuantity, unitsForTracking } from "@/lib/units";
+import { BatchSelect, defaultBatch } from "@/components/batch-picker";
+import type { StockBatchOption } from "@/components/batch-picker";
 
 type ProductHit = {
   id: string;
@@ -41,9 +43,11 @@ type ProductHit = {
   stock: number;
   trackingType?: InventoryTracking;
   defaultUnit?: UnitOfMeasure;
+  batches?: StockBatchOption[]; // optional so old handed-over carts still load
 };
 type CartLine = {
   product: ProductHit;
+  batchId?: string | null;
   qty: number;
   enteredQty: number;
   enteredUnit: UnitOfMeasure;
@@ -178,7 +182,8 @@ export function CreditSale({
           qty: 1,
           enteredQty: 1,
           enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"),
-          unitPrice: p.sellingPrice,
+          batchId: defaultBatch(p.batches)?.id ?? null,
+          unitPrice: defaultBatch(p.batches)?.sellingPrice ?? p.sellingPrice,
           unitDiscount: 0,
           warrantyMonths: null,
         },
@@ -253,6 +258,7 @@ export function CreditSale({
       const res = await createCreditSale({
         lines: cart.map((l) => ({
           productId: l.product.id,
+          batchId: l.batchId ?? null,
           qty: l.qty,
           enteredQty: l.enteredQty,
           enteredUnit: l.enteredUnit,
@@ -360,7 +366,7 @@ export function CreditSale({
                     const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
                     const update = (
                       patch: Partial<
-                        Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths">
+                        Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths" | "batchId">
                       >,
                     ) =>
                       setCart((prev) =>
@@ -381,6 +387,15 @@ export function CreditSale({
                         <div className="min-w-0 pr-10 md:pr-0">
                           <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
                           <div className="truncate font-medium">{l.product.name}</div>
+                          <BatchSelect
+                            batches={l.product.batches}
+                            value={l.batchId}
+                            qty={l.qty}
+                            metres={l.product.trackingType === "LENGTH"}
+                            productName={l.product.name}
+                            onChange={(b) => update({ batchId: b.id, unitPrice: b.sellingPrice })}
+                            className="mt-1.5 max-w-80"
+                          />
                           <label className="mt-1.5 flex max-w-52 items-center gap-2 text-[11px] text-muted">
                             <span className="shrink-0">Warranty</span>
                             <Select

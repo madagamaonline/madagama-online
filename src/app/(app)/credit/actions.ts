@@ -19,6 +19,7 @@ import { generateInvoiceNumber } from "@/lib/invoice-number";
 import { computeCreditState } from "@/lib/credit";
 import { sendSms } from "@/lib/sms";
 import { logStockMovement } from "@/lib/stock";
+import { allocateInvoiceToBatches, BatchConflictError } from "@/lib/stock-batches";
 import { validateLkPhone, normalizeLkPhone } from "@/lib/phone";
 import { toNum, formatLKR } from "@/lib/utils";
 import { isValidUnitDiscount } from "@/lib/sale-discounts";
@@ -32,6 +33,8 @@ const lineSchema = z.object({
   enteredUnit: z.enum(["EACH", "METER", "CENTIMETER", "MILLIMETER", "FOOT", "INCH"]).optional(),
   unitPrice: z.coerce.number().min(0),
   unitDiscount: z.coerce.number().min(0).default(0),
+  // Stock batch the cashier picked; overflow is taken oldest-first.
+  batchId: z.string().min(1).optional().nullable(),
   warrantyMonths: z.number().int().nullable().optional().refine(
     (value) => value === undefined || isValidWarrantyMonths(value),
     { message: "Select a valid warranty period." },
@@ -224,6 +227,7 @@ export async function createCreditSale(
               unit,
             });
           }
+          await allocateInvoiceToBatches(tx, invoice.id, computed.map(({ line }) => line));
           const guarantor = data.guarantor
             ? await tx.guarantor.create({
                 data: {
@@ -274,6 +278,7 @@ export async function createCreditSale(
       if (e instanceof StockConflictError) {
         return { ok: false, error: `Not enough stock for ${e.productCode}. Please refresh the cart.` };
       }
+      if (e instanceof BatchConflictError && attempt < 2) continue;
       if (
         e instanceof Prisma.PrismaClientKnownRequestError &&
         (e.code === "P2002" || e.code === "P2034") &&

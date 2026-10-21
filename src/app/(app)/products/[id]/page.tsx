@@ -4,11 +4,12 @@ import { Pencil } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/page-header";
 import { StockAdjustForm } from "@/components/stock-adjust-form";
+import { BatchPriceForm } from "@/components/batch-price-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
-import { formatLKR, formatDateTime, toNum } from "@/lib/utils";
+import { formatLKR, formatDate, formatDateTime, toNum } from "@/lib/utils";
 import { grossMarginPct } from "@/lib/pricing";
 import { getSettings } from "@/lib/settings";
 import { canonicalUnit, formatQuantity } from "@/lib/units";
@@ -36,7 +37,7 @@ const reasonMeta = {
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [product, movements, settings, priceChanges] = await Promise.all([
+  const [product, movements, settings, priceChanges, batches] = await Promise.all([
     prisma.product.findUnique({
       where: { id },
       include: { category: true, subcategory: true, primarySupplier: { select: { name: true } } },
@@ -52,6 +53,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       where: { productId: id },
       orderBy: { createdAt: "desc" },
       include: { createdBy: { select: { name: true } } },
+      take: 50,
+    }),
+    prisma.stockBatch.findMany({
+      where: { productId: id },
+      orderBy: [{ receivedAt: "desc" }, { createdAt: "desc" }],
+      include: {
+        purchaseItem: { select: { purchase: { select: { id: true, supplierInvoiceNo: true, supplier: { select: { name: true } } } } } },
+      },
       take: 50,
     }),
   ]);
@@ -143,6 +152,65 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </CardContent>
         </Card>
       </div>
+
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Stock batches</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {batches.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-muted">No batches yet — they are created by purchases.</div>
+          ) : (
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Received</TH>
+                  <TH>Source</TH>
+                  <TH className="text-right">Left / received</TH>
+                  <TH className="text-right">Cost</TH>
+                  <TH className="text-right">Margin</TH>
+                  <TH className="text-right">Selling price</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {batches.map((b) => {
+                  const left = toNum(b.qtyRemaining);
+                  const purchase = b.purchaseItem?.purchase;
+                  return (
+                    <TR key={b.id} className={left > 0 ? "" : "opacity-50"}>
+                      <TD className="text-muted">{formatDate(b.receivedAt)}</TD>
+                      <TD>
+                        {purchase ? (
+                          <Link href={`/purchases/${purchase.id}`} className="text-primary hover:underline">
+                            {[purchase.supplier.name, purchase.supplierInvoiceNo].filter(Boolean).join(" · ")}
+                          </Link>
+                        ) : (
+                          <span className="text-muted">{b.label ?? "—"}</span>
+                        )}
+                      </TD>
+                      <TD className="text-right tabular">
+                        <span className="font-medium">{formatQuantity(left, unit)}</span>
+                        <span className="text-muted"> / {formatQuantity(toNum(b.qtyReceived), unit)}</span>
+                      </TD>
+                      <TD className="text-right tabular">{formatLKR(b.costPrice)}</TD>
+                      <TD className="text-right tabular text-muted">
+                        {grossMarginPct(toNum(b.costPrice), toNum(b.sellingPrice)).toFixed(0)}%
+                      </TD>
+                      <TD className="text-right">
+                        {left > 0 ? (
+                          <BatchPriceForm key={toNum(b.sellingPrice)} batchId={b.id} sellingPrice={toNum(b.sellingPrice)} />
+                        ) : (
+                          <span className="tabular">{formatLKR(b.sellingPrice)}</span>
+                        )}
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="mt-4">
         <CardHeader>

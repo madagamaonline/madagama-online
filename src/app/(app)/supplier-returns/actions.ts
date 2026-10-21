@@ -8,6 +8,7 @@ import { supplierReturnAllowances, returnLineValue } from "@/lib/return-values";
 import { assertUniqueProductLines } from "@/lib/financial-guards";
 import { decrementStockForSale } from "@/lib/stock-decrement";
 import { logStockMovement } from "@/lib/stock";
+import { takeFromBatches } from "@/lib/stock-batches";
 import { round2, toNum } from "@/lib/utils";
 import { nonTaxableEnabled, purchaseTaxableWhere } from "@/lib/tax-mode";
 
@@ -48,7 +49,7 @@ export async function createSupplierReturn(
       async (tx) => {
         const purchase = await tx.purchase.findFirst({
           where: { id: d.purchaseId, ...taxWhere },
-          include: { items: true, returns: { include: { items: true } } },
+          include: { items: { include: { stockBatch: { select: { id: true } } } }, returns: { include: { items: true } } },
         });
         if (!purchase) throw new Error("Purchase not found.");
         const allowed = supplierReturnAllowances(
@@ -100,6 +101,12 @@ export async function createSupplierReturn(
 
         for (const l of [...lines].sort((a, b) => a.productId.localeCompare(b.productId))) {
           const balanceAfter = await decrementStockForSale(tx, { productId: l.productId, productCode: l.productId, qty: l.qty });
+          // Goods go back out of this GRN's own batch first.
+          await takeFromBatches(tx, {
+            productId: l.productId,
+            qty: l.qty,
+            preferredBatchId: purchase.items.find((item) => item.productId === l.productId)?.stockBatch?.id ?? null,
+          });
           await logStockMovement(tx, {
             productId: l.productId,
             type: "SUPPLIER_RETURN",

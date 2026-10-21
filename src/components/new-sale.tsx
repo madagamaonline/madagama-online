@@ -49,6 +49,7 @@ import {
   DrawnSuccessIcon,
   flyProductToCart,
 } from "@/components/ui/signature-motion";
+import { BatchSelect, defaultBatch, findBatch, type StockBatchOption } from "@/components/batch-picker";
 
 type ProductHit = {
   id: string;
@@ -62,9 +63,11 @@ type ProductHit = {
   stock: number;
   trackingType?: InventoryTracking;
   defaultUnit?: UnitOfMeasure;
+  batches?: StockBatchOption[]; // optional so previously saved drafts still load
 };
 type CartLine = {
   product: ProductHit;
+  batchId?: string | null;
   qty: number;
   enteredQty: number;
   enteredUnit: UnitOfMeasure;
@@ -310,7 +313,8 @@ export function NewSale({
           qty: 1,
           enteredQty: 1,
           enteredUnit: p.defaultUnit ?? (p.trackingType === "LENGTH" ? "METER" : "EACH"),
-          unitPrice: p.sellingPrice,
+          batchId: defaultBatch(p.batches)?.id ?? null,
+          unitPrice: defaultBatch(p.batches)?.sellingPrice ?? p.sellingPrice,
           unitDiscount: 0,
           warrantyMonths: null,
         },
@@ -359,7 +363,7 @@ export function NewSale({
 
   function updateLine(
     id: string,
-    patch: Partial<Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths">>,
+    patch: Partial<Pick<CartLine, "qty" | "enteredQty" | "enteredUnit" | "unitPrice" | "unitDiscount" | "warrantyMonths" | "batchId">>,
   ) {
     setCart((prev) =>
       prev.map((line) => {
@@ -462,6 +466,7 @@ export function NewSale({
         JSON.stringify(
           cart.map((l) => ({
             product: l.product,
+            batchId: l.batchId ?? null,
             qty: l.qty,
             enteredQty: l.enteredQty,
             enteredUnit: l.enteredUnit,
@@ -536,6 +541,7 @@ export function NewSale({
       const res = await createCashInvoice({
         lines: cart.map((l) => ({
           productId: l.product.id,
+          batchId: l.batchId ?? null,
           qty: l.qty,
           enteredQty: l.enteredQty,
           enteredUnit: l.enteredUnit,
@@ -598,6 +604,7 @@ export function NewSale({
       const res = await createOpenAccountSale({
         lines: cart.map((l) => ({
           productId: l.product.id,
+          batchId: l.batchId ?? null,
           qty: l.qty,
           enteredQty: l.enteredQty,
           enteredUnit: l.enteredUnit,
@@ -795,6 +802,7 @@ export function NewSale({
                           )}
                           <span>stock: {formatQuantity(h.stock, h.trackingType === "LENGTH" ? "METER" : "EACH")}</span>
                           {h.costPrice > 0 && <span className="ml-2">WAC: {formatLKR(h.costPrice)}</span>}
+                          {(h.batches?.length ?? 0) > 1 && <span className="ml-2 text-clay-ink">{h.batches!.length} batches</span>}
                         </span>
                       </span>
                       <span className="font-medium">{formatLKR(h.sellingPrice)}{h.trackingType === "LENGTH" ? "/m" : ""}</span>
@@ -896,10 +904,12 @@ export function NewSale({
                     </thead>
                     <tbody>
                       {cart.map((l) => {
-                        const hasCost = l.product.costPrice > 0;
+                        const batch = findBatch(l.product.batches, l.batchId);
+                        const unitCost = batch?.costPrice ?? l.product.costPrice;
+                        const hasCost = unitCost > 0;
                         const unitDiscount = l.unitDiscount ?? 0;
                         const netUnitPrice = l.unitPrice - unitDiscount;
-                        const lineMargin = grossMarginPct(l.product.costPrice, netUnitPrice);
+                        const lineMargin = grossMarginPct(unitCost, netUnitPrice);
                         const discountPct = l.unitPrice > 0 ? (unitDiscount / l.unitPrice) * 100 : 0;
                         return (
                         <tr
@@ -943,9 +953,18 @@ export function NewSale({
                                 ))}
                               </Select>
                             </div>
+                            <BatchSelect
+                              batches={l.product.batches}
+                              value={l.batchId}
+                              qty={l.qty}
+                              metres={l.product.trackingType === "LENGTH"}
+                              productName={l.product.name}
+                              onChange={(b) => updateLine(l.product.id, { batchId: b.id, unitPrice: b.sellingPrice })}
+                              className="mt-1.5"
+                            />
                             {hasCost && (
                               <div className="text-xs text-muted">
-                                WAC {formatLKR(l.product.costPrice)} · margin{" "}
+                                {batch ? "Cost" : "WAC"} {formatLKR(unitCost)} · margin{" "}
                                 <span className={lineMargin < 0 ? "font-semibold text-danger" : "font-semibold text-foreground"}>
                                   {lineMargin.toFixed(0)}%
                                 </span>
@@ -1037,6 +1056,15 @@ export function NewSale({
                             <div className="min-w-0">
                               <div className="font-mono text-xs font-semibold text-primary">{l.product.code}</div>
                               <div className="truncate font-medium">{l.product.name}</div>
+                              <BatchSelect
+                                batches={l.product.batches}
+                                value={l.batchId}
+                                qty={l.qty}
+                                metres={l.product.trackingType === "LENGTH"}
+                                productName={l.product.name}
+                                onChange={(b) => updateLine(l.product.id, { batchId: b.id, unitPrice: b.sellingPrice })}
+                                className="mt-1"
+                              />
                               {unitDiscount > 0 && (
                                 <div className="text-xs tabular-nums text-muted">
                                   <span className="line-through">{formatLKR(l.qty * l.unitPrice)}</span>

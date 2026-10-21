@@ -186,6 +186,7 @@ model Product {
   invoiceItems        InvoiceItem[]
   purchaseItems       PurchaseItem[]
   stockMovements      StockMovement[]
+  stockBatches        StockBatch[]
   returnItems         SalesReturnItem[]
   supplierReturnItems SupplierReturnItem[]
   priceChanges        PriceChange[]
@@ -905,9 +906,9 @@ model Invoice {
 // The invoices remain the accounting records; this group provides a durable
 // customer-facing combined receipt and reprint path.
 model SaleGroup {
-  id        String    @id @default(cuid())
-  createdAt DateTime  @default(now())
-  invoices  Invoice[]
+  id              String        @id @default(cuid())
+  createdAt       DateTime      @default(now())
+  invoices        Invoice[]
   // Returns whose value was used as credit towards this checkout (exchanges).
   exchangeReturns SalesReturn[]
 
@@ -1063,6 +1064,9 @@ model InvoiceItem {
   supplierAtSaleId     String?
   supplierNameSnapshot String?
   supplierAttribution  SupplierAttribution?
+  // Which stock batches the units came from (one row per batch, more than one
+  // when the line was split across batches). costSnapshot is their weighted cost.
+  batchAllocations     InvoiceItemBatch[]
 
   @@index([invoiceId])
   @@index([productId])
@@ -1253,6 +1257,7 @@ model PurchaseItem {
   packageCount Int?
   costPrice    Decimal        @db.Decimal(12, 2)
   lineTotal    Decimal        @db.Decimal(12, 2)
+  stockBatch   StockBatch?
 
   @@index([purchaseId])
   @@index([productId])
@@ -1515,6 +1520,47 @@ enum StockMovementType {
   LAYAWAY_HANDOVER
 }
 
+// A lot of stock bought at one cost — normally one per purchase (GRN) line.
+// Each batch keeps its own cost and selling price so old stock can be sold at
+// the old price. Invariant: sum(qtyRemaining) over a product's batches equals
+// Product.quantityInStock; every code path that moves stock moves batches too
+// (see src/lib/stock-batches.ts).
+model StockBatch {
+  id             String             @id @default(cuid())
+  product        Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId      String
+  // Null for batches not created by a purchase (opening stock, adjustments,
+  // returned stock with no known source batch).
+  purchaseItem   PurchaseItem?      @relation(fields: [purchaseItemId], references: [id], onDelete: SetNull)
+  purchaseItemId String?            @unique
+  label          String? // e.g. "Opening stock", "Stock adjustment"
+  receivedAt     DateTime           @default(now())
+  qtyReceived    Decimal            @db.Decimal(16, 4)
+  qtyRemaining   Decimal            @db.Decimal(16, 4)
+  costPrice      Decimal            @db.Decimal(12, 2)
+  sellingPrice   Decimal            @db.Decimal(12, 2)
+  createdAt      DateTime           @default(now())
+  allocations    InvoiceItemBatch[]
+
+  @@index([productId, receivedAt])
+}
+
+// The part of an invoice line taken from one batch.
+model InvoiceItemBatch {
+  id            String      @id @default(cuid())
+  invoiceItem   InvoiceItem @relation(fields: [invoiceItemId], references: [id], onDelete: Cascade)
+  invoiceItemId String
+  batch         StockBatch  @relation(fields: [batchId], references: [id], onDelete: Restrict)
+  batchId       String
+  qty           Decimal     @db.Decimal(16, 4)
+  costPrice     Decimal     @db.Decimal(12, 2)
+  // Units later put back into the batch by a void or customer return.
+  qtyRestored   Decimal     @default("0") @db.Decimal(16, 4)
+
+  @@index([invoiceItemId])
+  @@index([batchId])
+}
+
 // One row per change to a product's stock — the audit trail.
 model StockMovement {
   id              String            @id @default(cuid())
@@ -1560,19 +1606,19 @@ model PriceChange {
 }
 
 model SalesReturn {
-  id              String   @id @default(cuid())
-  invoice         Invoice? @relation(fields: [invoiceId], references: [id])
-  invoiceId       String?
-  date            DateTime @default(now())
-  totalRefund     Decimal  @db.Decimal(12, 2)
+  id                  String     @id @default(cuid())
+  invoice             Invoice?   @relation(fields: [invoiceId], references: [id])
+  invoiceId           String?
+  date                DateTime   @default(now())
+  totalRefund         Decimal    @db.Decimal(12, 2)
   // Null denotes legacy records whose cash/credit split was not captured.
-  cashRefund      Decimal? @db.Decimal(12, 2)
-  balanceCredit   Decimal? @db.Decimal(12, 2)
-  method          String   @default("CASH")
-  reason          String?
-  createdBy       User?    @relation(fields: [createdByUserId], references: [id])
-  createdByUserId String?
-  createdAt       DateTime @default(now())
+  cashRefund          Decimal?   @db.Decimal(12, 2)
+  balanceCredit       Decimal?   @db.Decimal(12, 2)
+  method              String     @default("CASH")
+  reason              String?
+  createdBy           User?      @relation(fields: [createdByUserId], references: [id])
+  createdByUserId     String?
+  createdAt           DateTime   @default(now())
   // Set when the return was an exchange: its cashRefund was applied as credit to
   // this new checkout instead of being handed over, so the drawer only moves by
   // the difference between the new sale and the returned value.

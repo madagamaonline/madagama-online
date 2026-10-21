@@ -6,9 +6,10 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getSession, requireActionUser } from "@/lib/auth";
 import { logStockMovement } from "@/lib/stock";
+import { createBatch, takeFromBatches } from "@/lib/stock-batches";
 import { logPriceChange } from "@/lib/price-change";
 import { nextProductCode } from "@/lib/product-code";
-import { toNum } from "@/lib/utils";
+import { round2, toNum } from "@/lib/utils";
 import { validateQuickProduct } from "@/lib/quick-product";
 import { canonicalUnit, isUnitAllowed, roundQuantity, toCanonicalQuantity } from "@/lib/units";
 
@@ -211,6 +212,13 @@ export async function createProduct(
         },
       });
       if (d.quantityInStock > 0) {
+        await createBatch(tx, {
+          productId: product.id,
+          qty: d.quantityInStock,
+          costPrice: d.costPrice,
+          sellingPrice: d.sellingPrice,
+          label: "Opening stock",
+        });
         await logStockMovement(tx, {
           productId: product.id,
           type: "OPENING",
@@ -335,7 +343,7 @@ export async function adjustStock(
     await prisma.$transaction(async (tx) => {
       const p = await tx.product.findUnique({
         where: { id: productId },
-        select: { quantityInStock: true, quantityReserved: true, trackingType: true },
+        select: { quantityInStock: true, quantityReserved: true, trackingType: true, costPrice: true, sellingPrice: true },
       });
       if (!p) throw new Error("not_found");
       if (!isUnitAllowed(p.trackingType, enteredUnit)) throw new Error("unit");
@@ -347,6 +355,19 @@ export async function adjustStock(
         where: { id: productId },
         data: { quantityInStock: { increment: delta } },
       });
+      // Found stock becomes its own batch at the current cost; lost stock is
+      // written off oldest-first.
+      if (delta > 0) {
+        await createBatch(tx, {
+          productId,
+          qty: delta,
+          costPrice: toNum(p.costPrice),
+          sellingPrice: toNum(p.sellingPrice),
+          label: "Stock adjustment",
+        });
+      } else {
+        await takeFromBatches(tx, { productId, qty: -delta });
+      }
       await logStockMovement(tx, {
         productId,
         type: "ADJUSTMENT",
@@ -368,5 +389,24 @@ export async function adjustStock(
 
   revalidatePath(`/products/${productId}`);
   revalidatePath("/products");
+  return { ok: true };
+}
+
+export type BatchPriceState = { error?: string; ok?: boolean };
+
+/** Change the selling price of one stock batch (e.g. re-price old stock). */
+export async function updateBatchSellingPrice(
+  batchId: string,
+  _prev: BatchPriceState,
+  formData: FormData,
+): Promise<BatchPriceState> {
+  const denied = await requireSessionState();
+  if (denied) return denied;
+  const price = Number(formData.get("sellingPrice"));
+  if (!Number.isFinite(price) || price < 0) return { error: "Enter a valid selling price." };
+  const batch = await prisma.stockBatch.findUnique({ where: { id: batchId }, select: { productId: true } });
+  if (!batch) return { error: "Batch not found." };
+  await prisma.stockBatch.update({ where: { id: batchId }, data: { sellingPrice: round2(price) } });
+  revalidatePath(`/products/${batch.productId}`);
   return { ok: true };
 }

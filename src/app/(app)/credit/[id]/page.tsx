@@ -76,7 +76,7 @@ export default async function CreditDetailPage({
       />
 
       {isNew && (
-        <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800">
+        <div className="mb-4 flex items-center gap-2 rounded-lg bg-green-50 px-4 py-3 text-sm text-green-800 dark:bg-green-950/40 dark:text-green-200">
           <CheckCircle2 className="h-5 w-5" /> Credit sale created.
         </div>
       )}
